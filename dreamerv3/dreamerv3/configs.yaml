@@ -9,6 +9,7 @@ defaults:
   replay_online: False
   eval_dir: ''
   filter: '.*'
+  tensorboard: True
 
   jax:
     platform: gpu
@@ -54,6 +55,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0}
     dmc: {size: [64, 64], repeat: 2, camera: -1}
     loconav: {size: [64, 64], repeat: 2, camera: -1}
+    cyberrunner: {randomize_plant: False, random_start: False, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000}
 
   # Agent
   task_behavior: Greedy
@@ -102,18 +104,32 @@ defaults:
   disag_models: 8
 
 cyberrunner:
-  task: gym_cyberrunner_sim:cyberrunner-dreamer-v0
+  task: cyberrunner_sim
+  tensorboard: False
   envs.amount: 1
-  replay: cyberrunner
+  envs.parallel: none
+  replay: uniform
   jax:
     logical_cpus: 8
   run:
     script: train
-    train_ratio: 128
+    train_ratio: 32
     actor_batch: 1
     save_every: 10
-    log_keys_sum: '^log_reward$'
-  encoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
+    log_keys_sum: '^log_(reward|fall_cost|success)$'
+    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty)$'
+  env.cyberrunner:
+    randomize_plant: False
+    random_start: False
+    reward_mode: scaled_progress
+    progress_reward_scale: 10.0
+    success_bonus: 10.0
+    failure_penalty: 5.0
+    maze_manifest: cyberrunner_mujoco/maze_splits.json
+    maze_split: train
+    maze_sampling: curriculum
+    curriculum_episodes: 5000
+  encoder: {mlp_keys: '^(states|goal|ball_visible)$', cnn_keys: '^image$'}
   decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
   wrapper: {length: 3000}
 

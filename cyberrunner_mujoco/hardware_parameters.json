@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "allowed_statuses": [
+      "design",
+      "datasheet",
+      "extracted_unverified",
+      "inferred",
+      "measured"
+    ],
+    "training_rule": "Values not marked measured or design must be randomized or revalidated before real-hardware deployment."
+  },
+  "parameters": {
+    "board.width": {
+      "value": 0.259,
+      "unit": "m",
+      "status": "design",
+      "source": "fixed printable maze footprint"
+    },
+    "board.height": {
+      "value": 0.229,
+      "unit": "m",
+      "status": "design",
+      "source": "fixed printable maze footprint"
+    },
+    "ball.radius": {
+      "value": 0.006,
+      "unit": "m",
+      "status": "extracted_unverified",
+      "source": "hardware reference project"
+    },
+    "camera.calibration": {
+      "value": "cyberrunner_state_estimation/calib/calib_results_cyberrunner.txt",
+      "unit": "path",
+      "status": "extracted_unverified",
+      "source": "camera calibration artifact from the hardware reference project"
+    },
+    "camera.policy_patch_extent": {
+      "value": 0.064,
+      "unit": "m",
+      "status": "design",
+      "source": "new policy observation contract"
+    },
+    "camera.policy_patch_pixels": {
+      "value": 64,
+      "unit": "pixel",
+      "status": "design",
+      "source": "new policy observation contract"
+    },
+    "hiwonder.update_rate": {
+      "value": 30.0,
+      "unit": "Hz",
+      "status": "extracted_unverified",
+      "source": "active Hiwonder driver configuration"
+    },
+    "hiwonder.home_positions": {
+      "value": [500.0, 500.0],
+      "unit": "servo_unit",
+      "status": "extracted_unverified",
+      "source": "active Hiwonder driver configuration"
+    },
+    "hiwonder.command_scale": {
+      "value": [1.5, 1.5],
+      "unit": "servo_unit_per_policy_command",
+      "status": "extracted_unverified",
+      "source": "active Hiwonder compatibility driver"
+    },
+    "actuator.total_delay": {
+      "value": 0.045,
+      "range": [0.02, 0.1],
+      "unit": "s",
+      "status": "inferred",
+      "source": "simulation prior pending synchronized hardware measurements"
+    },
+    "actuator.response_time_constant": {
+      "value": 0.075,
+      "range": [0.04, 0.14],
+      "unit": "s",
+      "status": "inferred",
+      "source": "simulation prior pending synchronized hardware measurements"
+    },
+    "planner.safety_margin": {
+      "value": 0.0015,
+      "unit": "m",
+      "status": "inferred",
+      "source": "configurable planning prior for print and estimation error"
+    },
+    "planner.grid_resolution": {
+      "value": 0.002,
+      "unit": "m",
+      "status": "design",
+      "source": "continuous-clearance planner discretization"
+    }
+  }
+}
+

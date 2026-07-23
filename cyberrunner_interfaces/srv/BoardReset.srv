@@ -1,0 +1,4 @@
+# Return the board to the actuator driver's configured safe home position.
+---
+bool success
+string message

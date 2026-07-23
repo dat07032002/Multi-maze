@@ -1,5 +1,40 @@
-.idea
-cmake-build-debug
-__pycache__
-*.egg-info
+# Editors and Python caches
+.idea/
+.vscode/*.log
+cmake-build-debug/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+
+# Generated ROS/colcon output. Some of these directories are currently tracked
+# as a preserved historical snapshot; these rules prevent new output from being
+# added. Do not untrack the snapshot until a clean rebuild has been validated.
+build/
+install/
+log/
+
+# Generated documentation and local runtime output
 site/
+run_logs/
+cache/
+*.pid
+*.log
+
+# Local training output. Canonical model artifacts must be deliberately added
+# to an external artifact store or a versioned release, never committed by
+# accident.
+checkpoints/
+replay/
+runs/
+wandb/
+*.ckpt
+*.onnx
+*.pth
+*.pt
+
+# OS files
+.DS_Store
+Thumbs.db

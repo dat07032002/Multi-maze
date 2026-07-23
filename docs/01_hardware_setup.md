@@ -1,6 +1,14 @@
 Hardware Setup
 =====
 
+!!! warning "Legacy Dynamixel reference"
+
+    The TAG robot uses Hiwonder servos, not the Dynamixel hardware described in
+    the historical instructions below. The old material is retained so no
+    mechanical or calibration knowledge is lost. Follow
+    [Hiwonder actuator setup](08_hiwonder_setup.md) for the active robot and
+    [Custom 3D-printed maze workflow](09_custom_maze_workflow.md) for the new board.
+
 ## List of Components
 
 ### Tools

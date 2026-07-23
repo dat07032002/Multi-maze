@@ -1,0 +1,45 @@
+# Canonical Hiwonder controller configuration.
+#
+# The ROS package retains its historical cyberrunner_dynamixel name so existing
+# trained workflows keep working. The active driver and hardware are Hiwonder.
+cyberrunner_hiwonder_compat:
+  ros__parameters:
+    vid: 1155                   # 0x0483
+    pid: 22352                  # 0x5750
+    servo1_id: 1
+    servo2_id: 2
+
+    # Confirm these values on the physical robot before increasing travel.
+    home_pos_1: 500
+    home_pos_2: 500
+    servo_min_1: 100
+    servo_max_1: 900
+    servo_min_2: 100
+    servo_max_2: 900
+    scale_1: 1.5
+    scale_2: 1.5
+
+    move_time_ms: 30
+    command_rate_hz: 30.0
+    max_step_per_tick_1: 20.0
+    max_step_per_tick_2: 20.0
+    deadband: 1.0
+    command_timeout_sec: 1.0
+    timeout_go_home: true
+
+    reset_time_ms: 600
+    reset_prehome_pos_1: 700
+    reset_prehome_pos_2: 700
+    reset_prehome_time_ms: 60
+    reset_prehome_wait_sec: 0.5
+    reconnect_interval: 2.0
+
+    # The HID controller does not expose temperature telemetry. Leave the
+    # serial port empty unless a separate LX-16A-compatible reader is attached.
+    temp_watch_enabled: true
+    temp_limit_c: 70.0
+    overheat_pause_sec: 300.0
+    temp_check_period_sec: 2.0
+    temp_serial_port: ""
+    temp_serial_timeout: 0.02
+    servo_temp_upper_limit_c: 90

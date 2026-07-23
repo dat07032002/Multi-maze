@@ -3,7 +3,8 @@ set -euo pipefail
 
 VID="${HIWONDER_VID:-0483}"
 PID="${HIWONDER_PID:-5750}"
-ROOT="${CYBERRUNNER_ROOT:-/home/trungbao/CYBER/cyberruner-main}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${CYBERRUNNER_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 DEEP_RESET=0
 
 if [ "${1:-}" = "--deep-reset" ]; then

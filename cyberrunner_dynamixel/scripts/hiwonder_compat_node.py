@@ -8,6 +8,16 @@ from rclpy.node import Node
 from cyberrunner_interfaces.msg import DynamixelVel
 from cyberrunner_interfaces.srv import DynamixelReset
 
+# Keep the already-built legacy workspace runnable before the interfaces package
+# is rebuilt. The preferred neutral API becomes available automatically after a
+# normal colcon build generates these new types.
+try:
+    from cyberrunner_interfaces.msg import BoardCommand
+    from cyberrunner_interfaces.srv import BoardReset
+except ImportError:
+    BoardCommand = None
+    BoardReset = None
+
 try:
     import hid
 except ImportError:
@@ -300,11 +310,32 @@ class HiwonderCompatNode(Node):
             self.on_cmd,
             1,
         )
+        self.board_subscription = None
+        if BoardCommand is not None:
+            self.board_subscription = self.create_subscription(
+                BoardCommand,
+                "cyberrunner/actuator/command",
+                self.on_board_cmd,
+                1,
+            )
         self.service = self.create_service(
             DynamixelReset,
             "cyberrunner_dynamixel/reset",
             self.on_reset,
         )
+        self.board_service = None
+        if BoardReset is not None:
+            self.board_service = self.create_service(
+                BoardReset,
+                "cyberrunner/actuator/reset",
+                self.on_board_reset,
+            )
+        else:
+            self.get_logger().warn(
+                "Neutral BoardCommand/BoardReset interfaces are not installed yet; "
+                "legacy topics remain active. Rebuild cyberrunner_interfaces to "
+                "enable the preferred actuator API."
+            )
         self.target_pos_1 = float(self.home_pos_1)
         self.target_pos_2 = float(self.home_pos_2)
         self.current_pos_1 = float(self.home_pos_1)
@@ -512,6 +543,15 @@ class HiwonderCompatNode(Node):
         if self.is_paused():
             return
         pos1, pos2 = self.command_to_position(msg.vel_1, msg.vel_2)
+        self.set_target(pos1, pos2)
+
+    def on_board_cmd(self, msg):
+        if self.is_paused():
+            return
+        pos1, pos2 = self.command_to_position(msg.axis_1, msg.axis_2)
+        self.set_target(pos1, pos2)
+
+    def set_target(self, pos1, pos2):
         self.target_pos_1 = float(pos1)
         self.target_pos_2 = float(pos2)
         self.last_cmd_time = time.monotonic()
@@ -586,7 +626,29 @@ class HiwonderCompatNode(Node):
         )
 
     def on_reset(self, request, response):
+        del request
         ok = self.reset_sequence()
+        self.finish_reset()
+        response.success = 1 if ok else 0
+        if not ok:
+            self.hid.close()
+        return response
+
+    def on_board_reset(self, request, response):
+        del request
+        ok = self.reset_sequence()
+        self.finish_reset()
+        response.success = bool(ok)
+        response.message = (
+            "Hiwonder board returned home"
+            if ok
+            else "Hiwonder reset failed; reconnect scheduled"
+        )
+        if not ok:
+            self.hid.close()
+        return response
+
+    def finish_reset(self):
         self.target_pos_1 = float(self.home_pos_1)
         self.target_pos_2 = float(self.home_pos_2)
         self.current_pos_1 = float(self.home_pos_1)
@@ -595,10 +657,6 @@ class HiwonderCompatNode(Node):
         self.last_sent_pos_2 = None
         self.last_cmd_time = None
         self.timed_out = False
-        response.success = 1 if ok else 0
-        if not ok:
-            self.hid.close()
-        return response
 
 
 def main(args=None):

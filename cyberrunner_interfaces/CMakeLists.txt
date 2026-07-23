@@ -24,9 +24,11 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/BoardCommand.msg"
   "msg/DynamixelVel.msg"
   "msg/StateEstimate.msg"
   "msg/StateEstimateSub.msg"
+  "srv/BoardReset.srv"
   "srv/DynamixelReset.srv"
   DEPENDENCIES sensor_msgs
 )

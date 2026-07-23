@@ -1,0 +1,77 @@
+{
+  "actuator": {
+    "no_instantaneous_response": true,
+    "positive_x_negative_y_mapping": true,
+    "settled_angles_deg": [
+      9.999769005947964,
+      -9.999769005947964
+    ],
+    "servo_positions": [
+      230.0,
+      770.0
+    ],
+    "passed": true
+  },
+  "camera": {
+    "calibration_scales_to_published_frame": true,
+    "image_shape": [
+      64,
+      64,
+      1
+    ],
+    "image_dtype": "uint8",
+    "image_has_structure": true,
+    "calibration": {
+      "calibrated_resolution": [
+        1920,
+        1200
+      ],
+      "state_estimator_scale_factor": 3,
+      "scaled_resolution": [
+        640,
+        400
+      ],
+      "center_row_column": [
+        598.837773,
+        958.882643
+      ],
+      "direct_polynomial_terms": 5,
+      "inverse_polynomial_terms": 11,
+      "capture_resolution": [
+        1280,
+        720
+      ],
+      "published_resolution": [
+        640,
+        400
+      ],
+      "policy_patch_extent_m": 0.064,
+      "policy_patch_shape": [
+        64,
+        64,
+        1
+      ],
+      "grayscale_method": "mean_of_available_channels",
+      "model_level": "post_calibration_board_rectified"
+    },
+    "passed": true
+  },
+  "interface": {
+    "shapes_match_real_policy_interface": true,
+    "initial_step_reason": "running",
+    "control_rate_hz": 30.0,
+    "observation_delay_steps": 1,
+    "passed": true
+  },
+  "domain_randomization": {
+    "actuator_changed": true,
+    "physics_changed": true,
+    "same_seed_reproduces_parameters": true,
+    "passed": true
+  },
+  "physical_hole": {
+    "termination_reason": "ball_fell",
+    "passed": true
+  },
+  "all_passed": true
+}

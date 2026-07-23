@@ -1,0 +1,499 @@
+"""New route-conditioned CyberRunner task and optional Gym wrapper.
+
+This module is intentionally independent of the legacy ROS/TCP environments,
+their reward shaping, and their replay implementation.
+"""
+
+from __future__ import annotations
+
+import glob
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
+
+import numpy as np
+
+try:  # The training repository currently uses legacy Gym.
+    import gym  # type: ignore
+
+    _GYMNASIUM_API = False
+except ImportError:  # Local verification uses maintained Gymnasium.
+    import gymnasium as gym  # type: ignore
+
+    _GYMNASIUM_API = True
+
+try:
+    from .maze_layout import load_json_layout
+    from .maze_dataset import DEFAULT_MANIFEST, load_split
+    from .route_planner import (
+        PlannerConfig,
+        apply_safe_route,
+        signed_ball_clearance,
+        validate_route,
+    )
+    from .system_config import SystemConfig
+    from .system_model import CyberRunnerSystemModel, PolylineRoute
+except ImportError:  # Preserve direct-script execution from this directory.
+    from maze_layout import load_json_layout
+    from maze_dataset import DEFAULT_MANIFEST, load_split
+    from route_planner import (
+        PlannerConfig,
+        apply_safe_route,
+        signed_ball_clearance,
+        validate_route,
+    )
+    from system_config import SystemConfig
+    from system_model import CyberRunnerSystemModel, PolylineRoute
+
+
+HERE = Path(__file__).resolve().parent
+DEFAULT_LAYOUT = HERE / "generated_mazes" / "maze_seed_970.json"
+
+
+@dataclass(frozen=True)
+class TaskConfig:
+    randomize_plant: bool = False
+    random_start: bool = False
+    start_progress_min: float = 0.0
+    start_progress_max: float = 0.85
+    start_lateral_range_m: float = 0.002
+    start_velocity_range_mps: float = 0.0
+    progress_forward_window_m: float = 0.035
+    progress_backward_window_m: float = 0.080
+    clearance_warning_m: float = 0.005
+    reward_mode: str = "scaled_progress"
+    progress_reward_scale: float = 10.0
+    success_bonus: float = 10.0
+    failure_penalty: float = 5.0
+    maze_manifest: str = ""
+    maze_split: str = ""
+    maze_sampling: str = "uniform"
+    curriculum_episodes: int = 5000
+
+
+def reward_components(
+    config: TaskConfig,
+    progress_fraction: float,
+    route_completion: float,
+    termination_reason: str,
+) -> Tuple[float, float, float]:
+    """Return progress, success, and failure reward terms independently."""
+    failed = termination_reason in {"ball_fell", "ball_left_board"}
+    succeeded = termination_reason == "goal_reached"
+    progress_reward = float(progress_fraction)
+    success_reward = 0.0
+    failure_reward = 0.0
+    if config.reward_mode == "scaled_progress":
+        progress_reward *= config.progress_reward_scale
+        success_reward = config.success_bonus * float(succeeded)
+        failure_reward = -config.failure_penalty * float(failed)
+    elif config.reward_mode == "progress_failure_zero" and failed:
+        failure_reward = -float(route_completion)
+    return progress_reward, success_reward, failure_reward
+
+
+def _resolve_layout_paths(layout_paths: str | Sequence[str] | None) -> List[Path]:
+    if layout_paths is None:
+        return [DEFAULT_LAYOUT]
+    if isinstance(layout_paths, str):
+        items = [item.strip() for item in layout_paths.split(",") if item.strip()]
+    else:
+        items = list(layout_paths)
+    resolved: List[Path] = []
+    for item in items:
+        expanded = [Path(path) for path in glob.glob(str(item))]
+        if expanded:
+            resolved.extend(expanded)
+        else:
+            resolved.append(Path(item))
+    resolved = [path.resolve() for path in resolved]
+    missing = [path for path in resolved if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(f"Missing CyberRunner layouts: {missing}")
+    if not resolved:
+        raise ValueError("At least one layout is required")
+    return sorted(set(resolved))
+
+
+class CyberRunnerTask:
+    """RL task with normalized observations and independently defined rewards."""
+
+    def __init__(
+        self,
+        layout_paths: str | Sequence[str] | None = None,
+        seed: int = 0,
+        task_config: TaskConfig = TaskConfig(),
+        system_config: SystemConfig = SystemConfig(),
+        planner_config: PlannerConfig = PlannerConfig(),
+    ):
+        if task_config.reward_mode not in {
+            "progress",
+            "progress_failure_zero",
+            "scaled_progress",
+        }:
+            raise ValueError(f"Unsupported reward mode: {task_config.reward_mode}")
+        if task_config.maze_sampling not in {"uniform", "curriculum"}:
+            raise ValueError(f"Unsupported maze sampling: {task_config.maze_sampling}")
+        if task_config.curriculum_episodes <= 0:
+            raise ValueError("curriculum_episodes must be positive")
+        if task_config.maze_split and layout_paths is not None:
+            raise ValueError("Choose either maze_split or explicit layout_paths, not both")
+        if task_config.maze_split:
+            split = load_split(
+                task_config.maze_split,
+                task_config.maze_manifest or DEFAULT_MANIFEST,
+            )
+            self.layout_paths = list(split.paths)
+            self.layout_metadata = [dict(item) for item in split.metadata]
+            self.maze_split = split.name
+        else:
+            self.layout_paths = _resolve_layout_paths(layout_paths)
+            self.layout_metadata = [{} for _ in self.layout_paths]
+            self.maze_split = "explicit" if layout_paths is not None else "smoke_default"
+        self.task_config = task_config
+        self.system_config = system_config
+        self.planner_config = planner_config
+        self.rng = np.random.default_rng(seed)
+        self._layout_cache: Dict[Path, Dict[str, Any]] = {}
+        self.layout: Dict[str, Any]
+        self.model: CyberRunnerSystemModel
+        self.route: PolylineRoute
+        self.layout_path: Path
+        self.progress_m = 0.0
+        self.minimum_clearance_m = math.inf
+        self.episode_return = 0.0
+        self.episode_steps = 0
+        self.last_info: Dict[str, Any] = {}
+        self.episodes_started = 0
+        self.layout_index = 0
+        self.layout_sampling_probability = 1.0
+
+    def sampling_probabilities(self) -> np.ndarray:
+        """Return deterministic curriculum probabilities for the next reset."""
+        count = len(self.layout_paths)
+        if count == 1 or self.task_config.maze_sampling == "uniform":
+            return np.full(count, 1.0 / count, dtype=np.float64)
+        difficulty = np.asarray(
+            [float(item.get("difficulty_score", 0.5)) for item in self.layout_metadata],
+            dtype=np.float64,
+        )
+        difficulty = np.clip(difficulty, 0.0, 1.0)
+        curriculum_progress = min(
+            1.0,
+            self.episodes_started / float(self.task_config.curriculum_episodes),
+        )
+        # At the start, easy layouts are common but every training maze keeps a
+        # nonzero probability. The distribution becomes uniform by the end.
+        weights = 0.10 + np.exp(-4.0 * (1.0 - curriculum_progress) * difficulty)
+        return weights / np.sum(weights)
+
+    def _load_layout(self, path: Path) -> Dict[str, Any]:
+        if path not in self._layout_cache:
+            layout = load_json_layout(path)
+            validation = validate_route(layout, layout["waypoints"], self.planner_config)
+            planner_metadata = layout.get("route_planner", {})
+            metadata_matches = math.isclose(
+                float(planner_metadata.get("safety_margin_m", -1.0)),
+                self.planner_config.safety_margin_m,
+            )
+            if not validation.passed or not metadata_matches:
+                layout, validation = apply_safe_route(layout, self.planner_config)
+            if not validation.passed:
+                raise RuntimeError(f"Unsafe route in {path}: {validation}")
+            self._layout_cache[path] = layout
+        return self._layout_cache[path]
+
+    def _select_start(self) -> Tuple[np.ndarray, np.ndarray]:
+        if not self.task_config.random_start:
+            return self.route.point_at(0.0), np.zeros(2, dtype=np.float64)
+        fraction = float(
+            self.rng.uniform(
+                self.task_config.start_progress_min,
+                self.task_config.start_progress_max,
+            )
+        )
+        progress = fraction * self.route.total_length
+        center = self.route.point_at(progress)
+        epsilon = min(0.003, 0.25 * self.system_config.relative_goal_spacing_m)
+        before = self.route.point_at(max(0.0, progress - epsilon))
+        after = self.route.point_at(min(self.route.total_length, progress + epsilon))
+        tangent = after - before
+        tangent /= max(np.linalg.norm(tangent), 1e-9)
+        normal = np.array((-tangent[1], tangent[0]), dtype=np.float64)
+        position = center.copy()
+        for _ in range(20):
+            offset = float(
+                self.rng.uniform(
+                    -self.task_config.start_lateral_range_m,
+                    self.task_config.start_lateral_range_m,
+                )
+            )
+            candidate = center + offset * normal
+            if float(signed_ball_clearance(self.layout, candidate[None])[0]) >= 0.0:
+                position = candidate
+                break
+        velocity = self.rng.uniform(
+            -self.task_config.start_velocity_range_mps,
+            self.task_config.start_velocity_range_mps,
+            size=2,
+        )
+        return position, velocity
+
+    def reset(
+        self,
+        seed: int | None = None,
+        options: Mapping[str, Any] | None = None,
+    ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
+        if seed is not None:
+            self.rng = np.random.default_rng(seed)
+        options = dict(options or {})
+        if "layout_index" in options:
+            layout_index = int(options["layout_index"])
+            if not 0 <= layout_index < len(self.layout_paths):
+                raise IndexError(f"layout_index {layout_index} is out of range")
+            sampling_probability = 1.0
+        else:
+            probabilities = self.sampling_probabilities()
+            layout_index = int(self.rng.choice(len(self.layout_paths), p=probabilities))
+            sampling_probability = float(probabilities[layout_index])
+        self.layout_index = layout_index
+        self.layout_sampling_probability = sampling_probability
+        self.episodes_started += 1
+        self.layout_path = self.layout_paths[layout_index]
+        self.layout = self._load_layout(self.layout_path)
+        self.model = CyberRunnerSystemModel(self.layout, self.system_config)
+        self.route = self.model.route
+        ball_xy, velocity = self._select_start()
+        model_seed = int(self.rng.integers(0, 2**31 - 1))
+        raw = self.model.reset(
+            seed=model_seed,
+            randomize=self.task_config.randomize_plant,
+            ball_xy=ball_xy,
+            ball_velocity_xy=velocity,
+        )
+        self.progress_m = self.route.closest_progress(ball_xy)
+        clearance = float(signed_ball_clearance(self.layout, ball_xy[None])[0])
+        self.minimum_clearance_m = clearance
+        self.episode_return = 0.0
+        self.episode_steps = 0
+        observation, diagnostic = self._observation(raw, clearance)
+        observation["log_fall_cost"] = np.zeros(1, dtype=np.float32)
+        observation["log_success"] = np.zeros(1, dtype=np.float32)
+        observation["log_reward"] = np.zeros(1, dtype=np.float32)
+        info = {
+            **diagnostic,
+            "layout_path": str(self.layout_path),
+            "layout_seed": self.layout.get("seed"),
+            "route_length_m": self.route.total_length,
+            "route_completion": self.progress_m / max(self.route.total_length, 1e-6),
+            "maze_split": self.maze_split,
+            "maze_difficulty": float(
+                self.layout_metadata[layout_index].get("difficulty_score", math.nan)
+            ),
+            "layout_sampling_probability": sampling_probability,
+            "is_terminal": False,
+            "termination_reason": "reset",
+        }
+        self.last_info = info
+        return observation, info
+
+    def _project_measured_position(
+        self, measured_xy: np.ndarray
+    ) -> Tuple[float, np.ndarray, float]:
+        return self.route.project(
+            measured_xy,
+            progress_hint=self.progress_m,
+            backward_window=self.task_config.progress_backward_window_m,
+            forward_window=self.task_config.progress_forward_window_m,
+        )
+
+    def _observation(
+        self, raw: Dict[str, np.ndarray], true_clearance: float
+    ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
+        visible = bool(raw["ball_visible"][0])
+        width = float(self.layout["board_width"])
+        height = float(self.layout["board_height"])
+        state = np.zeros(4, dtype=np.float32)
+        goals = np.zeros(self.system_config.relative_goal_points * 2, dtype=np.float32)
+        cross_track = math.nan
+        if visible:
+            measured = raw["states"].astype(np.float64)
+            measured_xy = measured[2:4]
+            projected_progress, _, cross_track = self._project_measured_position(measured_xy)
+            self.progress_m = projected_progress
+            angle_limit = self.system_config.actuator.board_angle_limit_rad
+            state[:2] = np.clip(measured[:2] / angle_limit, -1.0, 1.0)
+            state[2] = np.clip(2.0 * measured_xy[0] / width - 1.0, -1.0, 1.0)
+            state[3] = np.clip(2.0 * measured_xy[1] / height - 1.0, -1.0, 1.0)
+            targets = [
+                self.route.point_at(
+                    self.progress_m
+                    + self.system_config.relative_goal_spacing_m * (index + 1)
+                )
+                - measured_xy
+                for index in range(self.system_config.relative_goal_points)
+            ]
+            goal_scale = (
+                self.system_config.relative_goal_spacing_m
+                * self.system_config.relative_goal_points
+            )
+            goals = np.clip(
+                np.asarray(targets, dtype=np.float32).reshape(-1) / goal_scale,
+                -1.0,
+                1.0,
+            )
+        warning = max(self.task_config.clearance_warning_m, 1e-6)
+        clearance_cost = float(np.clip((warning - true_clearance) / warning, 0.0, 1.0))
+        observation = {
+            "image": raw["image"].astype(np.uint8, copy=False),
+            "states": state,
+            "goal": goals,
+            "ball_visible": np.asarray([visible], dtype=np.uint8),
+            "log_progress": np.asarray(
+                [self.progress_m / max(self.route.total_length, 1e-6)],
+                dtype=np.float32,
+            ),
+            "log_cross_track_error": np.asarray(
+                [0.0 if not math.isfinite(cross_track) else cross_track],
+                dtype=np.float32,
+            ),
+            "log_clearance_cost": np.asarray([clearance_cost], dtype=np.float32),
+            "log_min_clearance": np.asarray(
+                [self.minimum_clearance_m], dtype=np.float32
+            ),
+            "log_maze_difficulty": np.asarray(
+                [float(self.layout_metadata[self.layout_index].get("difficulty_score", 0.0))],
+                dtype=np.float32,
+            ),
+        }
+        return observation, {
+            "route_progress_m": self.progress_m,
+            "cross_track_error_m": cross_track,
+            "clearance_m": true_clearance,
+            "clearance_cost": clearance_cost,
+            "ball_visible": visible,
+        }
+
+    def step(
+        self, action: Iterable[float]
+    ) -> Tuple[Dict[str, np.ndarray], float, bool, bool, Dict[str, Any]]:
+        previous_progress = self.progress_m
+        result = self.model.step(action)
+        true_xy = np.asarray(result.info["true_ball_position"][:2], dtype=np.float64)
+        true_clearance = float(signed_ball_clearance(self.layout, true_xy[None])[0])
+        self.minimum_clearance_m = min(self.minimum_clearance_m, true_clearance)
+        observation, diagnostic = self._observation(result.observation, true_clearance)
+        progress_fraction = (self.progress_m - previous_progress) / max(
+            self.route.total_length, 1e-6
+        )
+        failed = result.reason in {"ball_fell", "ball_left_board"}
+        succeeded = result.reason == "goal_reached"
+        route_completion = self.progress_m / max(self.route.total_length, 1e-6)
+        progress_reward, success_reward, failure_reward = reward_components(
+            self.task_config,
+            progress_fraction,
+            route_completion,
+            result.reason,
+        )
+        reward = progress_reward + success_reward + failure_reward
+        fall_cost = float(failed)
+        self.episode_return += float(reward)
+        self.episode_steps += 1
+        observation["log_fall_cost"] = np.asarray([fall_cost], dtype=np.float32)
+        observation["log_success"] = np.asarray([float(succeeded)], dtype=np.float32)
+        observation["log_reward"] = np.asarray([reward], dtype=np.float32)
+        info = {
+            **result.info,
+            **diagnostic,
+            "layout_path": str(self.layout_path),
+            "layout_seed": self.layout.get("seed"),
+            "route_length_m": self.route.total_length,
+            "route_completion": route_completion,
+            "maze_split": self.maze_split,
+            "maze_difficulty": float(
+                self.layout_metadata[self.layout_index].get("difficulty_score", math.nan)
+            ),
+            "layout_sampling_probability": self.layout_sampling_probability,
+            "fall_cost": fall_cost,
+            "success": bool(succeeded),
+            "progress_reward": float(progress_reward),
+            "success_reward": float(success_reward),
+            "failure_reward": float(failure_reward),
+            "episode_return": self.episode_return,
+            "episode_steps": self.episode_steps,
+            "is_terminal": bool(result.terminated),
+            "termination_reason": result.reason,
+        }
+        self.last_info = info
+        return observation, float(reward), result.terminated, result.truncated, info
+
+    def render(self) -> np.ndarray:
+        return self.model.sim.render()
+
+    def close(self) -> None:
+        pass
+
+
+class CyberRunnerEnv(gym.Env):  # type: ignore[misc]
+    """Gym/Gymnasium compatibility wrapper around :class:`CyberRunnerTask`."""
+
+    metadata = {"render_modes": ["rgb_array"]}
+
+    def __init__(self, **kwargs: Any):
+        super().__init__()
+        task_fields = set(TaskConfig.__dataclass_fields__)
+        task_kwargs = {key: kwargs.pop(key) for key in list(kwargs) if key in task_fields}
+        self.task = CyberRunnerTask(task_config=TaskConfig(**task_kwargs), **kwargs)
+        points = self.task.system_config.relative_goal_points
+        self.observation_space = gym.spaces.Dict(
+            {
+                "image": gym.spaces.Box(0, 255, (64, 64, 1), dtype=np.uint8),
+                "states": gym.spaces.Box(-1.0, 1.0, (4,), dtype=np.float32),
+                "goal": gym.spaces.Box(-1.0, 1.0, (points * 2,), dtype=np.float32),
+                "ball_visible": gym.spaces.Box(0, 1, (1,), dtype=np.uint8),
+                "log_progress": gym.spaces.Box(-np.inf, np.inf, (1,), dtype=np.float32),
+                "log_cross_track_error": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_clearance_cost": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_min_clearance": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_maze_difficulty": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_fall_cost": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_success": gym.spaces.Box(-np.inf, np.inf, (1,), dtype=np.float32),
+                "log_reward": gym.spaces.Box(-np.inf, np.inf, (1,), dtype=np.float32),
+            }
+        )
+        self.action_space = gym.spaces.Box(-1.0, 1.0, (2,), dtype=np.float32)
+
+    def reset(self, *, seed: int | None = None, options: Mapping[str, Any] | None = None):
+        observation, info = self.task.reset(seed=seed, options=options)
+        # Metrics only exist after the first action but spaces must be stable.
+        observation.setdefault("log_fall_cost", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_success", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_reward", np.zeros(1, dtype=np.float32))
+        if _GYMNASIUM_API:
+            return observation, info
+        return observation
+
+    def step(self, action: np.ndarray):
+        observation, reward, terminated, truncated, info = self.task.step(action)
+        if _GYMNASIUM_API:
+            return observation, reward, terminated, truncated, info
+        return observation, reward, bool(terminated or truncated), info
+
+    def render(self, mode: str = "rgb_array") -> np.ndarray:
+        if mode != "rgb_array":
+            raise ValueError(f"Unsupported render mode {mode!r}")
+        return self.task.render()
+
+    def close(self) -> None:
+        self.task.close()

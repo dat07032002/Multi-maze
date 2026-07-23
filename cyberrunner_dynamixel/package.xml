@@ -3,7 +3,7 @@
 <package format="3">
   <name>cyberrunner_dynamixel</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>TAG board actuator drivers. The active robot uses the Hiwonder HID driver; Dynamixel support is retained for compatibility.</description>
   <maintainer email="thomas@novobit.ch">tactilecontrol</maintainer>
   <license>TODO: License declaration</license>
 
@@ -14,6 +14,10 @@
   <depend>rclpy</depend>
   <depend>cyberrunner_interfaces</depend>
   <depend>dynamixel_sdk</depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

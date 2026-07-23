@@ -16,7 +16,11 @@ markdown_extensions:
   - admonition
 nav:
   - 'Home': 'index.md'
+  - 'Project Structure': '00_project_structure.md'
   - 'Hardware Setup': '01_hardware_setup.md'
+  - 'Hiwonder Setup': '08_hiwonder_setup.md'
+  - 'Custom Printed Maze': '09_custom_maze_workflow.md'
+  - 'Protected Artifacts': '10_protected_artifacts.md'
   - 'Reload Mechanism': '02_reload.md'
   - 'Installation': '03_installation.md'
   - 'Initial Configuration': '04_initial_config.md'

@@ -44,6 +44,14 @@ The state estimator relies on approximately knowing the location of the blue mar
 
 ## Motor Configuration
 
+!!! warning "Legacy procedure"
+
+    The Dynamixel Wizard steps below do not apply to the TAG robot. TAG uses
+    Hiwonder servos. They are configured through
+    `cyberrunner_dynamixel/config/hiwonder.yaml`; see
+    [Hiwonder actuator setup](08_hiwonder_setup.md). The historical steps remain
+    here only to preserve upstream reference information.
+
 1. Install [Dynamixel Wizard 2.0](https://emanual.robotis.com/docs/en/software/dynamixel/dynamixel_wizard2/).
 2. Temporarily disconnect the front motor (the motor on the longer side of the labyrinth). Connect the U2D2 to your host PC and ensure that the motors are turned on by pressing the power switch on the U2D2 Power Hub Board.
 3. In the Dynamixel Wizard, press **Scan** until the motor is found.

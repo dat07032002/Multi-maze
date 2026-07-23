@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "maze_id": "replace_with_immutable_maze_id",
+  "units": "meters",
+  "board_width": 0.259,
+  "board_height": 0.229,
+  "ball_radius": 0.006,
+  "wall_thickness": 0.003,
+  "walls_h": [],
+  "walls_v": [],
+  "walls_angled": [],
+  "holes": [],
+  "hole_radii": [],
+  "waypoints": [
+    [0.02, 0.02],
+    [0.239, 0.209]
+  ]
+}
