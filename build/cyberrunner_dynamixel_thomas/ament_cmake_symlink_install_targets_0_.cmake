@@ -1,0 +1,1 @@
+ament_cmake_symlink_install_targets("TARGET_FILES" "/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dynamixel_thomas/dynamixel_config_thomas" "/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dynamixel_thomas/cyberrunner_dynamixel_thomas" "TARGETS" "dynamixel_config_thomas" "cyberrunner_dynamixel_thomas" "DESTINATION" "lib/cyberrunner_dynamixel_thomas")

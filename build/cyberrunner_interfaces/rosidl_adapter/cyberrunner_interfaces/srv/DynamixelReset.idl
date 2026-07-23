@@ -1,0 +1,15 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from cyberrunner_interfaces/srv/DynamixelReset.srv
+// generated code does not contain a copyright notice
+
+
+module cyberrunner_interfaces {
+  module srv {
+    struct DynamixelReset_Request {
+      uint16 max_temp;
+    };
+    struct DynamixelReset_Response {
+      int8 success;
+    };
+  };
+};

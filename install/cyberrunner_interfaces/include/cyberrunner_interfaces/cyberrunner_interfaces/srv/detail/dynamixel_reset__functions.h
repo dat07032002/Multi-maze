@@ -1,0 +1,1 @@
+/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/rosidl_generator_c/cyberrunner_interfaces/srv/detail/dynamixel_reset__functions.h

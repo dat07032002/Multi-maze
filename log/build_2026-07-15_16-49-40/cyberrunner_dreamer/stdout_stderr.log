@@ -1,0 +1,28 @@
+/home/trungbao/.local/lib/python3.10/site-packages/setuptools/_distutils/dist.py:289: UserWarning: Unknown distribution option: 'tests_require'
+  warnings.warn(msg)
+running develop
+running egg_info
+creating cyberrunner_dreamer.egg-info
+writing cyberrunner_dreamer.egg-info/PKG-INFO
+writing dependency_links to cyberrunner_dreamer.egg-info/dependency_links.txt
+writing entry points to cyberrunner_dreamer.egg-info/entry_points.txt
+writing requirements to cyberrunner_dreamer.egg-info/requires.txt
+writing top-level names to cyberrunner_dreamer.egg-info/top_level.txt
+writing manifest file 'cyberrunner_dreamer.egg-info/SOURCES.txt'
+reading manifest file 'cyberrunner_dreamer.egg-info/SOURCES.txt'
+writing manifest file 'cyberrunner_dreamer.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/lib/python3.10/site-packages/cyberrunner-dreamer.egg-link (link to .)
+Installing eval script to /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/lib/cyberrunner_dreamer
+Installing test script to /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/lib/cyberrunner_dreamer
+Installing train script to /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/lib/cyberrunner_dreamer
+Installing train_dreamer4 script to /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/lib/cyberrunner_dreamer
+Installing train_parallel script to /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/lib/cyberrunner_dreamer
+
+Installed /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dreamer
+running symlink_data
+creating /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/share/ament_index/resource_index/packages
+symbolically linking /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dreamer/resource/cyberrunner_dreamer -> /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/share/ament_index/resource_index/packages
+symbolically linking /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dreamer/package.xml -> /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/share/cyberrunner_dreamer
+symbolically linking /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dreamer/data/path_0002_hard.pkl -> /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/share/cyberrunner_dreamer
+symbolically linking /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dreamer/data/path_custom.pkl -> /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer/share/cyberrunner_dreamer

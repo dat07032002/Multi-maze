@@ -1,0 +1,1 @@
+/home/trungbao/CYBER/cyberruner-main/cyberrunner_dynamixel/scripts/feetech_config.py

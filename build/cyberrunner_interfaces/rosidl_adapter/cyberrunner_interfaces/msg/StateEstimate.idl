@@ -1,0 +1,22 @@
+// generated from rosidl_adapter/resource/msg.idl.em
+// with input from cyberrunner_interfaces/msg/StateEstimate.msg
+// generated code does not contain a copyright notice
+
+
+module cyberrunner_interfaces {
+  module msg {
+    struct StateEstimate {
+      double x_b;
+
+      double y_b;
+
+      double x_b_dot;
+
+      double y_b_dot;
+
+      double alpha;
+
+      double beta;
+    };
+  };
+};

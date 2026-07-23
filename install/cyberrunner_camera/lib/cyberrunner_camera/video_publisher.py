@@ -1,0 +1,1 @@
+/home/trungbao/CYBER/cyberruner-main/cyberrunner_camera/scripts/video_publisher.py

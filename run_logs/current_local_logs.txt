@@ -1,0 +1,7 @@
+run_logs/camera_estimation_gpu_20260522_115148.log
+run_logs/dynamixel_20260522_115148.log
+run_logs/tcp_ros_bridge_20260522_115234.log
+run_logs/tcp_ros_bridge_20260522_115311.log
+run_logs/tcp_ros_bridge_20260522_115423.log
+run_logs/tcp_ros_bridge_20260522_115911.log
+run_logs/tcp_ros_bridge_20260522_120149.log

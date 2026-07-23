@@ -1,0 +1,1 @@
+/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/rosidl_generator_py/cyberrunner_interfaces/msg/_dynamixel_vel.py

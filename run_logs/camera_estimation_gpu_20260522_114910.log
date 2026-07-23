@@ -1,0 +1,14 @@
+[INFO] [launch]: All log files can be found below /home/trungbao/.ros/log/2026-05-22-11-49-10-497088-trungbao-61473
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [cam_publisher.py-1]: process started with pid [61486]
+[cam_publisher.py-1] [INFO] [1779468550.990415723] [cyberrunner_camera]: Using OpenCV OpenCL/UMat for camera resize/border.
+[cam_publisher.py-1] [INFO] [1779468551.095172026] [cyberrunner_camera]: Requested FOURCC: MJPG
+[cam_publisher.py-1] [INFO] [1779468551.095356109] [cyberrunner_camera]: Actual FOURCC: MJPG
+[cam_publisher.py-1] [INFO] [1779468551.095506883] [cyberrunner_camera]: Actual camera size: 1280x720
+[cam_publisher.py-1] [INFO] [1779468551.095644441] [cyberrunner_camera]: Actual camera FPS: 60.0
+[cam_publisher.py-1] [INFO] [1779468551.096086442] [cyberrunner_camera]: Publishing /dev/video2 target 60.0 Hz, output 640x400
+[cam_publisher.py-1] [WARN] [1779468551.113061811] [cyberrunner_camera]: No camera frame available yet
+[cam_publisher.py-1] [WARN] [1779468551.200211246] [cyberrunner_camera]: Slow camera publish period=0.1041s fps=9.6 total=0.0038s frame_age=0.0151s copy=0.0009s resize=0.0022s border=0.0001s msg=0.0005s pub=0.0001s
+[INFO] [estimator_sub-2]: process started with pid [61536]
+[estimator_sub-2] [INFO] [1779468553.323175684] [cyberrunner_state_estimation]: Using OpenCV OpenCL/UMat for estimation masking.
+[estimator_sub-2] [INFO] [1779468553.328010922] [cyberrunner_state_estimation]: Image subscriber has been initialized.

@@ -1,0 +1,8 @@
+[INFO] [1779467959.986225108] [cyberrunner_camera]: Using OpenCV OpenCL/UMat for camera resize/border.
+[INFO] [1779467960.114383899] [cyberrunner_camera]: Requested FOURCC: MJPG
+[INFO] [1779467960.114748944] [cyberrunner_camera]: Actual FOURCC: MJPG
+[INFO] [1779467960.115122491] [cyberrunner_camera]: Actual camera size: 1280x720
+[INFO] [1779467960.115473260] [cyberrunner_camera]: Actual camera FPS: 30.0
+[INFO] [1779467960.116359829] [cyberrunner_camera]: Publishing /dev/video0 target 60.0 Hz, output 640x400
+[WARN] [1779467960.133318941] [cyberrunner_camera]: No camera frame available yet
+[WARN] [1779467960.337569153] [cyberrunner_camera]: Slow camera publish period=0.2213s fps=4.5 total=0.0044s frame_age=0.0146s copy=0.0009s resize=0.0025s border=0.0002s msg=0.0006s pub=0.0002s

@@ -1,0 +1,70 @@
+[0.006s] Invoking command in '/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/trungbao/cyberrunner_ws/install/cyberrunner_vision:/home/trungbao/cyberrunner_ws/install/cyberrunner_state_estimation:/home/trungbao/cyberrunner_ws/install/cyberrunner_pid:/home/trungbao/cyberrunner_ws/install/cyberrunner_dreamer:/home/trungbao/cyberrunner_ws/install/cyberrunner_hiwonder:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_state_estimation:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer_thomas:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer:/opt/ros/humble /usr/bin/cmake /home/trungbao/CYBER/cyberruner-main/cyberrunner_camera -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera
+[0.087s] -- The C compiler identification is GNU 11.4.0
+[0.142s] -- The CXX compiler identification is GNU 11.4.0
+[0.147s] -- Detecting C compiler ABI info
+[0.195s] -- Detecting C compiler ABI info - done
+[0.201s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.201s] -- Detecting C compile features
+[0.202s] -- Detecting C compile features - done
+[0.204s] -- Detecting CXX compiler ABI info
+[0.258s] -- Detecting CXX compiler ABI info - done
+[0.262s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.262s] -- Detecting CXX compile features
+[0.263s] -- Detecting CXX compile features - done
+[0.264s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.498s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[0.543s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.572s] -- Found rclcpp: 16.0.19 (/opt/ros/humble/share/rclcpp/cmake)
+[0.606s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[0.609s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[0.614s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[0.624s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.634s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.669s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[0.671s] -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[0.740s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[0.762s] -- Found FastRTPS: /opt/ros/humble/include  
+[0.795s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[0.803s] -- Looking for pthread.h
+[0.858s] -- Looking for pthread.h - found
+[0.858s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[0.907s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[0.908s] -- Found Threads: TRUE  
+[0.948s] -- Found image_transport: 3.1.12 (/opt/ros/humble/share/image_transport/cmake)
+[0.989s] -- Found cv_bridge: 3.2.1 (/opt/ros/humble/share/cv_bridge/cmake)
+[0.998s] -- Found rclpy: 3.3.21 (/opt/ros/humble/share/rclpy/cmake)
+[0.999s] -- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[1.086s] -- Added test 'copyright' to check source files copyright and LICENSE
+[1.088s] -- Added test 'flake8' to check Python code syntax and style conventions
+[1.088s] -- Added test 'lint_cmake' to check CMake code style
+[1.089s] -- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+[1.090s] -- Added test 'xmllint' to check XML markup files
+[1.091s] -- Configuring done
+[1.093s] -- Generating done
+[1.094s] -- Build files have been written to: /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera
+[1.100s] Invoked command in '/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/trungbao/cyberrunner_ws/install/cyberrunner_vision:/home/trungbao/cyberrunner_ws/install/cyberrunner_state_estimation:/home/trungbao/cyberrunner_ws/install/cyberrunner_pid:/home/trungbao/cyberrunner_ws/install/cyberrunner_dreamer:/home/trungbao/cyberrunner_ws/install/cyberrunner_hiwonder:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_state_estimation:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer_thomas:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer:/opt/ros/humble /usr/bin/cmake /home/trungbao/CYBER/cyberruner-main/cyberrunner_camera -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera
+[1.102s] Invoking command in '/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/trungbao/cyberrunner_ws/install/cyberrunner_vision:/home/trungbao/cyberrunner_ws/install/cyberrunner_state_estimation:/home/trungbao/cyberrunner_ws/install/cyberrunner_pid:/home/trungbao/cyberrunner_ws/install/cyberrunner_dreamer:/home/trungbao/cyberrunner_ws/install/cyberrunner_hiwonder:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_state_estimation:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer_thomas:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer:/opt/ros/humble /usr/bin/cmake --build /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera -- -j24 -l24
+[1.129s] Invoked command in '/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/trungbao/cyberrunner_ws/install/cyberrunner_vision:/home/trungbao/cyberrunner_ws/install/cyberrunner_state_estimation:/home/trungbao/cyberrunner_ws/install/cyberrunner_pid:/home/trungbao/cyberrunner_ws/install/cyberrunner_dreamer:/home/trungbao/cyberrunner_ws/install/cyberrunner_hiwonder:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_state_estimation:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer_thomas:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer:/opt/ros/humble /usr/bin/cmake --build /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera -- -j24 -l24
+[1.136s] Invoking command in '/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/trungbao/cyberrunner_ws/install/cyberrunner_vision:/home/trungbao/cyberrunner_ws/install/cyberrunner_state_estimation:/home/trungbao/cyberrunner_ws/install/cyberrunner_pid:/home/trungbao/cyberrunner_ws/install/cyberrunner_dreamer:/home/trungbao/cyberrunner_ws/install/cyberrunner_hiwonder:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_state_estimation:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer_thomas:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer:/opt/ros/humble /usr/bin/cmake --install /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera
+[1.142s] -- Install configuration: ""
+[1.142s] -- Execute custom install script
+[1.142s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/lib/cyberrunner_camera/video_publisher.py
+[1.148s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/lib/cyberrunner_camera/cam_publisher.py
+[1.154s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/launch/__pycache__/camera_estimation_gpu.launch.cpython-310.pyc
+[1.158s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/launch/camera_estimation_gpu.launch.py
+[1.165s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/ament_index/resource_index/package_run_dependencies/cyberrunner_camera
+[1.170s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/ament_index/resource_index/parent_prefix_path/cyberrunner_camera
+[1.177s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/environment/ament_prefix_path.sh
+[1.184s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/environment/ament_prefix_path.dsv
+[1.189s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/environment/path.sh
+[1.195s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/environment/path.dsv
+[1.201s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/local_setup.bash
+[1.208s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/local_setup.sh
+[1.214s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/local_setup.zsh
+[1.221s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/local_setup.dsv
+[1.225s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/package.dsv
+[1.231s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/ament_index/resource_index/packages/cyberrunner_camera
+[1.236s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/cmake/cyberrunner_cameraConfig.cmake
+[1.242s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/cmake/cyberrunner_cameraConfig-version.cmake
+[1.248s] -- Symlinking: /home/trungbao/CYBER/cyberruner-main/install/cyberrunner_camera/share/cyberrunner_camera/package.xml
+[1.255s] Invoked command in '/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/trungbao/cyberrunner_ws/install/cyberrunner_vision:/home/trungbao/cyberrunner_ws/install/cyberrunner_state_estimation:/home/trungbao/cyberrunner_ws/install/cyberrunner_pid:/home/trungbao/cyberrunner_ws/install/cyberrunner_dreamer:/home/trungbao/cyberrunner_ws/install/cyberrunner_hiwonder:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_state_estimation:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer_thomas:/home/trungbao/CYBER/cyberruner-main/install/cyberrunner_dreamer:/opt/ros/humble /usr/bin/cmake --install /home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera

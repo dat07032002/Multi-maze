@@ -1,0 +1,9 @@
+source;share/cyberrunner_dreamer/hook/pythonpath.ps1
+source;share/cyberrunner_dreamer/hook/pythonpath.dsv
+source;share/cyberrunner_dreamer/hook/pythonpath.sh
+source;share/cyberrunner_dreamer/hook/ament_prefix_path.ps1
+source;share/cyberrunner_dreamer/hook/ament_prefix_path.dsv
+source;share/cyberrunner_dreamer/hook/ament_prefix_path.sh
+source;../../build/cyberrunner_dreamer/share/cyberrunner_dreamer/hook/pythonpath_develop.ps1
+source;../../build/cyberrunner_dreamer/share/cyberrunner_dreamer/hook/pythonpath_develop.dsv
+source;../../build/cyberrunner_dreamer/share/cyberrunner_dreamer/hook/pythonpath_develop.sh

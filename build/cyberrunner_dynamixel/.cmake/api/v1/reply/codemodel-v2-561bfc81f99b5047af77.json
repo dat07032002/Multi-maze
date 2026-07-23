@@ -1,0 +1,88 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-f7351a2963c26eb70685.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"name" : "",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "cyberrunner_dynamixel",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "cyberrunner_dynamixel::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-cyberrunner_dynamixel-92bc16c8101877211a8f.json",
+					"name" : "cyberrunner_dynamixel",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "cyberrunner_dynamixel_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-cyberrunner_dynamixel_uninstall-06e7aa12f206253ad7b3.json",
+					"name" : "cyberrunner_dynamixel_uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "dynamixel_config::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-dynamixel_config-964cfa2111f20fcd7dc8.json",
+					"name" : "dynamixel_config",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-fc04bb8d213070246f5c.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_dynamixel",
+		"source" : "/home/trungbao/CYBER/cyberruner-main/cyberrunner_dynamixel"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}
