@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/ament_cmake_core/cyberrunner_interfacesConfig.cmake

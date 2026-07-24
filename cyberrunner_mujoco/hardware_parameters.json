@@ -30,7 +30,7 @@
       "source": "hardware reference project"
     },
     "camera.calibration": {
-      "value": "cyberrunner_state_estimation/calib/calib_results_cyberrunner.txt",
+      "value": "tag_state_estimation/calib/calib_results_tag.txt",
       "unit": "path",
       "status": "extracted_unverified",
       "source": "camera calibration artifact from the hardware reference project"

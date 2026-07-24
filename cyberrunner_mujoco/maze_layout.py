@@ -13,15 +13,17 @@ DEFAULT_WALL_THICKNESS_M = 0.0022
 DEFAULT_WALL_HEIGHT_M = 0.012
 DEFAULT_LAYOUT_PATH = (
     HERE.parent
-    / "cyberrunner_dreamer"
-    / "cyberrunner_dreamer"
-    / "cyberrunner_layout_custom.py"
+    / "tag_dreamer"
+    / "tag_dreamer"
+    / "tag_layout_custom.py"
 )
 
 
 def load_layout(path: Path = DEFAULT_LAYOUT_PATH) -> Dict[str, Any]:
     namespace = runpy.run_path(str(path))
-    layout = namespace["cyberrunner_dxf_layout"]
+    layout = namespace.get("tag_dxf_layout", namespace.get("cyberrunner_dxf_layout"))
+    if layout is None:
+        raise KeyError(f"Layout module has no tag_dxf_layout mapping: {path}")
     required = {
         "board_width",
         "board_height",

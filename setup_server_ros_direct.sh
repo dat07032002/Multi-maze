@@ -2,10 +2,10 @@
 # Source this on the server before using direct ROS 2 Dreamer training.
 # It enables the micromamba ROS environment, then overlays this workspace.
 
-export PATH=/home/tbt589/micromamba/envs/cyberrunner_ros/bin:$PATH
+export PATH=/home/tbt589/micromamba/envs/tag_ros/bin:$PATH
 
-if [ -f /home/tbt589/micromamba/envs/cyberrunner_ros/setup.bash ]; then
-  source /home/tbt589/micromamba/envs/cyberrunner_ros/setup.bash
+if [ -f /home/tbt589/micromamba/envs/tag_ros/setup.bash ]; then
+  source /home/tbt589/micromamba/envs/tag_ros/setup.bash
 fi
 
 if [ -f /home/tbt589/cyberruner-main/install/setup.bash ]; then

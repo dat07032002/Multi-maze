@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local robot-PC setup for direct ROS 2 over the server discovery service.
-# Source this before camera, state estimation, and Dynamixel nodes.
+# Source this before camera, state estimation, and Hiwonder nodes.
 
 if [ -f /opt/ros/humble/setup.bash ]; then
   source /opt/ros/humble/setup.bash

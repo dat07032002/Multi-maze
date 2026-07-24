@@ -19,8 +19,8 @@ recorded in `cyberrunner_mujoco/hardware_parameters.json`.
 
 The existing trained maze remains in its current compatibility locations:
 
-- `cyberrunner_dreamer/cyberrunner_dreamer/cyberrunner_layout_custom.py`
-- `cyberrunner_dreamer/data/path_custom.pkl`
+- `tag_dreamer/tag_dreamer/tag_layout_custom.py`
+- `tag_dreamer/data/path_custom.pkl`
 
 Do not move or overwrite those files until a new maze revision has been printed,
 calibrated, and validated end to end.

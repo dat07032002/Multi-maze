@@ -1,9 +1,0 @@
-{
-  "package_name": "cyberrunner_interfaces",
-  "non_idl_tuples": [
-    "/home/trungbao/CYBER/cyberruner-main/cyberrunner_interfaces:msg/DynamixelVel.msg",
-    "/home/trungbao/CYBER/cyberruner-main/cyberrunner_interfaces:msg/StateEstimate.msg",
-    "/home/trungbao/CYBER/cyberruner-main/cyberrunner_interfaces:msg/StateEstimateSub.msg",
-    "/home/trungbao/CYBER/cyberruner-main/cyberrunner_interfaces:srv/DynamixelReset.srv"
-  ]
-}

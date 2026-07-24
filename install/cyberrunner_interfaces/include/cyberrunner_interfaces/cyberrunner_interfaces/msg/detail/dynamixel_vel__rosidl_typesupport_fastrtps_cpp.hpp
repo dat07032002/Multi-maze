@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/rosidl_typesupport_fastrtps_cpp/cyberrunner_interfaces/msg/detail/dynamixel_vel__rosidl_typesupport_fastrtps_cpp.hpp

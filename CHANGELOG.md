@@ -1,13 +1,18 @@
-# Change Log
+# Change log
 
 ## Unreleased
 
-- Documented Hiwonder as the active TAG actuator while preserving legacy names.
-- Added canonical Hiwonder parameters and a ROS launch entry point.
-- Added hardware-neutral board command/reset interfaces alongside compatibility APIs.
-- Added protected-artifact inventory and versioned 3D-printed maze workflow.
-- Expanded ignore rules without untracking the historical working snapshot.
- 
+- Imported the working TAG hardware stack through upstream commit `35b80ad`.
+- Added a hardware-compatible DreamerV3 observation/action contract.
+- Added one-policy multi-maze MuJoCo training with immutable 40/8/8 splits.
+- Added route-conditioned validation on physical GPUs 3 and 4 while training uses GPU 2.
+- Added detector-loss recovery, Hiwonder timing/safety behavior, and domain randomization.
+- Added a single-source maze route/MJCF/preview/prototype-STL exporter.
+- Confirmed that the `259 x 229 mm` printed footprint fits the removable board.
+- Made maze hashes portable between Windows and Linux checkouts.
+- Replaced duplicated legacy packages and tracked build products with the updated `tag_*` source tree.
+- Removed Dreamer4, Dynamixel/Feetech, generic benchmark, and obsolete generated artifacts.
+
 ## v0.1.0 (2024-10-21)
- 
-**Initial release.**
+
+Initial upstream CyberRunner release.

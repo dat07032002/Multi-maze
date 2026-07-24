@@ -197,7 +197,7 @@ def write_path_pickle(layout, destination, repository_root):
         )
     sys.path.insert(0, str(repository_root))
     import numpy as np
-    from cyberrunner_dreamer.cyberrunner_dreamer.path import LinearPath
+    from tag_dreamer.tag_dreamer.path import LinearPath
 
     path = LinearPath(
         np.asarray(layout["waypoints"], dtype=np.float32),

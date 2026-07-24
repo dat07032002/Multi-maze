@@ -1,9 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/uninstall.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/cyberrunner_camera_uninstall.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/test.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/edit_cache.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/rebuild_cache.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/list_install_components.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/install.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/install/local.dir
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/CMakeFiles/install/strip.dir

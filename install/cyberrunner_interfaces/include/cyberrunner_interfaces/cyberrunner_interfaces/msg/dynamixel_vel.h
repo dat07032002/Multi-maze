@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/rosidl_generator_c/cyberrunner_interfaces/msg/dynamixel_vel.h

@@ -1,4 +1,0 @@
-[01m[K/home/trungbao/CYBER/cyberruner-main/cyberrunner_dynamixel_thomas/src/dynamixel_controller.cpp:[m[K In function ‘[01m[Kint dynamixel_init(const char*, int, int*, int, uint16_t, uint32_t*)[m[K’:
-[01m[K/home/trungbao/CYBER/cyberruner-main/cyberrunner_dynamixel_thomas/src/dynamixel_controller.cpp:39:100:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmax_temp[m[K’ [[01;35m[K]8;;https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#index-Wunused-parameter-Wunused-parameter]8;;[m[K]
-   39 | int dynamixel_init(const char* port, int num_dynamixel, int* dynamixel_ids, int baudrate, [01;35m[Kuint16_t max_temp[m[K, uint32_t* positions)
-      |                                                                                           [01;35m[K~~~~~~~~~^~~~~~~~[m[K

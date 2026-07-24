@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/cyberrunner_interfaces/msg/DynamixelVel.msg

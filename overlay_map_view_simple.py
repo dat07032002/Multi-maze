@@ -11,8 +11,8 @@ import numpy as np
 # When this script is run directly from the repository, an older ROS overlay can
 # otherwise win the import and hide files that only exist in this checkout.
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LOCAL_DREAMER_ROOT = os.path.join(SCRIPT_DIR, "cyberrunner_dreamer")
-LOCAL_DREAMER_PACKAGE = os.path.join(LOCAL_DREAMER_ROOT, "cyberrunner_dreamer")
+LOCAL_DREAMER_ROOT = os.path.join(SCRIPT_DIR, "tag_dreamer")
+LOCAL_DREAMER_PACKAGE = os.path.join(LOCAL_DREAMER_ROOT, "tag_dreamer")
 if os.path.isfile(os.path.join(LOCAL_DREAMER_PACKAGE, "__init__.py")):
     sys.path.insert(0, LOCAL_DREAMER_ROOT)
 
@@ -21,13 +21,13 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 
 from ament_index_python.packages import get_package_share_directory
-from cyberrunner_interfaces.msg import StateEstimate
+from tag_interfaces.msg import StateEstimate
 
-from cyberrunner_dreamer.cyberrunner_layout_custom import cyberrunner_dxf_layout
-from cyberrunner_dreamer.path import LinearPath
+from tag_dreamer.tag_layout_custom import tag_dxf_layout
+from tag_dreamer.path import LinearPath
 
 
-LAYOUT = cyberrunner_dxf_layout
+LAYOUT = tag_dxf_layout
 BOARD_W = float(LAYOUT["board_width"])
 BOARD_H = float(LAYOUT["board_height"])
 VIEW_W = 900
@@ -36,7 +36,7 @@ SIDE_W = 260
 CANVAS_W = VIEW_W + SIDE_W
 OFFSET = np.array([BOARD_W, BOARD_H], dtype=np.float32) / 2.0
 
-WINDOW_NAME = "CyberRunner Overlay Map View"
+WINDOW_NAME = "Tag Overlay Map View"
 
 # BGR colors for OpenCV
 COLOR_BG = (245, 245, 245)
@@ -131,7 +131,7 @@ class OverlayNode(Node):
         )
         self.create_subscription(
             StateEstimate,
-            "/cyberrunner_state_estimation/estimate",
+            "/tag_state_estimation/estimate",
             self.cb,
             qos,
         )
@@ -282,7 +282,7 @@ def make_base_map():
         if os.path.isfile(local_path_file):
             path_file = local_path_file
         else:
-            share = get_package_share_directory("cyberrunner_dreamer")
+            share = get_package_share_directory("tag_dreamer")
             path_file = os.path.join(share, "path_custom.pkl")
         path = LinearPath.load(path_file)
         pts = np.asarray(path.points, dtype=np.float32)
@@ -319,6 +319,18 @@ def find_next_waypoint(idx, waypoint_path_indices):
     return None
 
 
+def track_path_point(path, point):
+    """Find progress from the current ball position, independent of history."""
+    point = np.asarray(point, dtype=np.float32)
+    idx, closest = path.closest_point(point)
+    if idx < 0:
+        # The precomputed closest-point map deliberately contains invalid cells
+        # near walls and holes. Use the nearest geometric point for display.
+        idx = int(np.argmin(np.linalg.norm(path.points - point, axis=1)))
+        closest = path.points[idx]
+    return idx, closest
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -330,7 +342,7 @@ def main():
     parser.add_argument(
         "--checkpoint_radius_m",
         type=float,
-        default=float(os.environ.get("CYBERRUNNER_CHECKPOINT_RADIUS_M", "0.010")),
+        default=float(os.environ.get("TAG_CHECKPOINT_RADIUS_M", "0.010")),
         help="Radius around the current checkpoint that counts as a pass.",
     )
     args, ros_args = parser.parse_known_args()
@@ -354,6 +366,8 @@ def main():
     print("Waypoint colors: green=passed, yellow=next target, blue=future.")
     print(f"Overlay display limited to {display_hz:.1f} FPS.")
 
+    tracked_idx = None
+
     while rclpy.ok():
         frame_start = time.monotonic()
 
@@ -364,8 +378,12 @@ def main():
         panel_lines = []
 
         # Defaults if no valid path/ball data yet.
-        current_idx = None
-        next_target = 0 if len(waypoints) > 0 else None
+        current_idx = tracked_idx
+        next_target = (
+            find_next_waypoint(tracked_idx, waypoint_path_indices)
+            if tracked_idx is not None
+            else (0 if len(waypoints) > 0 else None)
+        )
 
         if node.latest is None:
             panel_lines.append("Waiting for state topic...")
@@ -390,18 +408,23 @@ def main():
                 panel_lines.append(f"alpha={float(s.alpha):.3f}, beta={float(s.beta):.3f}")
 
                 if path is not None:
-                    idx, closest = path.closest_point(np.array([x, y], dtype=np.float32))
-                    current_idx = int(idx)
+                    idx, closest = track_path_point(
+                        path,
+                        np.array([x, y], dtype=np.float32),
+                    )
 
                     if idx >= 0:
+                        tracked_idx = int(idx)
+                        current_idx = tracked_idx
+
                         cx, cy = world_to_px(float(closest[0]), float(closest[1]))
                         cv2.circle(img, (cx, cy), 6, COLOR_PATH_CLOSEST, -1)
                         cv2.line(img, (bx, by), (cx, cy), COLOR_PATH_CLOSEST, 2)
 
-                        progress = 100.0 * idx / max(1, path.num_points - 1)
+                        progress = 100.0 * tracked_idx / max(1, path.num_points - 1)
                         panel_lines.append(f"path: {progress:.1f}%")
 
-                        next_target = find_next_waypoint(idx, waypoint_path_indices)
+                        next_target = find_next_waypoint(tracked_idx, waypoint_path_indices)
 
                         if next_target is not None:
                             ntx, nty = waypoints[next_target]

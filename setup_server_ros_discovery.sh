@@ -2,10 +2,10 @@
 # Server-side setup for direct ROS 2 over Fast DDS Discovery Server.
 # Use this for Thomas Dreamer, which reads ROS topics directly instead of TCP.
 
-export PATH=/home/tbt589/micromamba/envs/cyberrunner_ros/bin:$PATH
+export PATH=/home/tbt589/micromamba/envs/tag_ros/bin:$PATH
 
-if [ -f /home/tbt589/micromamba/envs/cyberrunner_ros/setup.bash ]; then
-  source /home/tbt589/micromamba/envs/cyberrunner_ros/setup.bash
+if [ -f /home/tbt589/micromamba/envs/tag_ros/setup.bash ]; then
+  source /home/tbt589/micromamba/envs/tag_ros/setup.bash
 fi
 
 if [ -f /home/tbt589/cyberruner-main/install/setup.bash ]; then

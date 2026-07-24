@@ -39,7 +39,23 @@ def main() -> None:
     }
     if actual != expected:
         raise RuntimeError(f"Unexpected merged Dreamer configuration: {actual}")
+    hardware = embodied.Config(configs["defaults"]).update(configs["tag"])
+    hardware_expected = {
+        "task": "gym_tag_dreamer:tag-ros-v0",
+        "replay": "tag",
+        "train_ratio": 128,
+        "encoder_mlp_keys": "^(states|goal)$",
+    }
+    hardware_actual = {
+        "task": hardware.task,
+        "replay": hardware.replay,
+        "train_ratio": hardware.run.train_ratio,
+        "encoder_mlp_keys": hardware.encoder.mlp_keys,
+    }
+    if hardware_actual != hardware_expected:
+        raise RuntimeError(f"Unexpected TAG hardware configuration: {hardware_actual}")
     print(f"Dreamer multi-maze config merge passed: {actual}")
+    print(f"Dreamer TAG hardware config merge passed: {hardware_actual}")
     print("No agent or training was started.")
 
 

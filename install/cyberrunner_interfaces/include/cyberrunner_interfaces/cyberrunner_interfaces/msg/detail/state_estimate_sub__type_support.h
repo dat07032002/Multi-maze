@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/rosidl_generator_c/cyberrunner_interfaces/msg/detail/state_estimate_sub__type_support.h

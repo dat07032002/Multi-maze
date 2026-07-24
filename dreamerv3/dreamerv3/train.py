@@ -146,10 +146,10 @@ def make_logger(parsed, logdir, step, config):
 
 
 def make_replay(config, directory=None, is_eval=False, rate_limit=False, **kwargs):
-    assert config.replay in ["uniform", "cyberrunner"] or not rate_limit
+    assert config.replay in ["uniform", "cyberrunner", "tag"] or not rate_limit
     length = config.batch_length
     size = config.replay_size // 10 if is_eval else config.replay_size
-    if config.replay in ["uniform", "cyberrunner"] or is_eval:
+    if config.replay in ["uniform", "cyberrunner", "tag"] or is_eval:
         kw = {"online": config.replay_online}
         if rate_limit and config.run.train_ratio > 0:
             kw["samples_per_insert"] = config.run.train_ratio / config.batch_length
@@ -158,6 +158,9 @@ def make_replay(config, directory=None, is_eval=False, rate_limit=False, **kwarg
         if config.replay == "cyberrunner":
             print("CYBERRUNNER Replay buffer")
             replay = embodied.replay.Cyberrunner(length, size, directory, **kw)
+        elif config.replay == "tag":
+            print("TAG Replay buffer")
+            replay = embodied.replay.Tag(length, size, directory, **kw)
         else:
             replay = embodied.replay.Uniform(length, size, directory, **kw)
     elif config.replay == "reverb":

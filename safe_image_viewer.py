@@ -14,7 +14,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 class SafeImageViewer(Node):
     def __init__(self, topic, display_hz, scale, reliability):
-        super().__init__("safe_cyberrunner_image_viewer")
+        super().__init__("safe_tag_image_viewer")
 
         self.bridge = CvBridge()
         self.topic = topic
@@ -73,7 +73,7 @@ class SafeImageViewer(Node):
             )
 
 
-        cv2.imshow("Safe CyberRunner Camera Viewer", frame)
+        cv2.imshow("Safe Tag Camera Viewer", frame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
@@ -85,7 +85,7 @@ def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--topic",
-        default="/cyberrunner_camera/image",
+        default="/tag_camera/image",
         help="ROS image topic to view",
     )
     parser.add_argument(

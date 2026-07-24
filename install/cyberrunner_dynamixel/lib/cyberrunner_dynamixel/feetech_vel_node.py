@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/cyberrunner_dynamixel/scripts/feetech_vel_node.py

@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/rosidl_generator_cpp/cyberrunner_interfaces/srv/detail/dynamixel_reset__type_support.hpp

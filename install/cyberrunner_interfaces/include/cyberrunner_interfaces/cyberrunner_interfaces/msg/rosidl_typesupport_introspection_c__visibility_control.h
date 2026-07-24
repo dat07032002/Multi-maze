@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_interfaces/rosidl_typesupport_introspection_c/cyberrunner_interfaces/msg/rosidl_typesupport_introspection_c__visibility_control.h

@@ -12,8 +12,8 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 
-from cyberrunner_interfaces.msg import DynamixelVel, StateEstimateSub
-from cyberrunner_interfaces.srv import DynamixelReset
+from tag_interfaces.msg import HiwonderVel, StateEstimateSub
+from tag_interfaces.srv import HiwonderReset
 
 
 def recv_line(sock):
@@ -65,16 +65,19 @@ class TcpRosBridge(Node):
         self.latest_lock = threading.Lock()
         self.running = True
         self.reset_on_ball_lost = os.environ.get(
-            "CYBERRUNNER_RESET_ON_BALL_LOST", "1"
+            # env_tcp owns the occlusion grace period and requests a reset only
+            # after a loss is confirmed. Keep the bridge fallback opt-in so it
+            # cannot reset the board during a temporary camera occlusion.
+            "TAG_RESET_ON_BALL_LOST", "0"
         ).lower() not in ("0", "false", "no")
         self.ball_lost_threshold = int(
-            os.environ.get("CYBERRUNNER_BALL_LOST_RESET_FRAMES", "15")
+            os.environ.get("TAG_BALL_LOST_RESET_FRAMES", "15")
         )
         self.reset_cooldown_sec = float(
-            os.environ.get("CYBERRUNNER_BALL_LOST_RESET_COOLDOWN", "0.0")
+            os.environ.get("TAG_BALL_LOST_RESET_COOLDOWN", "0.0")
         )
-        self.max_cmd_1 = float(os.environ.get("CYBERRUNNER_MAX_CMD_1", "180"))
-        self.max_cmd_2 = float(os.environ.get("CYBERRUNNER_MAX_CMD_2", "180"))
+        self.max_cmd_1 = float(os.environ.get("TAG_MAX_CMD_1", "180"))
+        self.max_cmd_2 = float(os.environ.get("TAG_MAX_CMD_2", "180"))
         self.ball_lost_count = 0
         self.ball_seen_count = 0
         self.last_reset_time = 0.0
@@ -82,19 +85,19 @@ class TcpRosBridge(Node):
 
         self.sub = self.create_subscription(
             StateEstimateSub,
-            "/cyberrunner_state_estimation/estimate_subimg",
+            "/tag_state_estimation/estimate_subimg",
             self.on_state,
             1,
         )
 
         self.pub = self.create_publisher(
-            DynamixelVel,
-            "/cyberrunner_dynamixel/cmd",
+            HiwonderVel,
+            "/tag_hiwonder/cmd",
             1,
         )
         self.reset_client = self.create_client(
-            DynamixelReset,
-            "/cyberrunner_dynamixel/reset",
+            HiwonderReset,
+            "/tag_hiwonder/reset",
         )
 
         self.get_logger().info(f"TCP ROS bridge will connect to {host}:{port}")
@@ -204,11 +207,11 @@ class TcpRosBridge(Node):
 
         if not self.reset_client.service_is_ready():
             self.get_logger().warn(
-                "/cyberrunner_dynamixel/reset is not ready; sent zero velocity only."
+                "/tag_hiwonder/reset is not ready; sent zero velocity only."
             )
             return False
 
-        req = DynamixelReset.Request()
+        req = HiwonderReset.Request()
         req.max_temp = 256
 
         future = self.reset_client.call_async(req)
@@ -270,7 +273,7 @@ class TcpRosBridge(Node):
         vel_1 = float(np.clip(vel_1, -self.max_cmd_1, self.max_cmd_1))
         vel_2 = float(np.clip(vel_2, -self.max_cmd_2, self.max_cmd_2))
 
-        msg = DynamixelVel()
+        msg = HiwonderVel()
         msg.vel_1 = vel_1
         msg.vel_2 = vel_2
         self.pub.publish(msg)

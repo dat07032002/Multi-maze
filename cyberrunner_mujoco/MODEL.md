@@ -80,9 +80,9 @@ These values are sourced directly from the current project:
 - board dimensions and maze geometry from each layout JSON;
 - ball radius of 6 mm;
 - Hiwonder home positions, limits, scale, driver rate, rate limit, deadband, and
-  move time from `cyberrunner_dynamixel/config/hiwonder.yaml`;
+  move time from `tag_hiwonder/scripts/hiwonder_compat_node.py`;
 - normalized action conversion and sign from `env_tcp_shaped.py`;
-- camera calibration from `calib_results_cyberrunner.txt`;
+- camera calibration from `tag_state_estimation/calib/calib_results_tag.txt`;
 - 64 mm by 64 mm board-coordinate remap from `measurements.py`; and
 - 64 x 64 grayscale channel-average conversion from `tcp_ros_bridge.py`.
 

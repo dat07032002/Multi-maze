@@ -1,1 +1,0 @@
-/home/trungbao/CYBER/cyberruner-main/build/cyberrunner_camera/ament_cmake_environment_hooks/local_setup.sh

@@ -133,6 +133,26 @@ cyberrunner:
   decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
   wrapper: {length: 3000}
 
+# Real TAG hardware over the TCP bridge. This profile is kept separate from
+# `cyberrunner`, which is the multi-maze MuJoCo training environment.
+tag:
+  task: gym_tag_dreamer:tag-ros-v0
+  tensorboard: True
+  envs.amount: 1
+  envs.parallel: none
+  replay: tag
+  jax:
+    logical_cpus: 8
+  run:
+    script: train
+    train_ratio: 128
+    actor_batch: 1
+    save_every: 10
+    log_keys_sum: '^log_reward$'
+  encoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
+  decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
+  wrapper: {length: 3000}
+
 minecraft:
 
   task: minecraft_diamond

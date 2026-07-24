@@ -13,9 +13,9 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 DEFAULT_CAMERA_CALIBRATION = (
     HERE.parent
-    / "cyberrunner_state_estimation"
+    / "tag_state_estimation"
     / "calib"
-    / "calib_results_cyberrunner.txt"
+    / "calib_results_tag.txt"
 )
 
 
