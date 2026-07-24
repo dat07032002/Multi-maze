@@ -9,6 +9,8 @@ from typing import Any, Dict
 
 
 HERE = Path(__file__).resolve().parent
+DEFAULT_WALL_THICKNESS_M = 0.0022
+DEFAULT_WALL_HEIGHT_M = 0.012
 DEFAULT_LAYOUT_PATH = (
     HERE.parent
     / "cyberrunner_dreamer"
@@ -36,6 +38,9 @@ def load_layout(path: Path = DEFAULT_LAYOUT_PATH) -> Dict[str, Any]:
         raise KeyError(f"Layout is missing required keys: {sorted(missing)}")
     if len(layout["holes"]) != len(layout["hole_radii"]):
         raise ValueError("Each hole must have exactly one radius")
+    layout = dict(layout)
+    layout.setdefault("wall_thickness", DEFAULT_WALL_THICKNESS_M)
+    layout.setdefault("wall_height", DEFAULT_WALL_HEIGHT_M)
     return layout
 
 
@@ -55,10 +60,11 @@ def load_json_layout(path: Path) -> Dict[str, Any]:
     missing = required.difference(layout)
     if missing:
         raise KeyError(f"Layout is missing required keys: {sorted(missing)}")
+    layout.setdefault("wall_thickness", DEFAULT_WALL_THICKNESS_M)
+    layout.setdefault("wall_height", DEFAULT_WALL_HEIGHT_M)
     return layout
 
 
 def save_json_layout(layout: Dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(layout, indent=2) + "\n", encoding="utf-8")
-

@@ -36,6 +36,7 @@ class PolicyCameraModel:
         self._blur = 0.0
         self._noise_std = 0.0
         self._crop_shift = np.zeros(2, dtype=np.float64)
+        self._dropout_remaining = 0
 
     def reset(self, seed: int | None = None, randomize: bool = False) -> None:
         self._rng = np.random.default_rng(seed)
@@ -53,6 +54,7 @@ class PolicyCameraModel:
             self._blur = 0.0
             self._noise_std = 0.0
             self._crop_shift[:] = 0.0
+        self._dropout_remaining = 0
 
     def _point(self, xy: Iterable[float]) -> Tuple[float, float]:
         x, y = xy
@@ -103,8 +105,17 @@ class PolicyCameraModel:
     ) -> Tuple[np.ndarray, bool]:
         ball_xy = np.asarray(tuple(ball_xy), dtype=np.float64)
         detected = bool(ball_visible)
-        if self._randomize and self._rng.random() < self.config.dropout_probability:
-            detected = False
+        if self._randomize and detected:
+            if self._dropout_remaining > 0:
+                self._dropout_remaining -= 1
+                detected = False
+            elif self._rng.random() < self.config.dropout_burst_start_probability:
+                low, high = self.config.dropout_burst_frames
+                burst = int(self._rng.integers(max(1, low), max(1, high) + 1))
+                self._dropout_remaining = max(0, burst - 1)
+                detected = False
+            elif self._rng.random() < self.config.dropout_probability:
+                detected = False
         if not detected:
             return (
                 np.zeros(
@@ -185,6 +196,9 @@ class PolicyCameraModel:
                 self.config.capture_width,
                 self.config.capture_height,
             ],
+            "effective_capture_rate_hz": self.config.effective_capture_rate_hz,
+            "detector_miss_threshold": self.config.detector_miss_threshold,
+            "ball_loss_grace_seconds": self.config.ball_loss_grace_seconds,
             "published_resolution": [
                 self.config.resized_width,
                 self.config.resized_height

@@ -47,11 +47,43 @@
       "status": "design",
       "source": "new policy observation contract"
     },
+    "camera.effective_capture_rate": {
+      "value": 45.0,
+      "range": [35.0, 60.0],
+      "unit": "Hz",
+      "status": "extracted_unverified",
+      "source": "working TAG camera publisher comment for locked 8 ms exposure"
+    },
+    "camera.detector_miss_threshold": {
+      "value": 6,
+      "unit": "frame",
+      "status": "extracted_unverified",
+      "source": "working TAG HSV detector configuration"
+    },
+    "camera.ball_loss_grace": {
+      "value": 0.35,
+      "unit": "s",
+      "status": "extracted_unverified",
+      "source": "working TAG TCP environment default"
+    },
+    "camera.occlusion_grace": {
+      "value": 1.5,
+      "unit": "s",
+      "status": "extracted_unverified",
+      "source": "working TAG TCP environment default for configured occlusion regions"
+    },
     "hiwonder.update_rate": {
       "value": 30.0,
       "unit": "Hz",
       "status": "extracted_unverified",
       "source": "active Hiwonder driver configuration"
+    },
+    "policy.effective_step_rate": {
+      "value": 35.0,
+      "range": [25.0, 45.0],
+      "unit": "Hz",
+      "status": "inferred",
+      "source": "working TAG environment 35 FPS warning threshold; synchronous TCP rate varies"
     },
     "hiwonder.home_positions": {
       "value": [500.0, 500.0],
@@ -64,6 +96,66 @@
       "unit": "servo_unit_per_policy_command",
       "status": "extracted_unverified",
       "source": "active Hiwonder compatibility driver"
+    },
+    "hiwonder.policy_command_scale": {
+      "value": [240.0, 240.0],
+      "unit": "command_per_normalized_action",
+      "status": "extracted_unverified",
+      "source": "working TAG Dreamer TCP environment default"
+    },
+    "hiwonder.effective_bridge_command_limit": {
+      "value": [180.0, 180.0],
+      "unit": "command",
+      "status": "extracted_unverified",
+      "source": "working TAG TCP bridge executable default; lower than its README"
+    },
+    "hiwonder.servo_limits": {
+      "value": [[100.0, 900.0], [100.0, 900.0]],
+      "unit": "servo_unit",
+      "status": "extracted_unverified",
+      "source": "working TAG Hiwonder compatibility driver"
+    },
+    "hiwonder.max_step_per_tick": {
+      "value": [20.0, 20.0],
+      "unit": "servo_unit",
+      "status": "extracted_unverified",
+      "source": "working TAG Hiwonder compatibility driver"
+    },
+    "hiwonder.command_timeout": {
+      "value": 1.0,
+      "unit": "s",
+      "status": "extracted_unverified",
+      "source": "working TAG Hiwonder compatibility driver"
+    },
+    "maze.wall_thickness": {
+      "value": 0.0022,
+      "unit": "m",
+      "status": "inferred",
+      "source": "current printable-maze design value; pending measurement and print validation"
+    },
+    "maze.wall_height": {
+      "value": 0.012,
+      "unit": "m",
+      "status": "inferred",
+      "source": "current printable-maze design value; pending measurement and print validation"
+    },
+    "maze.hole_radius": {
+      "value": 0.0075,
+      "unit": "m",
+      "status": "extracted_unverified",
+      "source": "working TAG custom maze layout"
+    },
+    "insert.mounting_interface": {
+      "value": null,
+      "unit": "geometry",
+      "status": "inferred",
+      "source": "259 x 229 mm footprint is physically confirmed, but thickness and retention geometry remain unmeasured; blocks final-fit STL"
+    },
+    "insert.confirmed_fit_footprint": {
+      "value": [0.259, 0.229],
+      "unit": "m",
+      "status": "measured",
+      "source": "user-confirmed fit in the Sterling swappable-board platform on 2026-07-23"
     },
     "actuator.total_delay": {
       "value": 0.045,
@@ -93,4 +185,3 @@
     }
   }
 }
-

@@ -24,6 +24,9 @@ class HiwonderActuatorModel:
         self._commanded_position = self._home.copy()
         self._board_target = np.asarray(config.zero_angle_offset_rad, dtype=np.float64)
         self._tick_accumulator = 0.0
+        self._time_seconds = 0.0
+        self._last_action_time: float | None = None
+        self._timed_out = False
         delay_ticks = max(0, math.ceil(config.total_delay_seconds * config.update_rate_hz))
         self._delay: Deque[np.ndarray] = collections.deque(
             [self._home.copy() for _ in range(delay_ticks)]
@@ -44,6 +47,8 @@ class HiwonderActuatorModel:
         target = self._home + command * np.asarray(self.config.command_scale)
         limits = np.asarray(self.config.servo_limits, dtype=np.float64)
         self._pending_target = np.clip(target, limits[:, 0], limits[:, 1])
+        self._last_action_time = self._time_seconds
+        self._timed_out = False
 
     def _driver_tick(self) -> None:
         if self._delay:
@@ -58,7 +63,18 @@ class HiwonderActuatorModel:
         self._commanded_position += step
 
     def step(self, dt: float) -> np.ndarray:
-        self._tick_accumulator += float(dt)
+        dt = float(dt)
+        self._time_seconds += dt
+        if (
+            self.config.timeout_go_home
+            and self.config.command_timeout_seconds > 0.0
+            and self._last_action_time is not None
+            and self._time_seconds - self._last_action_time
+            > self.config.command_timeout_seconds
+        ):
+            self._pending_target = self._home.copy()
+            self._timed_out = True
+        self._tick_accumulator += dt
         tick_period = 1.0 / self.config.update_rate_hz
         while self._tick_accumulator + 1e-12 >= tick_period:
             self._tick_accumulator -= tick_period
@@ -83,6 +99,17 @@ class HiwonderActuatorModel:
         )
         return self._board_target.copy()
 
+    def hardware_reset_profile(self) -> dict[str, object]:
+        """Return the two-stage physical reset sequence used by TAG."""
+
+        return {
+            "prehome_positions": tuple(self.config.reset_prehome_positions),
+            "prehome_move_seconds": self.config.reset_prehome_move_seconds,
+            "prehome_wait_seconds": self.config.reset_prehome_wait_seconds,
+            "home_positions": tuple(self.config.home_positions),
+            "home_move_seconds": self.config.reset_home_move_seconds,
+        }
+
     @property
     def commanded_servo_positions(self) -> np.ndarray:
         return self._commanded_position.copy()
@@ -90,3 +117,7 @@ class HiwonderActuatorModel:
     @property
     def board_target_angles(self) -> np.ndarray:
         return self._board_target.copy()
+
+    @property
+    def timed_out(self) -> bool:
+        return self._timed_out

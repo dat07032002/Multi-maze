@@ -43,9 +43,8 @@ class CyberRunner(embodied.Env):
         points = self._env.system_config.relative_goal_points
         return {
             "image": embodied.Space(np.uint8, (64, 64, 1), 0, 255),
-            "states": embodied.Space(np.float32, (4,), -1.0, 1.0),
-            "goal": embodied.Space(np.float32, (points * 2,), -1.0, 1.0),
-            "ball_visible": embodied.Space(np.uint8, (1,), 0, 1),
+            "states": embodied.Space(np.float32, (4,)),
+            "goal": embodied.Space(np.float32, (points * 2,)),
             "log_progress": embodied.Space(np.float32, (1,)),
             "log_cross_track_error": embodied.Space(np.float32, (1,)),
             "log_clearance_cost": embodied.Space(np.float32, (1,)),

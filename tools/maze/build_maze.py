@@ -17,6 +17,7 @@ REQUIRED_KEYS = {
     "board_height",
     "ball_radius",
     "wall_thickness",
+    "wall_height",
     "walls_h",
     "walls_v",
     "walls_angled",
@@ -60,8 +61,11 @@ def validate(raw):
     height = finite_number(raw["board_height"], "board_height")
     ball_radius = finite_number(raw["ball_radius"], "ball_radius")
     wall_thickness = finite_number(raw["wall_thickness"], "wall_thickness")
-    if min(width, height, ball_radius, wall_thickness) <= 0.0:
-        raise ValueError("board dimensions, ball radius, and wall thickness must be positive")
+    wall_height = finite_number(raw["wall_height"], "wall_height")
+    if min(width, height, ball_radius, wall_thickness, wall_height) <= 0.0:
+        raise ValueError(
+            "board dimensions, ball radius, wall thickness, and wall height must be positive"
+        )
 
     for index, wall in enumerate(raw["walls_h"]):
         if len(wall) != 3:
@@ -116,6 +120,7 @@ def validate(raw):
     normalized["board_height"] = height
     normalized["ball_radius"] = ball_radius
     normalized["wall_thickness"] = wall_thickness
+    normalized["wall_height"] = wall_height
     return normalized
 
 
@@ -215,6 +220,11 @@ def main():
         action="store_true",
         help="also generate path_custom.pkl when geometry is supported",
     )
+    parser.add_argument(
+        "--print-package",
+        action="store_true",
+        help="also export the common MJCF/PNG/route/prototype-STL package",
+    )
     args = parser.parse_args()
 
     layout = validate(json.loads(args.maze.read_text(encoding="utf-8")))
@@ -227,6 +237,12 @@ def main():
     if args.path_pickle:
         repository_root = Path(__file__).resolve().parents[2]
         write_path_pickle(layout, args.output_dir / "path_custom.pkl", repository_root)
+    if args.print_package:
+        repository_root = Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(repository_root))
+        from cyberrunner_mujoco.maze_artifact import export_maze_artifact
+
+        export_maze_artifact(args.maze, args.output_dir / "package")
     print(f"Validated {layout['maze_id']} and wrote artifacts to {args.output_dir}")
 
 

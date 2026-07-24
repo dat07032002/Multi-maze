@@ -41,6 +41,9 @@
         1280,
         720
       ],
+      "effective_capture_rate_hz": 45.0,
+      "detector_miss_threshold": 6,
+      "ball_loss_grace_seconds": 0.35,
       "published_resolution": [
         640,
         400
@@ -59,7 +62,7 @@
   "interface": {
     "shapes_match_real_policy_interface": true,
     "initial_step_reason": "running",
-    "control_rate_hz": 30.0,
+    "control_rate_hz": 35.0,
     "observation_delay_steps": 1,
     "passed": true
   },

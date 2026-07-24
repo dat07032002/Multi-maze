@@ -15,7 +15,9 @@ normalized policy action [-1, 1]^2
   -> MuJoCo two-axis board
   -> rolling/sliding ball, walls, and physical holes
   -> calibrated board-coordinate camera remap
-  -> delayed {image, states, goal, ball_visible} observation
+  -> detector hysteresis and short-loss prediction
+  -> delayed raw sensor state
+  -> deployed {image, states, goal} policy observation
 ```
 
 The old ROS message calls the two commands velocities, but the active Hiwonder
@@ -30,11 +32,12 @@ Dreamer environment:
 | Key | Shape | Meaning |
 | --- | --- | --- |
 | `image` | `64 x 64 x 1`, `uint8` | Grayscale, ball-centered 64 mm physical patch |
-| `states` | `4`, `float32` | Board X/Y angles and ball X/Y position in SI units |
-| `goal` | `10`, `float32` | Five 2D route targets relative to the ball |
-| `ball_visible` | `1`, `bool` | State-estimator detection status |
+| `states` | `4`, `float32` | TAG-normalized board X/Y angles and lower-left-frame ball X/Y position |
+| `goal` | `10`, `float32` | Five normalized 2D route targets relative to the ball |
 
-Normalization belongs in the future RL adapter, not in the physical model.
+`ball_visible` remains available as diagnostic information but is not encoded
+by the deployed policy. Exact normalization is defined in
+`HARDWARE_CONTRACT.md` and implemented by `policy_contract.py`.
 Reward and termination interpretation also remain outside this layer, although
 the model reports physical terminal reasons such as `ball_fell`.
 

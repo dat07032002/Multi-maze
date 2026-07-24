@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 FLOOR_THICKNESS = 0.006
 FLOOR_STRIP_HEIGHT = 0.0015
-WALL_THICKNESS = 0.0012
+WALL_THICKNESS = 0.0022
 WALL_HEIGHT = 0.012
 OUTER_WALL_THICKNESS = 0.003
 MIN_WALL_LENGTH = 0.0015
@@ -45,9 +45,10 @@ def _floor_spans(
     height: float,
     holes: Sequence[Sequence[float]],
     radii: Sequence[float],
+    strip_height: float = FLOOR_STRIP_HEIGHT,
 ) -> Iterable[Tuple[float, float, float, float]]:
     """Yield supported rectangles as x0, x1, y0, y1 around circular holes."""
-    rows = max(1, math.ceil(height / FLOOR_STRIP_HEIGHT))
+    rows = max(1, math.ceil(height / max(strip_height, 1e-6)))
     for row in range(rows):
         y0 = row * height / rows
         y1 = (row + 1) * height / rows

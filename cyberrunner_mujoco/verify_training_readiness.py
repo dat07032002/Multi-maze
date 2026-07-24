@@ -13,12 +13,14 @@ try:
     from .maze_layout import load_json_layout
     from .maze_dataset import DEFAULT_MANIFEST, load_manifest, load_split
     from .parameter_registry import load_parameter_registry, unresolved_parameters
+    from .policy_contract import CONTRACT_VERSION, TagPolicyContract
     from .route_planner import PlannerConfig, validate_route
 except ImportError:
     from cyberrunner_env import CyberRunnerTask
     from maze_layout import load_json_layout
     from maze_dataset import DEFAULT_MANIFEST, load_manifest, load_split
     from parameter_registry import load_parameter_registry, unresolved_parameters
+    from policy_contract import CONTRACT_VERSION, TagPolicyContract
     from route_planner import PlannerConfig, validate_route
 
 
@@ -60,10 +62,16 @@ def main() -> None:
     task = CyberRunnerTask(layout_paths=[str(path) for path in layouts], seed=123)
     rollout_results = []
     finite = True
+    contract_valid = True
+    contract = TagPolicyContract()
     for layout_index in range(len(layouts)):
         observation, info = task.reset(
             seed=1000 + layout_index, options={"layout_index": layout_index}
         )
+        try:
+            contract.validate_observation(observation)
+        except ValueError:
+            contract_valid = False
         for _ in range(10):
             observation, reward, terminated, truncated, info = task.step(
                 np.zeros(2, dtype=np.float32)
@@ -71,6 +79,10 @@ def main() -> None:
             finite = finite and np.isfinite(reward) and all(
                 np.all(np.isfinite(value)) for value in observation.values()
             )
+            try:
+                contract.validate_observation(observation)
+            except ValueError:
+                contract_valid = False
             if terminated or truncated:
                 break
         rollout_results.append(
@@ -88,6 +100,10 @@ def main() -> None:
     result = {
         "training_started": False,
         "approval_required": True,
+        "policy_contract_version": CONTRACT_VERSION,
+        "policy_contract_valid": contract_valid,
+        "final_fit_stl_ready": False,
+        "final_fit_blocker": "physical TAG insert mounting interface is not measured",
         "physical_gpu_0_excluded": True,
         "planned_smoke_test_physical_gpu": 2,
         "parameter_registry_valid": True,
@@ -108,6 +124,7 @@ def main() -> None:
         "ready_for_multimaze_training_approval": bool(
             all_routes_pass
             and finite
+            and contract_valid
             and len(train.paths) == 40
             and len(validation_split.paths) == 8
             and len(test.paths) == 8

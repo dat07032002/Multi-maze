@@ -129,7 +129,7 @@ cyberrunner:
     maze_split: train
     maze_sampling: curriculum
     curriculum_episodes: 5000
-  encoder: {mlp_keys: '^(states|goal|ball_visible)$', cnn_keys: '^image$'}
+  encoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
   decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
   wrapper: {length: 3000}
 

@@ -32,9 +32,11 @@ The clean training layer now also contains:
 - `cyberrunner_env.py`, a new normalized Gym task that does not inherit the
   legacy ROS/TCP reward or replay implementation;
 - a direct DreamerV3 Embodied adapter using standard uniform replay; and
-- an approval-gated GPU-1 launcher that cannot start training accidentally.
+- an approval-gated GPU-2 launcher that cannot start training accidentally.
 
 See [`MODEL.md`](MODEL.md) for parameter sources and explicit assumptions.
+See [`HARDWARE_CONTRACT.md`](HARDWARE_CONTRACT.md) for the exact TAG camera,
+policy-observation, Hiwonder-action, and swappable-insert deployment contract.
 
 ## Setup on Windows
 
@@ -167,8 +169,19 @@ less uniform while retaining safe ball clearance.
 
 The example seeds are deterministic: the same seed always produces the same
 walls, holes, and route. Generated JSON and MJCF files are saved under
-`generated_mazes/`. The JSON is intended to become the shared source for
-simulation, Dreamer training, and future printable mesh generation.
+`generated_mazes/`. The JSON is the shared source for simulation, Dreamer
+training, route generation, and printable mesh generation.
+
+Export one versioned maze package from that shared source:
+
+```powershell
+.venv\Scripts\python.exe maze_artifact.py generated_mazes\maze_seed_10000.json --output-root printable_mazes
+```
+
+The package contains `layout.json`, `route.json`, `model.xml`, `preview.png`,
+`metadata.json`, and `maze_prototype.stl`. The STL remains explicitly marked
+`prototype_only`; `--final-fit` is blocked until the physical insert mounting
+interface has been measured.
 
 The comparison image places the original maze beside three dense generated
 mazes. The original has 56 recorded route waypoints; the selected generated

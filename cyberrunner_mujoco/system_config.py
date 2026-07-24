@@ -86,6 +86,12 @@ class ActuatorConfig:
     max_step_per_tick: Tuple[float, float] = (20.0, 20.0)
     deadband_units: float = 1.0
     move_time_seconds: float = 0.030
+    command_timeout_seconds: float = 1.0
+    timeout_go_home: bool = True
+    reset_prehome_positions: Tuple[float, float] = (700.0, 700.0)
+    reset_prehome_move_seconds: float = 0.060
+    reset_prehome_wait_seconds: float = 0.5
+    reset_home_move_seconds: float = 0.600
     total_delay_seconds: float = 0.045
     response_time_constant_seconds: float = 0.075
     board_angle_limit_rad: float = math.radians(10.0)
@@ -129,11 +135,18 @@ class CameraConfig:
     resized_height: int = 360
     vertical_border_pixels: int = 20
     nominal_capture_rate_hz: float = 60.0
+    effective_capture_rate_hz: float = 45.0
     patch_extent_m: float = 0.064
     output_pixels: int = 64
     raster_pixels_per_meter: int = 4000
     observation_delay_steps: int = 1
     dropout_probability: float = 0.005
+    dropout_burst_start_probability: float = 0.002
+    dropout_burst_frames: Tuple[int, int] = (1, 12)
+    detector_miss_threshold: int = 6
+    ball_loss_grace_seconds: float = 0.35
+    occlusion_grace_seconds: float = 1.50
+    prediction_max_speed_mps: float = 0.15
     angle_noise_std_rad: float = math.radians(0.15)
     position_noise_std_m: float = 0.00025
     brightness_range: Tuple[float, float] = (0.80, 1.20)
@@ -175,9 +188,10 @@ class SystemConfig:
     actuator: ActuatorConfig = ActuatorConfig()
     camera: CameraConfig = CameraConfig()
     physics: PhysicsConfig = PhysicsConfig()
-    control_rate_hz: float = 30.0
+    # Policy/TCP loop is distinct from the 30 Hz Hiwonder driver. The working
+    # environment warns below 35 FPS; this remains an inferred nominal rate.
+    control_rate_hz: float = 35.0
     maximum_episode_steps: int = 3000
     goal_radius_m: float = 0.008
     relative_goal_points: int = 5
     relative_goal_spacing_m: float = 0.012
-

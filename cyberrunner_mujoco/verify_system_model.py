@@ -71,7 +71,10 @@ def main() -> None:
     for _ in range(20):
         actuator.step(0.001)
     before_delay = actuator.board_target_angles
-    for _ in range(1180):
+    policy_period_steps = round(1.0 / (config.control_rate_hz * 0.001))
+    for index in range(1180):
+        if index % policy_period_steps == 0:
+            actuator.submit_action((1.0, -1.0))
         actuator.step(0.001)
     after_settle = actuator.board_target_angles
     results["actuator"] = {
@@ -113,7 +116,6 @@ def main() -> None:
         "image": (64, 64, 1),
         "states": (4,),
         "goal": (10,),
-        "ball_visible": (1,),
     }
     shapes_match = all(observation[key].shape == shape for key, shape in expected_shapes.items())
     step = model.step((0.0, 0.0))

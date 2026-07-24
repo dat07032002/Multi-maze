@@ -26,6 +26,7 @@ except ImportError:  # Local verification uses maintained Gymnasium.
 try:
     from .maze_layout import load_json_layout
     from .maze_dataset import DEFAULT_MANIFEST, load_split
+    from .policy_contract import TagPolicyContract
     from .route_planner import (
         PlannerConfig,
         apply_safe_route,
@@ -37,6 +38,7 @@ try:
 except ImportError:  # Preserve direct-script execution from this directory.
     from maze_layout import load_json_layout
     from maze_dataset import DEFAULT_MANIFEST, load_split
+    from policy_contract import TagPolicyContract
     from route_planner import (
         PlannerConfig,
         apply_safe_route,
@@ -168,6 +170,7 @@ class CyberRunnerTask:
         self.episodes_started = 0
         self.layout_index = 0
         self.layout_sampling_probability = 1.0
+        self.policy_contract: TagPolicyContract
 
     def sampling_probabilities(self) -> np.ndarray:
         """Return deterministic curriculum probabilities for the next reset."""
@@ -262,6 +265,18 @@ class CyberRunnerTask:
         self.episodes_started += 1
         self.layout_path = self.layout_paths[layout_index]
         self.layout = self._load_layout(self.layout_path)
+        self.policy_contract = TagPolicyContract(
+            board_width_m=float(self.layout["board_width"]),
+            board_height_m=float(self.layout["board_height"]),
+            angle_scale_rad=self.system_config.actuator.board_angle_limit_rad,
+            relative_goal_points=self.system_config.relative_goal_points,
+            relative_goal_spacing_m=self.system_config.relative_goal_spacing_m,
+            bridge_command_limit=self.system_config.actuator.policy_command_limit,
+            policy_command_sign=self.system_config.actuator.policy_command_sign,
+            servo_home=self.system_config.actuator.home_positions,
+            servo_command_scale=self.system_config.actuator.command_scale,
+            servo_limits=self.system_config.actuator.servo_limits,
+        )
         self.model = CyberRunnerSystemModel(self.layout, self.system_config)
         self.route = self.model.route
         ball_xy, velocity = self._select_start()
@@ -312,8 +327,6 @@ class CyberRunnerTask:
         self, raw: Dict[str, np.ndarray], true_clearance: float
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         visible = bool(raw["ball_visible"][0])
-        width = float(self.layout["board_width"])
-        height = float(self.layout["board_height"])
         state = np.zeros(4, dtype=np.float32)
         goals = np.zeros(self.system_config.relative_goal_points * 2, dtype=np.float32)
         cross_track = math.nan
@@ -322,10 +335,7 @@ class CyberRunnerTask:
             measured_xy = measured[2:4]
             projected_progress, _, cross_track = self._project_measured_position(measured_xy)
             self.progress_m = projected_progress
-            angle_limit = self.system_config.actuator.board_angle_limit_rad
-            state[:2] = np.clip(measured[:2] / angle_limit, -1.0, 1.0)
-            state[2] = np.clip(2.0 * measured_xy[0] / width - 1.0, -1.0, 1.0)
-            state[3] = np.clip(2.0 * measured_xy[1] / height - 1.0, -1.0, 1.0)
+            state = self.policy_contract.normalize_states(measured[:2], measured_xy)
             targets = [
                 self.route.point_at(
                     self.progress_m
@@ -334,14 +344,8 @@ class CyberRunnerTask:
                 - measured_xy
                 for index in range(self.system_config.relative_goal_points)
             ]
-            goal_scale = (
-                self.system_config.relative_goal_spacing_m
-                * self.system_config.relative_goal_points
-            )
-            goals = np.clip(
-                np.asarray(targets, dtype=np.float32).reshape(-1) / goal_scale,
-                -1.0,
-                1.0,
+            goals = self.policy_contract.normalize_relative_goal(
+                np.asarray(targets, dtype=np.float32)
             )
         warning = max(self.task_config.clearance_warning_m, 1e-6)
         clearance_cost = float(np.clip((warning - true_clearance) / warning, 0.0, 1.0))
@@ -349,7 +353,6 @@ class CyberRunnerTask:
             "image": raw["image"].astype(np.uint8, copy=False),
             "states": state,
             "goal": goals,
-            "ball_visible": np.asarray([visible], dtype=np.uint8),
             "log_progress": np.asarray(
                 [self.progress_m / max(self.route.total_length, 1e-6)],
                 dtype=np.float32,
@@ -367,6 +370,7 @@ class CyberRunnerTask:
                 dtype=np.float32,
             ),
         }
+        self.policy_contract.validate_observation(observation)
         return observation, {
             "route_progress_m": self.progress_m,
             "cross_track_error_m": cross_track,
@@ -449,9 +453,8 @@ class CyberRunnerEnv(gym.Env):  # type: ignore[misc]
         self.observation_space = gym.spaces.Dict(
             {
                 "image": gym.spaces.Box(0, 255, (64, 64, 1), dtype=np.uint8),
-                "states": gym.spaces.Box(-1.0, 1.0, (4,), dtype=np.float32),
-                "goal": gym.spaces.Box(-1.0, 1.0, (points * 2,), dtype=np.float32),
-                "ball_visible": gym.spaces.Box(0, 1, (1,), dtype=np.uint8),
+                "states": gym.spaces.Box(-np.inf, np.inf, (4,), dtype=np.float32),
+                "goal": gym.spaces.Box(-np.inf, np.inf, (points * 2,), dtype=np.float32),
                 "log_progress": gym.spaces.Box(-np.inf, np.inf, (1,), dtype=np.float32),
                 "log_cross_track_error": gym.spaces.Box(
                     -np.inf, np.inf, (1,), dtype=np.float32

@@ -12,11 +12,13 @@ import numpy as np
 try:
     from .actuator_model import HiwonderActuatorModel
     from .camera_model import PolicyCameraModel
+    from .observation_filter import TagObservationFilter
     from .simulator import CyberRunnerSim
     from .system_config import ActuatorConfig, PhysicsConfig, SystemConfig
 except ImportError:
     from actuator_model import HiwonderActuatorModel
     from camera_model import PolicyCameraModel
+    from observation_filter import TagObservationFilter
     from simulator import CyberRunnerSim
     from system_config import ActuatorConfig, PhysicsConfig, SystemConfig
 
@@ -114,6 +116,7 @@ class CyberRunnerSystemModel:
         self.sim: CyberRunnerSim
         self.actuator: HiwonderActuatorModel
         self.camera: PolicyCameraModel
+        self.observation_filter: TagObservationFilter
         self.active_actuator_config: ActuatorConfig
         self.active_physics_config: PhysicsConfig
         self.steps = 0
@@ -149,6 +152,11 @@ class CyberRunnerSystemModel:
         self.camera = PolicyCameraModel(self.layout, self.config.camera)
         camera_seed = int(self.rng.integers(0, 2**31 - 1))
         self.camera.reset(camera_seed, randomize=randomize)
+        self.observation_filter = TagObservationFilter(
+            miss_threshold=self.config.camera.detector_miss_threshold,
+            grace_seconds=self.config.camera.ball_loss_grace_seconds,
+            prediction_max_speed_mps=self.config.camera.prediction_max_speed_mps,
+        )
         velocity = np.asarray(tuple(ball_velocity_xy), dtype=np.float64)
         moving_reset = bool(np.linalg.norm(velocity) > 1e-12 or np.linalg.norm(board_tilt) > 1e-12)
         self.sim.reset(
@@ -160,7 +168,7 @@ class CyberRunnerSystemModel:
         self.steps = 0
         self._physics_time_remainder = 0.0
         self._last_ball_xy = self.sim.ball_board_position()[:2]
-        observation, _ = self._make_current_observation()
+        observation, _ = self._make_current_observation(dt_seconds=0.0)
         delay = max(0, int(self.config.camera.observation_delay_steps))
         self._observation_queue = collections.deque(
             [_copy_observation(observation) for _ in range(delay)]
@@ -178,7 +186,20 @@ class CyberRunnerSystemModel:
             self.sim.set_tilt(float(target_angles[0]), float(target_angles[1]))
             self.sim.step()
 
-    def _make_current_observation(self) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
+    def _route_goal_for_position(self, position: np.ndarray) -> np.ndarray:
+        return self.route.relative_targets(
+            position,
+            self.config.relative_goal_points,
+            self.config.relative_goal_spacing_m,
+        )[0]
+
+    def _project_to_route(self, position: np.ndarray) -> np.ndarray:
+        progress = self.route.closest_progress(position)
+        return self.route.point_at(progress)
+
+    def _make_current_observation(
+        self, dt_seconds: float
+    ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         board_angles = self.sim.board_angles()
         ball = self.sim.ball_board_position()
         width, height = self.sim.board_size
@@ -195,39 +216,55 @@ class CyberRunnerSystemModel:
             self.config.relative_goal_points,
             self.config.relative_goal_spacing_m,
         )
+        measured_angles = board_angles + self.rng.normal(
+            0.0, self.config.camera.angle_noise_std_rad, size=2
+        )
+        measured_ball = None
         if detected:
-            measured_angles = board_angles + self.rng.normal(
-                0.0, self.config.camera.angle_noise_std_rad, size=2
-            )
             measured_ball = ball[:2] + self.rng.normal(
                 0.0, self.config.camera.position_noise_std_m, size=2
             )
-            state = np.concatenate((measured_angles, measured_ball)).astype(np.float32)
-            goal = relative_goal.astype(np.float32)
-        else:
-            state = np.zeros(4, dtype=np.float32)
-            goal = np.zeros(self.config.relative_goal_points * 2, dtype=np.float32)
-        observation = {
-            "image": image,
-            "states": state,
-            "goal": goal,
-            "ball_visible": np.asarray([detected], dtype=np.bool_),
-        }
+            relative_goal = self._route_goal_for_position(measured_ball)
+        observation, reported_visible, observation_mode = self.observation_filter.update(
+            image=image,
+            board_angles_rad=measured_angles,
+            measured_xy_m=measured_ball,
+            relative_goal_m=relative_goal,
+            detected=detected,
+            dt_seconds=dt_seconds,
+            goal_for_position=self._route_goal_for_position,
+            project_to_route=self._project_to_route,
+        )
+        observation["ball_visible"] = np.asarray([reported_visible], dtype=np.bool_)
         info = {
             "true_board_angles": board_angles.copy(),
             "true_ball_position": ball.copy(),
             "route_progress_m": progress,
             "camera_detected_ball": detected,
+            "camera_reported_ball": reported_visible,
+            "camera_observation_mode": observation_mode,
         }
         return observation, info
 
     def _termination(self) -> Tuple[bool, bool, str]:
         ball = self.sim.ball_board_position()
         width, height = self.sim.board_size
-        if ball[2] < -self.sim.ball_radius:
-            return True, False, "ball_fell"
-        if ball[0] < 0.0 or ball[0] > width or ball[1] < 0.0 or ball[1] > height:
-            return True, False, "ball_left_board"
+        ball_fell = ball[2] < -self.sim.ball_radius
+        ball_left = ball[0] < 0.0 or ball[0] > width or ball[1] < 0.0 or ball[1] > height
+        if ball_fell:
+            return (
+                (True, False, "ball_fell")
+                if self.observation_filter.confirmed_lost
+                else (False, False, "running")
+            )
+        if ball_left:
+            return (
+                (True, False, "ball_left_board")
+                if self.observation_filter.confirmed_lost
+                else (False, False, "running")
+            )
+        if self.observation_filter.confirmed_lost:
+            return True, False, "ball_lost"
         goal = np.asarray(self.layout["waypoints"][-1], dtype=np.float64)
         if np.linalg.norm(ball[:2] - goal) <= self.config.goal_radius_m:
             return True, False, "goal_reached"
@@ -239,7 +276,9 @@ class CyberRunnerSystemModel:
         self.actuator.submit_action(action)
         self._advance_physics()
         self.steps += 1
-        current_observation, info = self._make_current_observation()
+        current_observation, info = self._make_current_observation(
+            dt_seconds=1.0 / self.config.control_rate_hz
+        )
         self._observation_queue.append(_copy_observation(current_observation))
         delayed_observation = self._observation_queue.popleft()
         terminated, truncated, reason = self._termination()

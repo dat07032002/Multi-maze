@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 import numpy as np
 
@@ -11,9 +12,23 @@ from cyberrunner_mujoco.route_planner import (
     signed_ball_clearance,
     validate_route,
 )
+from cyberrunner_mujoco.maze_layout import (
+    DEFAULT_WALL_HEIGHT_M,
+    DEFAULT_WALL_THICKNESS_M,
+    load_json_layout,
+)
+from cyberrunner_mujoco.model_builder import WALL_THICKNESS
 
 
 class RoutePlannerTest(unittest.TestCase):
+    def test_geometry_defaults_are_identical_for_planning_and_mujoco(self):
+        layout = load_json_layout(
+            Path(__file__).resolve().parents[1] / "generated_mazes" / "maze_seed_970.json"
+        )
+        self.assertEqual(layout["wall_thickness"], DEFAULT_WALL_THICKNESS_M)
+        self.assertEqual(layout["wall_height"], DEFAULT_WALL_HEIGHT_M)
+        self.assertEqual(WALL_THICKNESS, DEFAULT_WALL_THICKNESS_M)
+
     def test_hole_is_inflated_by_hole_and_ball_radius(self):
         layout = generate_maze(7)
         hole = np.asarray(layout["holes"][0], dtype=np.float64)
@@ -38,4 +53,3 @@ class RoutePlannerTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

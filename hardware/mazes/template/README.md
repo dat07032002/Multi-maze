@@ -14,4 +14,6 @@ Record here:
 - compatible Hiwonder calibration file
 
 Place editable CAD/STEP/DXF files in `source/` and STL/3MF exports in `print/`.
-Run `tools/maze/build_maze.py` to create the validated software preview.
+Run `tools/maze/build_maze.py --print-package` to validate the route and create
+the legacy review files plus the common simulation/preview/prototype-STL
+package. The prototype is not a final-fit insert until the mount is measured.

@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+import math
+import unittest
+
+import numpy as np
+
+from cyberrunner_mujoco.policy_contract import TagPolicyContract
+from cyberrunner_mujoco.actuator_model import HiwonderActuatorModel
+from cyberrunner_mujoco.system_config import ActuatorConfig
+
+
+class TagPolicyContractTest(unittest.TestCase):
+    def setUp(self):
+        self.contract = TagPolicyContract()
+
+    def test_centered_hardware_state_matches_lower_left_sim_state(self):
+        lower_left = self.contract.hardware_centered_to_lower_left((0.0, 0.0))
+        state = self.contract.normalize_states(
+            (math.radians(5.0), math.radians(-2.5)),
+            lower_left,
+        )
+        np.testing.assert_allclose(state, (0.5, -0.25, 0.5, 0.5), atol=1e-6)
+
+    def test_each_route_point_uses_its_own_horizon(self):
+        points = np.asarray(
+            [(0.012 * index, 0.0) for index in range(1, 6)], dtype=np.float32
+        )
+        goal = self.contract.normalize_relative_goal(points).reshape(5, 2)
+        np.testing.assert_allclose(goal[:, 0], np.ones(5), atol=1e-6)
+        np.testing.assert_allclose(goal[:, 1], np.zeros(5), atol=1e-6)
+
+    def test_effective_bridge_limit_and_servo_targets(self):
+        command = self.contract.action_to_hiwonder_command((1.0, -1.0))
+        np.testing.assert_array_equal(command, (-180.0, 180.0))
+        target = self.contract.hiwonder_command_to_servo_target(command)
+        np.testing.assert_array_equal(target, (230.0, 770.0))
+
+    def test_grayscale_is_arithmetic_channel_mean(self):
+        color = np.zeros((64, 64, 3), dtype=np.uint8)
+        color[..., 0] = 3
+        color[..., 1] = 9
+        color[..., 2] = 18
+        gray = self.contract.grayscale_patch(color)
+        self.assertEqual(int(gray[0, 0, 0]), 10)
+
+    def test_ball_visible_is_rejected_as_policy_input(self):
+        observation = self.contract.make_observation(
+            np.zeros((64, 64, 1), dtype=np.uint8),
+            (0.0, 0.0),
+            (0.1, 0.1),
+            np.zeros((5, 2), dtype=np.float32),
+        )
+        observation["ball_visible"] = np.ones(1, dtype=np.uint8)
+        with self.assertRaises(ValueError):
+            self.contract.validate_observation(observation)
+
+    def test_hiwonder_timeout_returns_target_home(self):
+        actuator = HiwonderActuatorModel(
+            ActuatorConfig(total_delay_seconds=0.0, response_time_constant_seconds=0.01)
+        )
+        actuator.submit_action((1.0, 1.0))
+        for _ in range(50):
+            actuator.step(0.01)
+        self.assertFalse(actuator.timed_out)
+        for _ in range(120):
+            actuator.step(0.01)
+        self.assertTrue(actuator.timed_out)
+        for _ in range(60):
+            actuator.step(0.01)
+        np.testing.assert_allclose(actuator.commanded_servo_positions, (500.0, 500.0))
+
+    def test_hardware_reset_profile_matches_tag_driver(self):
+        profile = HiwonderActuatorModel(ActuatorConfig()).hardware_reset_profile()
+        self.assertEqual(profile["prehome_positions"], (700.0, 700.0))
+        self.assertEqual(profile["prehome_wait_seconds"], 0.5)
+        self.assertEqual(profile["home_positions"], (500.0, 500.0))
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -11,8 +11,10 @@ import numpy as np
 HERE = pathlib.Path(__file__).resolve().parent
 DREAMER_PACKAGE = HERE.parent / "dreamerv3" / "dreamerv3"
 sys.path.insert(0, str(DREAMER_PACKAGE))
+sys.path.insert(0, str(HERE.parent))
 
 from embodied.envs.cyberrunner import CyberRunner  # noqa: E402
+from cyberrunner_mujoco.policy_contract import TagPolicyContract  # noqa: E402
 
 
 def main() -> None:
@@ -31,6 +33,9 @@ def main() -> None:
         raise RuntimeError("Dreamer observation contract is invalid")
     if not np.isfinite(step["reward"]):
         raise RuntimeError("Dreamer adapter emitted a non-finite reward")
+    if "ball_visible" in step:
+        raise RuntimeError("Dreamer adapter exposes non-deployed ball_visible input")
+    TagPolicyContract().validate_observation(step)
     if env.info["maze_split"] != "train":
         raise RuntimeError("Dreamer adapter selected a held-out split")
     print("Dreamer multi-maze adapter check passed; no agent or training was started.")
