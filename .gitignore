@@ -26,6 +26,11 @@ cmake-build-debug/
 /cyberrunner_mujoco/outputs/
 /cyberrunner_mujoco/expert_demos_v2/
 /printable_mazes/
+/tag_sysid_logs/
+/hardware_recordings/
+/hardware_recordings-*.zip
+/cyberrunner_hardware_recorder-*/
+/cyberrunner_hardware_recorder-*.zip
 *.pid
 *.log
 *.ckpt

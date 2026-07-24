@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added the passive `tag_sysid` recorder and offline analyzer.
+- Added guarded home, axis/sign, static-sweep, and step-response protocols.
+- Added hard bounds, publisher exclusivity, explicit arming, raw CSV output,
+  home fallback, and protocol/safety/analysis tests.
 - Imported the working TAG hardware stack through upstream commit `35b80ad`.
 - Added a hardware-compatible DreamerV3 observation/action contract.
 - Added one-policy multi-maze MuJoCo training with immutable 40/8/8 splits.

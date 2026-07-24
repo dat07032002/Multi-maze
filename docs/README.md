@@ -4,6 +4,7 @@
 - [TRAINING.md](TRAINING.md): dataset, GPUs, validation schedule, server runs, and operations
 - [V2_TRAINING.md](V2_TRAINING.md): adaptive 512/64/64 profile, demonstrations, and rollout gates
 - [TAG_REFERENCE.md](TAG_REFERENCE.md): exactly what was imported from the updated working TAG repository
+- [HARDWARE_RECORDING_2026-07-24.md](HARDWARE_RECORDING_2026-07-24.md): sanitized passive measurements and remaining calibration tests
 - [CLEANUP_AUDIT.md](CLEANUP_AUDIT.md): what was removed, what was retained, and why
 - [HANDOFF.md](HANDOFF.md): clone and continue from another desktop
 

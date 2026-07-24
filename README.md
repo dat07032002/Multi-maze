@@ -32,6 +32,7 @@ which includes the corner-marker rejection update for marble detection.
 | `tag_camera/` | ROS 2 camera package |
 | `tag_state_estimation/` | Calibrated marble and board-state estimator |
 | `tag_hiwonder/` | Active Hiwonder HID servo driver |
+| `tag_sysid/` | Passive recorder and approval-gated actuator measurements |
 | `tag_interfaces/` | ROS 2 TAG messages and reset service |
 | `tag_dreamer/` | Real-hardware Gym/TCP environment and preserved route data |
 | `hardware/mazes/` | Versioned removable-maze authoring template |
