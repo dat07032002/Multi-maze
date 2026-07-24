@@ -7,6 +7,8 @@
   topics without replacing its camera, estimator, or Hiwonder driver.
 - Added active-sysid runtime aborts for excessive estimated board angle and a
   stale estimator stream.
+- Added a median preflight angle baseline and a separately bounded excursion
+  limit so estimator zero offsets cannot disable motion safety.
 - Added a sanitized read-only audit of the live hardware and training systems,
   including machine-readable runtime and DreamerV3 snapshots.
 - Documented the 240-to-180 action clamp, legacy-to-`tag_*` topic remapping,

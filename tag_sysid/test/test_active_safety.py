@@ -25,8 +25,12 @@ class ActiveSafetyTest(unittest.TestCase):
         self.assertIn("--max-command", source)
         self.assertIn("--max-board-angle-deg", source)
         self.assertIn("--runtime-state-timeout", source)
+        self.assertIn("--max-angle-excursion-deg", source)
+        self.assertIn("--baseline-seconds", source)
         self.assertIn("angle_limit_exceeded", attributes)
         self.assertIn("latest_state_ns", attributes)
+        self.assertIn("baseline_alpha_rad", attributes)
+        self.assertIn("baseline_beta_rad", attributes)
 
 
 if __name__ == "__main__":

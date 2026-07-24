@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import json
 import math
 from pathlib import Path
+import statistics
 import time
 from typing import Any
 
@@ -107,6 +108,10 @@ class ActiveSysId(Node):
         self.latest_state: Any | None = None
         self.latest_state_ns: int | None = None
         self.angle_limit_exceeded: str | None = None
+        self.baseline_alpha_rad: float | None = None
+        self.baseline_beta_rad: float | None = None
+        self.baseline_alpha_samples: list[float] = []
+        self.baseline_beta_samples: list[float] = []
         self.state_count = 0
         self.command_count = 0
         self.current_phase_index = -1
@@ -147,6 +152,8 @@ class ActiveSysId(Node):
         self.state_count += 1
         now_ns = time.monotonic_ns()
         self.latest_state_ns = now_ns
+        self.baseline_alpha_samples.append(float(message.alpha))
+        self.baseline_beta_samples.append(float(message.beta))
         limit_rad = math.radians(self.args.max_board_angle_deg)
         if not (
             math.isfinite(float(message.alpha))
@@ -163,6 +170,22 @@ class ActiveSysId(Node):
                 f"beta {math.degrees(float(message.beta)):.2f} deg exceeds "
                 f"{self.args.max_board_angle_deg:.2f} deg"
             )
+        elif self.baseline_alpha_rad is not None:
+            excursion_limit = math.radians(
+                self.args.max_angle_excursion_deg
+            )
+            alpha_excursion = float(message.alpha) - self.baseline_alpha_rad
+            beta_excursion = float(message.beta) - self.baseline_beta_rad
+            if abs(alpha_excursion) > excursion_limit:
+                self.angle_limit_exceeded = (
+                    f"alpha excursion {math.degrees(alpha_excursion):.2f} deg "
+                    f"exceeds {self.args.max_angle_excursion_deg:.2f} deg"
+                )
+            elif abs(beta_excursion) > excursion_limit:
+                self.angle_limit_exceeded = (
+                    f"beta excursion {math.degrees(beta_excursion):.2f} deg "
+                    f"exceeds {self.args.max_angle_excursion_deg:.2f} deg"
+                )
         phase = self.current_phase
         visible = math.isfinite(message.x_b) and math.isfinite(message.y_b)
         self.state_writer.writerow(
@@ -210,6 +233,9 @@ class ActiveSysId(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
         if self.latest_state is None:
             raise RuntimeError(f"no state received on {self.profile.state_topic}")
+        baseline_deadline = time.monotonic() + self.args.baseline_seconds
+        while time.monotonic() < baseline_deadline:
+            rclpy.spin_once(self, timeout_sec=0.05)
         if not (
             math.isfinite(self.latest_state.alpha)
             and math.isfinite(self.latest_state.beta)
@@ -220,6 +246,18 @@ class ActiveSysId(Node):
                 "initial board angle is outside the safety bound: "
                 + self.angle_limit_exceeded
             )
+        self.baseline_alpha_rad = statistics.median(
+            self.baseline_alpha_samples
+        )
+        self.baseline_beta_rad = statistics.median(
+            self.baseline_beta_samples
+        )
+        self.get_logger().info(
+            "baseline board angles: "
+            f"alpha={math.degrees(self.baseline_alpha_rad):.2f} deg, "
+            f"beta={math.degrees(self.baseline_beta_rad):.2f} deg; "
+            f"maximum excursion={self.args.max_angle_excursion_deg:.2f} deg"
+        )
         if not self._driver_subscriber_present():
             raise RuntimeError(
                 "expected driver node "
@@ -328,6 +366,18 @@ class ActiveSysId(Node):
             "started_utc": self.started_utc,
             "hard_command_limit": HARD_COMMAND_LIMIT,
             "max_board_angle_deg": self.args.max_board_angle_deg,
+            "max_angle_excursion_deg": self.args.max_angle_excursion_deg,
+            "baseline_seconds": self.args.baseline_seconds,
+            "baseline_alpha_deg": (
+                math.degrees(self.baseline_alpha_rad)
+                if self.baseline_alpha_rad is not None
+                else None
+            ),
+            "baseline_beta_deg": (
+                math.degrees(self.baseline_beta_rad)
+                if self.baseline_beta_rad is not None
+                else None
+            ),
             "runtime_state_timeout_s": self.args.runtime_state_timeout,
             "operator_present_confirmed": bool(self.args.operator_present),
             "ball_removed_confirmed": bool(self.args.ball_removed),
@@ -343,6 +393,7 @@ class ActiveSysId(Node):
                 "refuses_external_command_publishers": True,
                 "one_axis_at_a_time": True,
                 "aborts_on_board_angle_limit": True,
+                "aborts_on_angle_excursion_from_baseline": True,
                 "aborts_on_stale_state": True,
                 "returns_home_on_normal_completion_or_interrupt": True,
                 "driver_timeout_is_final_fallback": True,
@@ -380,6 +431,18 @@ def _parser() -> argparse.ArgumentParser:
         help="absolute alpha/beta safety bound during active excitation",
     )
     parser.add_argument(
+        "--max-angle-excursion-deg",
+        type=float,
+        default=4.0,
+        help="maximum alpha/beta change from the preflight median",
+    )
+    parser.add_argument(
+        "--baseline-seconds",
+        type=float,
+        default=1.0,
+        help="preflight interval used to estimate the angle zero",
+    )
+    parser.add_argument(
         "--interface-profile",
         choices=tuple(sorted(PROFILES)),
         default="tag",
@@ -414,6 +477,10 @@ def main(argv=None) -> None:
         parser.error(f"--max-command must be in (0, {HARD_COMMAND_LIMIT}]")
     if not 0.0 < args.max_board_angle_deg <= 20.0:
         parser.error("--max-board-angle-deg must be in (0, 20]")
+    if not 0.25 <= args.max_angle_excursion_deg <= 5.0:
+        parser.error("--max-angle-excursion-deg must be in [0.25, 5]")
+    if not 0.5 <= args.baseline_seconds <= 3.0:
+        parser.error("--baseline-seconds must be in [0.5, 3]")
     if not 0.05 <= args.runtime_state_timeout <= 1.0:
         parser.error("--runtime-state-timeout must be in [0.05, 1.0]")
     if planned_maximum > args.max_command:

@@ -108,8 +108,10 @@ confirmation that the marble is removed, finite board-angle estimates, the
 expected `tag_hiwonder_compat` driver subscriber, no other command publisher,
 and an explicit maximum command large enough for the selected plan. During
 execution it also returns home and aborts if either estimated board angle exceeds
-15 degrees or the state stream is more than 0.25 seconds old. Both thresholds
-can only be changed within hard CLI bounds.
+15 degrees, changes by more than 4 degrees from a one-second preflight median,
+or the state stream is more than 0.25 seconds old. Thresholds can only be changed
+within hard CLI bounds. The baseline-relative limit allows a documented estimator
+zero offset without allowing an equally large physical excursion.
 
 Run the small axis/sign measurement first:
 
