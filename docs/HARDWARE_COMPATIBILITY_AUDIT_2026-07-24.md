@@ -83,8 +83,10 @@ camera at a fixed 60 Hz.
 
 - The fixed playable dimensions are 259 x 229 mm.
 - The working route file is byte-identical to the organized copy.
-- Calibration and marker CSV contents match; byte hashes differ because newline
-  normalization differs between operating systems.
+- Camera calibration contents match. The initial comparison found matching marker
+  files in the working checkout, but commissioning later proved that the active
+  estimator workspace used newer marker coordinates. The organized marker file
+  was synchronized to that active installation on 2026-07-24.
 - The layout geometry matches. Only generator/header naming differs.
 
 This lets us preserve the real coordinate system, route convention, and camera
@@ -151,7 +153,7 @@ to the recorded session.
 |---|---|---|---|
 | Board dimensions | 0.259 x 0.229 m | 0.259 x 0.229 m | Match |
 | Route file | Working custom route | Same byte hash | Match |
-| Calibration/markers | Working files | Same content | Match |
+| Calibration/markers | Calibration matched; active estimator had newer markers | Active marker coordinates synchronized during commissioning | Match after update |
 | Camera geometry | 640 x 400 source to 64 x 64 crop | Preserved implementation | Match, timing still needs modeling |
 | Observation keys | image, states, goal | Preserved | Match |
 | Action shape | 2 continuous axes | Preserved | Match |

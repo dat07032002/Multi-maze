@@ -6,6 +6,8 @@
   impossible PnP branches and fails non-finite after two held frames.
 - Added a mixed sysid profile for the clean filtered estimator with the working
   legacy camera and Hiwonder command interfaces.
+- Synchronized `tag_state_estimation/markers.csv` to the active hardware
+  estimator after detecting stale organized coordinates during commissioning.
 - Recorded and documented the first accepted guarded physical Hiwonder axis/sign
   run at +/-20, including local gains, coupling, timing, home repeatability, and
   raw-artifact hashes.

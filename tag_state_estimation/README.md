@@ -14,6 +14,11 @@ upstream detector masks the nearest corner marker and uses the updated marker
 radius, area, and circularity gates. Treat calibration and camera placement as
 hardware-specific: revalidate them if the camera mount changes.
 
+The checked-in `markers.csv` is synchronized to the marker coordinates in the
+working hardware estimator on 2026-07-24. Earlier organized coordinates were
+20-30 pixels out of date and could not initialize fixed-corner localization on
+the current camera mount.
+
 The policy-facing estimator rejects plate-pose solutions outside 20 degrees or
 more than 3 degrees from the previous accepted frame. It resets predictive
 corner tracking, holds at most two frames, then publishes non-finite state so a
