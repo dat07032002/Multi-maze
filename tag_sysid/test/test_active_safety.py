@@ -23,6 +23,10 @@ class ActiveSafetyTest(unittest.TestCase):
         self.assertIn("--operator-present", source)
         self.assertIn("--ball-removed", source)
         self.assertIn("--max-command", source)
+        self.assertIn("--max-board-angle-deg", source)
+        self.assertIn("--runtime-state-timeout", source)
+        self.assertIn("angle_limit_exceeded", attributes)
+        self.assertIn("latest_state_ns", attributes)
 
 
 if __name__ == "__main__":

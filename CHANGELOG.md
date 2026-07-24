@@ -5,6 +5,8 @@
 - Added an explicitly selected `legacy-hardware` sysid profile so guarded passive
   and active measurements can use the working CyberRunner ROS message types and
   topics without replacing its camera, estimator, or Hiwonder driver.
+- Added active-sysid runtime aborts for excessive estimated board angle and a
+  stale estimator stream.
 - Added a sanitized read-only audit of the live hardware and training systems,
   including machine-readable runtime and DreamerV3 snapshots.
 - Documented the 240-to-180 action clamp, legacy-to-`tag_*` topic remapping,

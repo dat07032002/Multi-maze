@@ -105,6 +105,8 @@ class ActiveSysId(Node):
         self.started_ns = time.monotonic_ns()
         self.started_utc = datetime.now(timezone.utc).isoformat()
         self.latest_state: Any | None = None
+        self.latest_state_ns: int | None = None
+        self.angle_limit_exceeded: str | None = None
         self.state_count = 0
         self.command_count = 0
         self.current_phase_index = -1
@@ -144,6 +146,23 @@ class ActiveSysId(Node):
         self.latest_state = message
         self.state_count += 1
         now_ns = time.monotonic_ns()
+        self.latest_state_ns = now_ns
+        limit_rad = math.radians(self.args.max_board_angle_deg)
+        if not (
+            math.isfinite(float(message.alpha))
+            and math.isfinite(float(message.beta))
+        ):
+            self.angle_limit_exceeded = "non-finite board angle received"
+        elif abs(float(message.alpha)) > limit_rad:
+            self.angle_limit_exceeded = (
+                f"alpha {math.degrees(float(message.alpha)):.2f} deg exceeds "
+                f"{self.args.max_board_angle_deg:.2f} deg"
+            )
+        elif abs(float(message.beta)) > limit_rad:
+            self.angle_limit_exceeded = (
+                f"beta {math.degrees(float(message.beta)):.2f} deg exceeds "
+                f"{self.args.max_board_angle_deg:.2f} deg"
+            )
         phase = self.current_phase
         visible = math.isfinite(message.x_b) and math.isfinite(message.y_b)
         self.state_writer.writerow(
@@ -196,6 +215,11 @@ class ActiveSysId(Node):
             and math.isfinite(self.latest_state.beta)
         ):
             raise RuntimeError("board-angle estimator is not producing finite values")
+        if self.angle_limit_exceeded:
+            raise RuntimeError(
+                "initial board angle is outside the safety bound: "
+                + self.angle_limit_exceeded
+            )
         if not self._driver_subscriber_present():
             raise RuntimeError(
                 "expected driver node "
@@ -223,7 +247,7 @@ class ActiveSysId(Node):
                 + ", ".join(external)
             )
 
-    def _publish(self, phase: Phase) -> None:
+    def _publish(self, phase: Phase, enforce_state_safety: bool = True) -> None:
         external = self._external_publishers()
         if external:
             self.exclusivity_lost = True
@@ -233,6 +257,19 @@ class ActiveSysId(Node):
             )
         if self.publisher is None:
             raise RuntimeError("publisher is not armed")
+        if enforce_state_safety:
+            if self.angle_limit_exceeded:
+                raise RuntimeError(
+                    "board-angle safety bound exceeded: "
+                    + self.angle_limit_exceeded
+                )
+            if self.latest_state_ns is None:
+                raise RuntimeError("state timestamp is unavailable")
+            state_age = (time.monotonic_ns() - self.latest_state_ns) / 1e9
+            if state_age > self.args.runtime_state_timeout:
+                raise RuntimeError(
+                    f"state stream is stale ({state_age:.3f}s); stopping output"
+                )
         message = self.command_type()
         message.vel_1 = float(phase.command_1)
         message.vel_2 = float(phase.command_2)
@@ -280,7 +317,7 @@ class ActiveSysId(Node):
         self.current_phase = home
         self.current_phase_index = len(self.phases)
         for _ in range(10):
-            self._publish(home)
+            self._publish(home, enforce_state_safety=False)
             rclpy.spin_once(self, timeout_sec=0.05)
 
     def _write_metadata(self, status: str) -> None:
@@ -290,6 +327,8 @@ class ActiveSysId(Node):
             "status": status,
             "started_utc": self.started_utc,
             "hard_command_limit": HARD_COMMAND_LIMIT,
+            "max_board_angle_deg": self.args.max_board_angle_deg,
+            "runtime_state_timeout_s": self.args.runtime_state_timeout,
             "operator_present_confirmed": bool(self.args.operator_present),
             "ball_removed_confirmed": bool(self.args.ball_removed),
             "interface_profile": self.profile.name,
@@ -303,6 +342,8 @@ class ActiveSysId(Node):
                 "requires_exact_arm_token": True,
                 "refuses_external_command_publishers": True,
                 "one_axis_at_a_time": True,
+                "aborts_on_board_angle_limit": True,
+                "aborts_on_stale_state": True,
                 "returns_home_on_normal_completion_or_interrupt": True,
                 "driver_timeout_is_final_fallback": True,
             },
@@ -326,6 +367,18 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--hold-seconds", type=float)
     parser.add_argument("--max-command", type=float, default=40.0)
     parser.add_argument("--state-timeout", type=float, default=10.0)
+    parser.add_argument(
+        "--runtime-state-timeout",
+        type=float,
+        default=0.25,
+        help="abort if the estimator is this stale while commands are active",
+    )
+    parser.add_argument(
+        "--max-board-angle-deg",
+        type=float,
+        default=15.0,
+        help="absolute alpha/beta safety bound during active excitation",
+    )
     parser.add_argument(
         "--interface-profile",
         choices=tuple(sorted(PROFILES)),
@@ -359,6 +412,10 @@ def main(argv=None) -> None:
         parser.error("execution requires --ball-removed")
     if not 0.0 < args.max_command <= HARD_COMMAND_LIMIT:
         parser.error(f"--max-command must be in (0, {HARD_COMMAND_LIMIT}]")
+    if not 0.0 < args.max_board_angle_deg <= 20.0:
+        parser.error("--max-board-angle-deg must be in (0, 20]")
+    if not 0.05 <= args.runtime_state_timeout <= 1.0:
+        parser.error("--runtime-state-timeout must be in [0.05, 1.0]")
     if planned_maximum > args.max_command:
         parser.error(
             f"plan reaches {planned_maximum}; explicitly allow it with "
