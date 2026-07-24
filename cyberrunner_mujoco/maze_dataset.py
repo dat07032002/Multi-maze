@@ -27,11 +27,15 @@ class MazeSplit:
 
 
 def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    """Hash immutable text geometry independent of Git checkout newlines.
+
+    Maze layouts are JSON text. Git checks them out with CRLF on Windows and LF
+    on Linux, but that must not change their dataset identity. Normalizing only
+    line endings still makes every geometry or numeric edit fail validation.
+    """
+
+    content = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(content).hexdigest()
 
 
 def load_manifest(path: str | Path = DEFAULT_MANIFEST) -> Dict[str, Any]:

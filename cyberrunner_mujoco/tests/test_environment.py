@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 import numpy as np
 
@@ -10,11 +12,26 @@ from cyberrunner_mujoco.cyberrunner_env import (
     TaskConfig,
     reward_components,
 )
-from cyberrunner_mujoco.maze_dataset import DEFAULT_MANIFEST, load_manifest, load_split
+from cyberrunner_mujoco.maze_dataset import (
+    DEFAULT_MANIFEST,
+    file_sha256,
+    load_manifest,
+    load_split,
+)
 from cyberrunner_mujoco.system_model import PolylineRoute
 
 
 class EnvironmentTest(unittest.TestCase):
+    def test_maze_identity_ignores_only_platform_newlines(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "maze.json"
+            path.write_bytes(b'{\r\n  "board_width": 0.259\r\n}\r\n')
+            windows_hash = file_sha256(path)
+            path.write_bytes(b'{\n  "board_width": 0.259\n}\n')
+            self.assertEqual(file_sha256(path), windows_hash)
+            path.write_bytes(b'{\n  "board_width": 0.260\n}\n')
+            self.assertNotEqual(file_sha256(path), windows_hash)
+
     def test_manifest_has_disjoint_40_8_8_splits(self):
         manifest = load_manifest(DEFAULT_MANIFEST)
         self.assertEqual(len(manifest["train"]), 40)
