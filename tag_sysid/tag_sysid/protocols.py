@@ -49,8 +49,15 @@ def build_protocol(
     test: str,
     repetitions: int | None = None,
     hold_seconds: float | None = None,
+    command_scale: float = 1.0,
 ) -> list[Phase]:
     """Return the conservative command phases for a named measurement."""
+
+    if not 0.1 <= command_scale <= 1.0:
+        raise ValueError("command_scale must be in [0.1, 1.0]")
+
+    def scaled(value: float) -> float:
+        return float(value) * command_scale
 
     if test == "home":
         count = repetitions if repetitions is not None else 5
@@ -62,7 +69,13 @@ def build_protocol(
             axis = 1 if repetition % 2 else 2
             sign = 1.0 if repetition % 4 in (1, 2) else -1.0
             plan.append(
-                _phase("home_departure", repetition, axis, sign * 40.0, 1.5)
+                _phase(
+                    "home_departure",
+                    repetition,
+                    axis,
+                    scaled(sign * 40.0),
+                    1.5,
+                )
             )
             plan.append(_phase("home_measurement", repetition, 0, 0.0, hold))
         return plan
@@ -77,7 +90,13 @@ def build_protocol(
                     name = "axis_measurement" if value else "home_settle"
                     duration = hold if value else 2.0
                     plan.append(
-                        _phase(name, repetition, axis if value else 0, value, duration)
+                        _phase(
+                            name,
+                            repetition,
+                            axis if value else 0,
+                            scaled(value),
+                            duration,
+                        )
                     )
         return plan
 
@@ -90,7 +109,13 @@ def build_protocol(
             for axis in (1, 2):
                 for value in values:
                     plan.append(
-                        _phase("static_sweep", repetition, axis, float(value), hold)
+                        _phase(
+                            "static_sweep",
+                            repetition,
+                            axis,
+                            scaled(float(value)),
+                            hold,
+                        )
                     )
                 plan.append(_phase("home_settle", repetition, 0, 0.0, 3.0))
         return plan
@@ -103,7 +128,9 @@ def build_protocol(
             for axis in (1, 2):
                 for value in (0.0, 80.0, 0.0, -80.0, 0.0):
                     name = "step_measurement" if value else "home_settle"
-                    plan.append(_phase(name, repetition, axis, value, hold))
+                    plan.append(
+                        _phase(name, repetition, axis, scaled(value), hold)
+                    )
         return plan
 
     raise ValueError(f"unknown test: {test}")

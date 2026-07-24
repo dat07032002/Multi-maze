@@ -28,6 +28,22 @@ class ProtocolTest(unittest.TestCase):
         )
         self.assertEqual(maximum, 40.0)
 
+    def test_protocol_command_scale_reduces_every_excitation(self):
+        phases = build_protocol("axis", command_scale=0.5)
+        nonzero = [
+            abs(value)
+            for phase in phases
+            for value in (phase.command_1, phase.command_2)
+            if value
+        ]
+        self.assertTrue(nonzero)
+        self.assertEqual(max(nonzero), 20.0)
+        validate_protocol(phases)
+
+    def test_protocol_command_scale_cannot_increase_commands(self):
+        with self.assertRaises(ValueError):
+            build_protocol("axis", command_scale=1.01)
+
     def test_invalid_dual_axis_protocol_is_rejected(self):
         phases = [Phase("unsafe", 1, 0, 40.0, 40.0, 1.0)]
         with self.assertRaises(ValueError):

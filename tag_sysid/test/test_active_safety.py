@@ -23,6 +23,7 @@ class ActiveSafetyTest(unittest.TestCase):
         self.assertIn("--operator-present", source)
         self.assertIn("--ball-removed", source)
         self.assertIn("--max-command", source)
+        self.assertIn("--command-scale", source)
         self.assertIn("--max-board-angle-deg", source)
         self.assertIn("--runtime-state-timeout", source)
         self.assertIn("--max-angle-excursion-deg", source)

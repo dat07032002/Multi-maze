@@ -365,6 +365,7 @@ class ActiveSysId(Node):
             "status": status,
             "started_utc": self.started_utc,
             "hard_command_limit": HARD_COMMAND_LIMIT,
+            "command_scale": self.args.command_scale,
             "max_board_angle_deg": self.args.max_board_angle_deg,
             "max_angle_excursion_deg": self.args.max_angle_excursion_deg,
             "baseline_seconds": self.args.baseline_seconds,
@@ -416,6 +417,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", default="~/tag_sysid_logs/active")
     parser.add_argument("--repetitions", type=int)
     parser.add_argument("--hold-seconds", type=float)
+    parser.add_argument(
+        "--command-scale",
+        type=float,
+        default=1.0,
+        help="scale every nonzero protocol command; must be in [0.1, 1.0]",
+    )
     parser.add_argument("--max-command", type=float, default=40.0)
     parser.add_argument("--state-timeout", type=float, default=10.0)
     parser.add_argument(
@@ -459,7 +466,12 @@ def main(argv=None) -> None:
     parser = _parser()
     args, ros_args = parser.parse_known_args(argv)
     profile = get_profile(args.interface_profile)
-    phases = build_protocol(args.test, args.repetitions, args.hold_seconds)
+    phases = build_protocol(
+        args.test,
+        args.repetitions,
+        args.hold_seconds,
+        command_scale=args.command_scale,
+    )
     validate_protocol(phases)
     planned_maximum = max(
         max(abs(phase.command_1), abs(phase.command_2)) for phase in phases
@@ -475,6 +487,8 @@ def main(argv=None) -> None:
         parser.error("execution requires --ball-removed")
     if not 0.0 < args.max_command <= HARD_COMMAND_LIMIT:
         parser.error(f"--max-command must be in (0, {HARD_COMMAND_LIMIT}]")
+    if not 0.1 <= args.command_scale <= 1.0:
+        parser.error("--command-scale must be in [0.1, 1.0]")
     if not 0.0 < args.max_board_angle_deg <= 20.0:
         parser.error("--max-board-angle-deg must be in (0, 20]")
     if not 0.25 <= args.max_angle_excursion_deg <= 5.0:

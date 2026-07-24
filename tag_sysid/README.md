@@ -103,6 +103,11 @@ Add `--interface-profile legacy-hardware` when measuring the existing working
 stack. This selects its legacy topics, message package, and expected Hiwonder
 node; it does not weaken any safety interlock.
 
+If the dry-run amplitude is too large for the observed mechanism, use
+`--command-scale` in the hard-bounded range 0.1 through 1.0. For example,
+`--command-scale 0.5` changes the axis test from +/-40 to +/-20 without changing
+its order, home phases, or safety checks.
+
 Execution requires the exact arm token, an operator at the emergency stop,
 confirmation that the marble is removed, finite board-angle estimates, the
 expected `tag_hiwonder_compat` driver subscriber, no other command publisher,

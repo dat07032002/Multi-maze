@@ -9,6 +9,8 @@
   stale estimator stream.
 - Added a median preflight angle baseline and a separately bounded excursion
   limit so estimator zero offsets cannot disable motion safety.
+- Added a hard-bounded active-protocol command scale for safely reducing all
+  excitation amplitudes after reviewing an initial response.
 - Added a sanitized read-only audit of the live hardware and training systems,
   including machine-readable runtime and DreamerV3 snapshots.
 - Documented the 240-to-180 action clamp, legacy-to-`tag_*` topic remapping,
