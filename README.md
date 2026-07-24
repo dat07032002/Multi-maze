@@ -27,7 +27,7 @@ which includes the corner-marker rejection update for marble detection.
 
 | Path | Purpose |
 | --- | --- |
-| `cyberrunner_mujoco/` | MuJoCo model, 40/8/8 dataset, route planner, camera/actuator model, tests |
+| `cyberrunner_mujoco/` | MuJoCo model, legacy 40/8/8 and adaptive v2 512/64/64 datasets, route planner, camera/actuator model, tests |
 | `dreamerv3/` | DreamerV3 plus the multi-maze simulator adapter and TAG hardware profile |
 | `tag_camera/` | ROS 2 camera package |
 | `tag_state_estimation/` | Calibrated marble and board-state estimator |
@@ -67,3 +67,17 @@ On Linux, replace the interpreter with `.venv/bin/python`.
 
 See [docs/README.md](docs/README.md) for the complete documentation index and
 [docs/HANDOFF.md](docs/HANDOFF.md) when moving to another desktop.
+
+## Adaptive v2 status
+
+The adaptive v2 pipeline is implemented and server-tested. It combines
+prioritized level replay, start-state and domain-randomization curricula,
+privileged expert demonstrations, and eight parallel simulator processes. A
+10k smoke test completed successfully at about twice the environment throughput
+of the single-environment v1 runs.
+
+The first 10M production attempt reached step 510,432 before a server
+reboot on 2026-07-23 interrupted both training and the 500k validation job. The
+checkpoint and replay artifacts were preserved; training was not running at the
+last status audit on 2026-07-24. See [docs/V2_TRAINING.md](docs/V2_TRAINING.md)
+for the experiment record and recovery command.

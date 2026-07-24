@@ -129,18 +129,20 @@ class CyberRunnerSystemModel:
         self,
         seed: int | None = None,
         randomize: bool = False,
+        randomization_strength: float = 1.0,
         ball_xy: Iterable[float] | None = None,
         ball_velocity_xy: Iterable[float] = (0.0, 0.0),
         board_tilt: Tuple[float, float] = (0.0, 0.0),
     ) -> Dict[str, np.ndarray]:
         self.rng = np.random.default_rng(seed)
+        randomization_strength = float(np.clip(randomization_strength, 0.0, 1.0))
         self.active_actuator_config = (
-            self.config.actuator.randomized(self.rng)
+            self.config.actuator.randomized(self.rng, randomization_strength)
             if randomize
             else self.config.actuator
         )
         self.active_physics_config = (
-            self.config.physics.randomized(self.rng)
+            self.config.physics.randomized(self.rng, randomization_strength)
             if randomize
             else self.config.physics
         )
@@ -151,7 +153,11 @@ class CyberRunnerSystemModel:
         self.actuator = HiwonderActuatorModel(self.active_actuator_config)
         self.camera = PolicyCameraModel(self.layout, self.config.camera)
         camera_seed = int(self.rng.integers(0, 2**31 - 1))
-        self.camera.reset(camera_seed, randomize=randomize)
+        self.camera.reset(
+            camera_seed,
+            randomize=randomize,
+            randomization_strength=randomization_strength,
+        )
         self.observation_filter = TagObservationFilter(
             miss_threshold=self.config.camera.detector_miss_threshold,
             grace_seconds=self.config.camera.ball_loss_grace_seconds,

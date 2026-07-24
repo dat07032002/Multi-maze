@@ -1,7 +1,38 @@
 import re
+from pathlib import Path
 
 import embodied
 import numpy as np
+
+
+def _load_demonstrations(replay, directory, limit_steps=0):
+    """Load complete expert episodes without joining streams across files."""
+
+    if not directory:
+        return 0
+    root = Path(str(directory)).expanduser().resolve()
+    if not root.is_dir():
+        raise FileNotFoundError(f"Demonstration directory does not exist: {root}")
+    loaded = 0
+    for episode_index, filename in enumerate(sorted(root.rglob("*.npz"))):
+        with np.load(filename, allow_pickle=False) as episode:
+            keys = tuple(episode.files)
+            if not {"image", "states", "goal", "action", "reward"}.issubset(keys):
+                raise ValueError(f"Incomplete demonstration episode: {filename}")
+            lengths = {len(episode[key]) for key in keys}
+            if len(lengths) != 1:
+                raise ValueError(f"Mismatched demonstration arrays: {filename}")
+            for index in range(lengths.pop()):
+                replay.add(
+                    {key: episode[key][index] for key in keys},
+                    worker=1_000_000 + episode_index,
+                )
+                loaded += 1
+                if limit_steps and loaded >= int(limit_steps):
+                    print(f"Loaded {loaded} expert demonstration steps from {root}.")
+                    return loaded
+    print(f"Loaded {loaded} expert demonstration steps from {root}.")
+    return loaded
 
 
 def train(agent, env, replay, logger, args):
@@ -69,6 +100,7 @@ def train(agent, env, replay, logger, args):
 
     driver.on_episode(add_replay)
 
+    _load_demonstrations(replay, args.demo_dir, args.demo_limit_steps)
     print("Prefill train dataset.")
     random_agent = embodied.RandomAgent(env.act_space)
     while len(replay) < max(args.batch_steps, args.train_fill):

@@ -117,7 +117,7 @@ def evaluator_command(
         "--config",
         str(args.run_dir / "config.yaml"),
         "--manifest",
-        str(args.repo_root / "cyberrunner_mujoco/maze_splits.json"),
+        str(args.manifest),
         "--split",
         "validation",
         "--mode",
@@ -235,6 +235,7 @@ def main() -> None:
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--python", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path)
     parser.add_argument("--start-step", type=int, default=500_000)
     parser.add_argument("--interval", type=int, default=500_000)
     parser.add_argument("--robust-interval", type=int, default=1_000_000)
@@ -252,6 +253,13 @@ def main() -> None:
 
     args.repo_root = args.repo_root.resolve()
     args.run_dir = args.run_dir.resolve()
+    args.manifest = (
+        args.manifest.resolve()
+        if args.manifest
+        else (args.repo_root / "cyberrunner_mujoco/maze_splits.json").resolve()
+    )
+    if not args.manifest.is_file():
+        raise FileNotFoundError(args.manifest)
     # Do not resolve the virtualenv interpreter symlink: resolving it can turn
     # `.venv/bin/python` into the system interpreter and lose installed deps.
     args.python = args.python.absolute()

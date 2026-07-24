@@ -39,6 +39,29 @@ def main() -> None:
     }
     if actual != expected:
         raise RuntimeError(f"Unexpected merged Dreamer configuration: {actual}")
+    v2 = embodied.Config(configs["defaults"])
+    for name in ("cyberrunner_v2", "medium"):
+        v2 = v2.update(configs[name])
+    v2_expected = {
+        "task": "cyberrunner_sim",
+        "env_count": 8,
+        "env_parallel": "process",
+        "maze_sampling": "plr",
+        "failure_penalty": 10.0,
+        "start_curriculum": True,
+        "randomization_curriculum": True,
+    }
+    v2_actual = {
+        "task": v2.task,
+        "env_count": v2.envs.amount,
+        "env_parallel": v2.envs.parallel,
+        "maze_sampling": v2.env.cyberrunner.maze_sampling,
+        "failure_penalty": v2.env.cyberrunner.failure_penalty,
+        "start_curriculum": v2.env.cyberrunner.start_curriculum,
+        "randomization_curriculum": v2.env.cyberrunner.randomization_curriculum,
+    }
+    if v2_actual != v2_expected:
+        raise RuntimeError(f"Unexpected v2 Dreamer configuration: {v2_actual}")
     hardware = embodied.Config(configs["defaults"]).update(configs["tag"])
     hardware_expected = {
         "task": "gym_tag_dreamer:tag-ros-v0",
@@ -55,6 +78,7 @@ def main() -> None:
     if hardware_actual != hardware_expected:
         raise RuntimeError(f"Unexpected TAG hardware configuration: {hardware_actual}")
     print(f"Dreamer multi-maze config merge passed: {actual}")
+    print(f"Dreamer adaptive v2 config merge passed: {v2_actual}")
     print(f"Dreamer TAG hardware config merge passed: {hardware_actual}")
     print("No agent or training was started.")
 

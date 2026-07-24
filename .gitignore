@@ -24,6 +24,7 @@ cmake-build-debug/
 /runs/
 /wandb/
 /cyberrunner_mujoco/outputs/
+/cyberrunner_mujoco/expert_demos_v2/
 /printable_mazes/
 *.pid
 *.log

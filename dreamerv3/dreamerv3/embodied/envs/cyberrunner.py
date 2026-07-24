@@ -50,6 +50,8 @@ class CyberRunner(embodied.Env):
             "log_clearance_cost": embodied.Space(np.float32, (1,)),
             "log_min_clearance": embodied.Space(np.float32, (1,)),
             "log_maze_difficulty": embodied.Space(np.float32, (1,)),
+            "log_start_progress": embodied.Space(np.float32, (1,)),
+            "log_randomization_strength": embodied.Space(np.float32, (1,)),
             "log_fall_cost": embodied.Space(np.float32, (1,)),
             "log_success": embodied.Space(np.float32, (1,)),
             "log_reward": embodied.Space(np.float32, (1,)),

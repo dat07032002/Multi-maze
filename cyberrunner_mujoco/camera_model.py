@@ -38,16 +38,30 @@ class PolicyCameraModel:
         self._crop_shift = np.zeros(2, dtype=np.float64)
         self._dropout_remaining = 0
 
-    def reset(self, seed: int | None = None, randomize: bool = False) -> None:
+    def reset(
+        self,
+        seed: int | None = None,
+        randomize: bool = False,
+        randomization_strength: float = 1.0,
+    ) -> None:
         self._rng = np.random.default_rng(seed)
-        self._randomize = bool(randomize)
+        strength = float(np.clip(randomization_strength, 0.0, 1.0))
+        self._randomize = bool(randomize and strength > 0.0)
         if randomize:
-            self._brightness = float(self._rng.uniform(*self.config.brightness_range))
-            self._contrast = float(self._rng.uniform(*self.config.contrast_range))
-            self._blur = float(self._rng.uniform(*self.config.blur_radius_range))
-            self._noise_std = float(self._rng.uniform(*self.config.pixel_noise_std_range))
+            def around_one(bounds: Tuple[float, float]) -> float:
+                sampled = float(self._rng.uniform(*bounds))
+                return 1.0 + strength * (sampled - 1.0)
+
+            self._brightness = around_one(self.config.brightness_range)
+            self._contrast = around_one(self.config.contrast_range)
+            self._blur = strength * float(
+                self._rng.uniform(*self.config.blur_radius_range)
+            )
+            self._noise_std = strength * float(
+                self._rng.uniform(*self.config.pixel_noise_std_range)
+            )
             limit = self.config.crop_shift_range_m
-            self._crop_shift = self._rng.uniform(-limit, limit, size=2)
+            self._crop_shift = strength * self._rng.uniform(-limit, limit, size=2)
         else:
             self._brightness = 1.0
             self._contrast = 1.0

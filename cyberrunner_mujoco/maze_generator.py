@@ -112,6 +112,9 @@ def generate_maze(
     rows: int = 10,
     loop_fraction: float = 0.01,
     desired_holes: int = 30,
+    start: Cell | None = None,
+    goal: Cell | None = None,
+    edge_jitter_fraction: float = 0.10,
 ) -> dict:
     """Generate a dense maze, add limited loops, then place nearby hazards."""
     if columns < 3 or rows < 3:
@@ -156,8 +159,16 @@ def generate_maze(
     for orientation, wall in remaining[:extra_openings]:
         (horizontal if orientation == "h" else vertical).discard(wall)
 
-    start = (0, rows - 1)
-    goal = (columns - 1, 0)
+    start = start or (0, rows - 1)
+    goal = goal or (columns - 1, 0)
+    if start == goal:
+        raise ValueError("Maze start and goal must differ")
+    for name, cell in (("start", start), ("goal", goal)):
+        if not (0 <= cell[0] < columns and 0 <= cell[1] < rows):
+            raise ValueError(f"Maze {name} cell is outside the grid: {cell}")
+    edge_jitter_fraction = float(edge_jitter_fraction)
+    if not 0.0 <= edge_jitter_fraction <= 0.10:
+        raise ValueError("edge_jitter_fraction must be in [0, 0.10]")
     solution_cells = _shortest_path(
         start, goal, columns, rows, horizontal, vertical
     )
@@ -168,11 +179,13 @@ def generate_maze(
     # Small seeded variations make the maze resemble the irregular original
     # geometry while preserving safe minimum corridor widths and fixed borders.
     column_edges = [0.0] + [
-        index * cell_width + rng.uniform(-0.10, 0.10) * cell_width
+        index * cell_width
+        + rng.uniform(-edge_jitter_fraction, edge_jitter_fraction) * cell_width
         for index in range(1, columns)
     ] + [BOARD_WIDTH]
     row_edges = [0.0] + [
-        index * cell_height + rng.uniform(-0.10, 0.10) * cell_height
+        index * cell_height
+        + rng.uniform(-edge_jitter_fraction, edge_jitter_fraction) * cell_height
         for index in range(1, rows)
     ] + [BOARD_HEIGHT]
 
@@ -250,6 +263,15 @@ def generate_maze(
         "grid_vertical_walls": [list(wall) for wall in sorted(vertical)],
         "start_cell": list(start),
         "goal_cell": list(goal),
+        "generation_parameters": {
+            "columns": columns,
+            "rows": rows,
+            "loop_fraction": loop_fraction,
+            "desired_holes": desired_holes,
+            "start": list(start),
+            "goal": list(goal),
+            "edge_jitter_fraction": edge_jitter_fraction,
+        },
         "solution_cells": [list(cell) for cell in solution_cells],
         "hole_cells": [list(cell) for cell in selected_holes],
         "walls_h": walls_h,

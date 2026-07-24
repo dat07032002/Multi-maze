@@ -10,6 +10,8 @@ repo_root="${1:?Pass the absolute staged repository path as argument 1.}"
 run_dir="${2:?Pass the absolute Dreamer production log directory as argument 2.}"
 python_bin="$repo_root/.venv/bin/python"
 monitor="$repo_root/cyberrunner_mujoco/validation_monitor.py"
+manifest="${CYBERRUNNER_MANIFEST:-$repo_root/cyberrunner_mujoco/maze_splits.json}"
+end_step="${CYBERRUNNER_END_STEP:-10000000}"
 validation_root="$run_dir/validation"
 mkdir -p "$validation_root"
 
@@ -18,6 +20,7 @@ pid_file="$validation_root/monitor.pid"
 status_file="$validation_root/monitor.exit_status"
 test -x "$python_bin"
 test -f "$monitor"
+test -f "$manifest"
 if [[ -e "$pid_file" ]]; then
   previous_pid="$(cat "$pid_file")"
   if kill -0 "$previous_pid" 2>/dev/null; then
@@ -37,14 +40,17 @@ nohup bash -c '
   repo_root="$3"
   run_dir="$4"
   status_file="$5"
+  manifest="$6"
+  end_step="$7"
   "$python_bin" "$monitor" \
     --repo-root "$repo_root" \
     --run-dir "$run_dir" \
     --python "$python_bin" \
+    --manifest "$manifest" \
     --start-step 500000 \
     --interval 500000 \
     --robust-interval 1000000 \
-    --end-step 10000000 \
+    --end-step "$end_step" \
     --baseline \
     --canonical-gpu 3 \
     --robust-gpu 4 \
@@ -53,7 +59,7 @@ nohup bash -c '
   code=$?
   printf "%s\n" "$code" >"$status_file"
   exit "$code"
-' _ "$python_bin" "$monitor" "$repo_root" "$run_dir" "$status_file" \
+' _ "$python_bin" "$monitor" "$repo_root" "$run_dir" "$status_file" "$manifest" "$end_step" \
   >"$launcher_log" 2>&1 </dev/null &
 pid=$!
 printf '%s\n' "$pid" >"$pid_file"

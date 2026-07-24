@@ -106,19 +106,38 @@ class ActuatorConfig:
         (0.0, 1.0),
     )
 
-    def randomized(self, rng: np.random.Generator) -> "ActuatorConfig":
-        gain_factor = rng.uniform(0.75, 1.25, size=2)
+    def randomized(
+        self, rng: np.random.Generator, strength: float = 1.0
+    ) -> "ActuatorConfig":
+        """Sample actuator uncertainty, scaled from nominal to the full prior."""
+
+        strength = float(np.clip(strength, 0.0, 1.0))
+
+        def blend(sample: np.ndarray | float, nominal: np.ndarray | float):
+            return np.asarray(nominal) + strength * (
+                np.asarray(sample) - np.asarray(nominal)
+            )
+
+        gain_factor = blend(rng.uniform(0.75, 1.25, size=2), np.ones(2))
         units_per_rad = tuple(
             value / factor for value, factor in zip(self.servo_units_per_rad, gain_factor)
         )
-        cross = rng.uniform(-0.08, 0.08, size=2)
+        cross = strength * rng.uniform(-0.08, 0.08, size=2)
         return replace(
             self,
             servo_units_per_rad=units_per_rad,  # type: ignore[arg-type]
-            total_delay_seconds=float(rng.uniform(0.020, 0.100)),
-            response_time_constant_seconds=float(rng.uniform(0.040, 0.140)),
+            total_delay_seconds=float(
+                blend(rng.uniform(0.020, 0.100), self.total_delay_seconds)
+            ),
+            response_time_constant_seconds=float(
+                blend(
+                    rng.uniform(0.040, 0.140),
+                    self.response_time_constant_seconds,
+                )
+            ),
             zero_angle_offset_rad=tuple(
-                rng.uniform(-math.radians(0.8), math.radians(0.8), size=2)
+                strength
+                * rng.uniform(-math.radians(0.8), math.radians(0.8), size=2)
             ),  # type: ignore[arg-type]
             cross_axis_coupling=((1.0, float(cross[0])), (float(cross[1]), 1.0)),
         )
@@ -167,19 +186,28 @@ class PhysicsConfig:
     actuator_kp: float = 90.0
     actuator_kv: float = 8.0
 
-    def randomized(self, rng: np.random.Generator) -> "PhysicsConfig":
+    def randomized(
+        self, rng: np.random.Generator, strength: float = 1.0
+    ) -> "PhysicsConfig":
+        """Sample dynamics uncertainty, scaled from nominal to the full prior."""
+
+        strength = float(np.clip(strength, 0.0, 1.0))
+
+        def factor(low: float, high: float) -> float:
+            return 1.0 + strength * (float(rng.uniform(low, high)) - 1.0)
+
         def scale(values: Tuple[float, float, float], low: float, high: float):
-            factor = float(rng.uniform(low, high))
-            return tuple(value * factor for value in values)
+            multiplier = factor(low, high)
+            return tuple(value * multiplier for value in values)
 
         return replace(
             self,
-            ball_mass_kg=float(self.ball_mass_kg * rng.uniform(0.92, 1.08)),
+            ball_mass_kg=float(self.ball_mass_kg * factor(0.92, 1.08)),
             floor_friction=scale(self.floor_friction, 0.55, 1.55),  # type: ignore[arg-type]
             wall_friction=scale(self.wall_friction, 0.65, 1.40),  # type: ignore[arg-type]
             ball_friction=scale(self.ball_friction, 0.55, 1.55),  # type: ignore[arg-type]
-            actuator_kp=float(self.actuator_kp * rng.uniform(0.75, 1.25)),
-            actuator_kv=float(self.actuator_kv * rng.uniform(0.75, 1.25)),
+            actuator_kp=float(self.actuator_kp * factor(0.75, 1.25)),
+            actuator_kv=float(self.actuator_kv * factor(0.75, 1.25)),
         )
 
 

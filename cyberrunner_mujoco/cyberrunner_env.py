@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import glob
 import math
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
@@ -72,6 +73,20 @@ class TaskConfig:
     maze_split: str = ""
     maze_sampling: str = "uniform"
     curriculum_episodes: int = 5000
+    plr_uniform_mix: float = 0.25
+    plr_staleness_mix: float = 0.15
+    plr_ema: float = 0.10
+    start_curriculum: bool = False
+    start_curriculum_initial_min: float = 0.80
+    start_curriculum_expand_step: float = 0.10
+    start_curriculum_window: int = 40
+    start_curriculum_success_threshold: float = 0.70
+    full_start_probability: float = 0.20
+    randomization_curriculum: bool = False
+    randomization_initial_strength: float = 0.0
+    randomization_expand_step: float = 0.10
+    randomization_window: int = 50
+    randomization_success_threshold: float = 0.60
 
 
 def reward_components(
@@ -135,10 +150,20 @@ class CyberRunnerTask:
             "scaled_progress",
         }:
             raise ValueError(f"Unsupported reward mode: {task_config.reward_mode}")
-        if task_config.maze_sampling not in {"uniform", "curriculum"}:
+        if task_config.maze_sampling not in {"uniform", "curriculum", "plr"}:
             raise ValueError(f"Unsupported maze sampling: {task_config.maze_sampling}")
         if task_config.curriculum_episodes <= 0:
             raise ValueError("curriculum_episodes must be positive")
+        if not 0.0 <= task_config.plr_uniform_mix <= 1.0:
+            raise ValueError("plr_uniform_mix must be in [0, 1]")
+        if not 0.0 <= task_config.plr_staleness_mix <= 1.0:
+            raise ValueError("plr_staleness_mix must be in [0, 1]")
+        if task_config.plr_uniform_mix + task_config.plr_staleness_mix > 1.0:
+            raise ValueError("PLR mixture weights must sum to at most one")
+        if task_config.start_curriculum_window <= 0:
+            raise ValueError("start_curriculum_window must be positive")
+        if task_config.randomization_window <= 0:
+            raise ValueError("randomization_window must be positive")
         if task_config.maze_split and layout_paths is not None:
             raise ValueError("Choose either maze_split or explicit layout_paths, not both")
         if task_config.maze_split:
@@ -171,12 +196,129 @@ class CyberRunnerTask:
         self.layout_index = 0
         self.layout_sampling_probability = 1.0
         self.policy_contract: TagPolicyContract
+        count = len(self.layout_paths)
+        self._maze_visits = np.zeros(count, dtype=np.int64)
+        self._maze_success = np.zeros(count, dtype=np.float64)
+        self._maze_progress = np.zeros(count, dtype=np.float64)
+        self._maze_return_mean = np.zeros(count, dtype=np.float64)
+        self._maze_return_square = np.zeros(count, dtype=np.float64)
+        self._maze_last_visit = np.zeros(count, dtype=np.int64)
+        self._recent_successes: deque[float] = deque(
+            maxlen=max(
+                task_config.start_curriculum_window,
+                task_config.randomization_window,
+            )
+        )
+        self._start_frontier = float(task_config.start_curriculum_initial_min)
+        self._randomization_strength = float(
+            np.clip(task_config.randomization_initial_strength, 0.0, 1.0)
+        )
+        self._last_start_expansion = 0
+        self._last_randomization_expansion = 0
+        self.start_progress_fraction = 0.0
+        self.active_randomization_strength = 0.0
+
+    def _record_completed_episode(self) -> None:
+        """Update local adaptive curricula once for the episode just completed."""
+
+        if self.episode_steps <= 0 or not self.last_info:
+            return
+        index = self.layout_index
+        alpha = float(np.clip(self.task_config.plr_ema, 1e-6, 1.0))
+        success = float(bool(self.last_info.get("success", False)))
+        progress = float(self.last_info.get("route_completion", 0.0))
+        episode_return = float(self.last_info.get("episode_return", 0.0))
+        first = self._maze_visits[index] == 0
+        self._maze_visits[index] += 1
+        if first:
+            self._maze_success[index] = success
+            self._maze_progress[index] = progress
+            self._maze_return_mean[index] = episode_return
+            self._maze_return_square[index] = episode_return**2
+        else:
+            self._maze_success[index] += alpha * (success - self._maze_success[index])
+            self._maze_progress[index] += alpha * (progress - self._maze_progress[index])
+            self._maze_return_mean[index] += alpha * (
+                episode_return - self._maze_return_mean[index]
+            )
+            self._maze_return_square[index] += alpha * (
+                episode_return**2 - self._maze_return_square[index]
+            )
+        self._maze_last_visit[index] = self.episodes_started
+        self._recent_successes.append(success)
+        self._advance_curricula()
+
+    def _advance_curricula(self) -> None:
+        config = self.task_config
+        if config.start_curriculum and len(self._recent_successes) >= config.start_curriculum_window:
+            recent = tuple(self._recent_successes)[-config.start_curriculum_window :]
+            enough_time = (
+                self.episodes_started - self._last_start_expansion
+                >= config.start_curriculum_window
+            )
+            if enough_time and float(np.mean(recent)) >= config.start_curriculum_success_threshold:
+                self._start_frontier = max(
+                    config.start_progress_min,
+                    self._start_frontier - config.start_curriculum_expand_step,
+                )
+                self._last_start_expansion = self.episodes_started
+        if (
+            config.randomize_plant
+            and config.randomization_curriculum
+            and len(self._recent_successes) >= config.randomization_window
+        ):
+            recent = tuple(self._recent_successes)[-config.randomization_window :]
+            enough_time = (
+                self.episodes_started - self._last_randomization_expansion
+                >= config.randomization_window
+            )
+            if enough_time and float(np.mean(recent)) >= config.randomization_success_threshold:
+                self._randomization_strength = min(
+                    1.0,
+                    self._randomization_strength + config.randomization_expand_step,
+                )
+                self._last_randomization_expansion = self.episodes_started
+
+    def _plr_probabilities(self) -> np.ndarray:
+        """Outcome-based PLR proxy using frontier, return dispersion, and staleness."""
+
+        count = len(self.layout_paths)
+        uniform = np.full(count, 1.0 / count, dtype=np.float64)
+        unseen = self._maze_visits == 0
+        if np.any(unseen):
+            prioritized = unseen.astype(np.float64)
+            prioritized /= prioritized.sum()
+        else:
+            progress_frontier = 1.0 - np.abs(2.0 * self._maze_progress - 1.0)
+            success_frontier = 1.0 - np.abs(2.0 * self._maze_success - 1.0)
+            variance = np.maximum(
+                0.0,
+                self._maze_return_square - self._maze_return_mean**2,
+            )
+            dispersion = np.sqrt(variance)
+            if float(np.max(dispersion)) > 0.0:
+                dispersion /= float(np.max(dispersion))
+            learning = 0.50 * progress_frontier + 0.30 * dispersion + 0.20 * success_frontier
+            learning = np.maximum(learning, 0.05)
+            prioritized = learning / learning.sum()
+        ages = np.maximum(1, self.episodes_started - self._maze_last_visit)
+        staleness = ages.astype(np.float64) / float(np.sum(ages))
+        uniform_mix = self.task_config.plr_uniform_mix
+        staleness_mix = self.task_config.plr_staleness_mix
+        probabilities = (
+            (1.0 - uniform_mix - staleness_mix) * prioritized
+            + uniform_mix * uniform
+            + staleness_mix * staleness
+        )
+        return probabilities / probabilities.sum()
 
     def sampling_probabilities(self) -> np.ndarray:
-        """Return deterministic curriculum probabilities for the next reset."""
+        """Return adaptive probabilities for the next maze reset."""
         count = len(self.layout_paths)
         if count == 1 or self.task_config.maze_sampling == "uniform":
             return np.full(count, 1.0 / count, dtype=np.float64)
+        if self.task_config.maze_sampling == "plr":
+            return self._plr_probabilities()
         difficulty = np.asarray(
             [float(item.get("difficulty_score", 0.5)) for item in self.layout_metadata],
             dtype=np.float64,
@@ -209,13 +351,22 @@ class CyberRunnerTask:
 
     def _select_start(self) -> Tuple[np.ndarray, np.ndarray]:
         if not self.task_config.random_start:
+            self.start_progress_fraction = 0.0
             return self.route.point_at(0.0), np.zeros(2, dtype=np.float64)
+        minimum = self.task_config.start_progress_min
+        maximum = self.task_config.start_progress_max
+        if self.task_config.start_curriculum:
+            minimum = max(minimum, self._start_frontier)
+            if self.rng.random() < self.task_config.full_start_probability:
+                minimum = 0.0
+                maximum = 0.0
         fraction = float(
             self.rng.uniform(
-                self.task_config.start_progress_min,
-                self.task_config.start_progress_max,
+                minimum,
+                maximum,
             )
         )
+        self.start_progress_fraction = fraction
         progress = fraction * self.route.total_length
         center = self.route.point_at(progress)
         epsilon = min(0.003, 0.25 * self.system_config.relative_goal_spacing_m)
@@ -250,6 +401,7 @@ class CyberRunnerTask:
     ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
         if seed is not None:
             self.rng = np.random.default_rng(seed)
+        self._record_completed_episode()
         options = dict(options or {})
         if "layout_index" in options:
             layout_index = int(options["layout_index"])
@@ -284,8 +436,18 @@ class CyberRunnerTask:
         raw = self.model.reset(
             seed=model_seed,
             randomize=self.task_config.randomize_plant,
+            randomization_strength=(
+                self._randomization_strength
+                if self.task_config.randomization_curriculum
+                else float(self.task_config.randomize_plant)
+            ),
             ball_xy=ball_xy,
             ball_velocity_xy=velocity,
+        )
+        self.active_randomization_strength = (
+            self._randomization_strength
+            if self.task_config.randomization_curriculum
+            else float(self.task_config.randomize_plant)
         )
         self.progress_m = self.route.closest_progress(ball_xy)
         clearance = float(signed_ball_clearance(self.layout, ball_xy[None])[0])
@@ -296,6 +458,12 @@ class CyberRunnerTask:
         observation["log_fall_cost"] = np.zeros(1, dtype=np.float32)
         observation["log_success"] = np.zeros(1, dtype=np.float32)
         observation["log_reward"] = np.zeros(1, dtype=np.float32)
+        observation["log_start_progress"] = np.asarray(
+            [self.start_progress_fraction], dtype=np.float32
+        )
+        observation["log_randomization_strength"] = np.asarray(
+            [self.active_randomization_strength], dtype=np.float32
+        )
         info = {
             **diagnostic,
             "layout_path": str(self.layout_path),
@@ -307,6 +475,8 @@ class CyberRunnerTask:
                 self.layout_metadata[layout_index].get("difficulty_score", math.nan)
             ),
             "layout_sampling_probability": sampling_probability,
+            "start_progress_fraction": self.start_progress_fraction,
+            "randomization_strength": self.active_randomization_strength,
             "is_terminal": False,
             "termination_reason": "reset",
         }
@@ -369,6 +539,12 @@ class CyberRunnerTask:
                 [float(self.layout_metadata[self.layout_index].get("difficulty_score", 0.0))],
                 dtype=np.float32,
             ),
+            "log_start_progress": np.asarray(
+                [self.start_progress_fraction], dtype=np.float32
+            ),
+            "log_randomization_strength": np.asarray(
+                [self.active_randomization_strength], dtype=np.float32
+            ),
         }
         self.policy_contract.validate_observation(observation)
         return observation, {
@@ -419,6 +595,8 @@ class CyberRunnerTask:
                 self.layout_metadata[self.layout_index].get("difficulty_score", math.nan)
             ),
             "layout_sampling_probability": self.layout_sampling_probability,
+            "start_progress_fraction": self.start_progress_fraction,
+            "randomization_strength": self.active_randomization_strength,
             "fall_cost": fall_cost,
             "success": bool(succeeded),
             "progress_reward": float(progress_reward),
@@ -466,6 +644,12 @@ class CyberRunnerEnv(gym.Env):  # type: ignore[misc]
                     -np.inf, np.inf, (1,), dtype=np.float32
                 ),
                 "log_maze_difficulty": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_start_progress": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_randomization_strength": gym.spaces.Box(
                     -np.inf, np.inf, (1,), dtype=np.float32
                 ),
                 "log_fall_cost": gym.spaces.Box(

@@ -40,6 +40,8 @@ def _make_env(config, layout_path: pathlib.Path, seed: int, robust: bool):
         maze_sampling="uniform",
         random_start=robust,
         randomize_plant=robust,
+        start_curriculum=False,
+        randomization_curriculum=False,
     )
     env = CyberRunner(
         "sim",

@@ -7,7 +7,12 @@
 - Hiwonder absolute-position target, clamp, smoothing, timeout, and reset model
 - Camera crop, grayscale conversion, noise, dropout bursts, detector hysteresis,
   short-loss prediction, and observation delay
-- Fixed 40/8/8 maze split and validation isolation
+- Fixed legacy 40/8/8 and adaptive v2 512/64/64 maze splits with validation
+  isolation
+- Outcome-based prioritized level replay with uniform and staleness coverage
+- Reverse start-state curriculum and success-gated system randomization
+- Privileged route controller and policy-contract-only demonstration export
+- Eight-process simulator collection and Dreamer replay demonstration loading
 - Finite-radius route validation
 - Single-source maze package export to JSON, route, MJCF, preview, metadata, and
   prototype STL

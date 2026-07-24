@@ -176,7 +176,10 @@ def make_envs(config, **overrides):
     suite, task = config.task.split("_", 1)
     ctors = []
     for index in range(config.envs.amount):
-        ctor = lambda: make_env(config, **overrides)
+        env_overrides = dict(overrides)
+        if suite == "cyberrunner" and "seed" not in env_overrides:
+            env_overrides["seed"] = int(config.seed) + index
+        ctor = bind(make_env, config, **env_overrides)
         if config.envs.parallel != "none":
             ctor = bind(embodied.Parallel, ctor, config.envs.parallel)
         if config.envs.restart:

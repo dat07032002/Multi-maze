@@ -1,10 +1,11 @@
-"""Build the deterministic 40/8/8 multi-maze dataset and immutable manifest."""
+"""Build deterministic, leakage-checked multi-maze datasets."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import math
+import random
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
@@ -24,6 +25,31 @@ HERE = Path(__file__).resolve().parent
 GENERATED = HERE / "generated_mazes"
 MANIFEST = HERE / "maze_splits.json"
 GENERATOR_VERSION = "dense_irregular_depth_first_grid_v2+finite_ball_route_v1"
+V2_GENERATOR_VERSION = "diverse_grid_dfs_v2+finite_ball_route_v1"
+
+
+def _generation_kwargs(seed: int, profile: str) -> Dict[str, Any]:
+    if profile == "legacy":
+        return {}
+    rng = random.Random(seed ^ 0x5EED_2026)
+    columns, rows = rng.choice(((9, 7), (10, 8), (11, 9), (12, 10)))
+    corners = (
+        ((0, rows - 1), (columns - 1, 0)),
+        ((0, 0), (columns - 1, rows - 1)),
+        ((columns - 1, rows - 1), (0, 0)),
+        ((columns - 1, 0), (0, rows - 1)),
+    )
+    start, goal = rng.choice(corners)
+    cells = columns * rows
+    return {
+        "columns": columns,
+        "rows": rows,
+        "loop_fraction": rng.choice((0.0, 0.01, 0.03, 0.05)),
+        "desired_holes": min(rng.choice((12, 18, 24, 30)), max(8, cells // 3)),
+        "start": start,
+        "goal": goal,
+        "edge_jitter_fraction": rng.choice((0.04, 0.07, 0.10)),
+    }
 
 
 def _candidate_seeds(primary: int, start: int) -> Iterable[int]:
@@ -80,12 +106,22 @@ def _difficulty(layout: Dict[str, Any], route_length_m: float) -> Tuple[float, s
     }
 
 
-def _build_one(seed: int, planner: PlannerConfig) -> Tuple[Path, Dict[str, Any]]:
-    path = GENERATED / f"maze_seed_{seed}.json"
+def _build_one(
+    seed: int,
+    planner: PlannerConfig,
+    generated: Path = GENERATED,
+    profile: str = "legacy",
+) -> Tuple[Path, Dict[str, Any]]:
+    path = generated / f"maze_seed_{seed}.json"
+    generation_kwargs = _generation_kwargs(seed, profile)
     if path.is_file():
         layout = load_json_layout(path)
         if int(layout.get("seed", -1)) != seed:
             raise ValueError(f"Existing layout seed mismatch in {path}")
+        if profile != "legacy":
+            expected = json.loads(json.dumps(generation_kwargs))
+            if layout.get("generation_parameters") != expected:
+                raise ValueError(f"Existing layout profile mismatch in {path}")
         route_validation = validate_route(layout, layout["waypoints"], planner)
         planner_metadata = layout.get("route_planner", {})
         metadata_matches = math.isclose(
@@ -93,7 +129,7 @@ def _build_one(seed: int, planner: PlannerConfig) -> Tuple[Path, Dict[str, Any]]
             planner.safety_margin_m,
         )
     else:
-        layout = generate_maze(seed)
+        layout = generate_maze(seed, **generation_kwargs)
         route_validation = validate_route(layout, layout["waypoints"], planner)
         metadata_matches = False
     generated_validation = validate_generated_layout(layout)
@@ -116,18 +152,27 @@ def _build_one(seed: int, planner: PlannerConfig) -> Tuple[Path, Dict[str, Any]]
         "required_clearance_m": route_validation.required_margin_m,
         "hole_count": len(layout["holes"]),
         "wall_segment_count": len(layout["walls_h"]) + len(layout["walls_v"]),
+        "generation_parameters": layout.get("generation_parameters", {}),
         **features,
         "sha256": file_sha256(path),
     }
 
 
-def _select(count: int, primary: int, start: int, used: set[int], planner: PlannerConfig):
+def _select(
+    count: int,
+    primary: int,
+    start: int,
+    used: set[int],
+    planner: PlannerConfig,
+    generated: Path = GENERATED,
+    profile: str = "legacy",
+):
     selected: List[Tuple[Path, Dict[str, Any]]] = []
     for seed in _candidate_seeds(primary, start):
         if seed in used:
             continue
         try:
-            item = _build_one(seed, planner)
+            item = _build_one(seed, planner, generated, profile)
         except (RuntimeError, ValueError):
             continue
         selected.append(item)
@@ -153,24 +198,43 @@ def _assign_relative_bands(entries: List[Tuple[Path, Dict[str, Any]]]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train-count", type=int, default=40)
-    parser.add_argument("--validation-count", type=int, default=8)
-    parser.add_argument("--test-count", type=int, default=8)
-    parser.add_argument("--manifest", type=Path, default=MANIFEST)
+    parser.add_argument("--profile", choices=("legacy", "diverse_v2"), default="legacy")
+    parser.add_argument("--train-count", type=int)
+    parser.add_argument("--validation-count", type=int)
+    parser.add_argument("--test-count", type=int)
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--generated-dir", type=Path)
     args = parser.parse_args()
-    GENERATED.mkdir(parents=True, exist_ok=True)
+    defaults = (40, 8, 8) if args.profile == "legacy" else (512, 64, 64)
+    train_count = args.train_count or defaults[0]
+    validation_count = args.validation_count or defaults[1]
+    test_count = args.test_count or defaults[2]
+    manifest_path = args.manifest or (
+        MANIFEST if args.profile == "legacy" else HERE / "maze_splits_v2.json"
+    )
+    generated = args.generated_dir or (
+        GENERATED if args.profile == "legacy" else HERE / "generated_mazes_v2"
+    )
+    if not manifest_path.is_absolute():
+        manifest_path = (Path.cwd() / manifest_path).resolve()
+    if not generated.is_absolute():
+        generated = (Path.cwd() / generated).resolve()
+    generated.mkdir(parents=True, exist_ok=True)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
     planner = PlannerConfig()
     used: set[int] = set()
     splits = {
-        "train": _select(args.train_count, 970, 10000, used, planner),
-        "validation": _select(args.validation_count, 1024, 20000, used, planner),
-        "test": _select(args.test_count, 765, 30000, used, planner),
+        "train": _select(train_count, 970, 10000, used, planner, generated, args.profile),
+        "validation": _select(
+            validation_count, 1024, 20000, used, planner, generated, args.profile
+        ),
+        "test": _select(test_count, 765, 30000, used, planner, generated, args.profile),
     }
     for entries in splits.values():
         _assign_relative_bands(entries)
 
     def relative(path: Path) -> str:
-        return path.relative_to(HERE).as_posix()
+        return path.relative_to(manifest_path.parent).as_posix()
 
     metadata = {
         relative(path): item
@@ -180,8 +244,15 @@ def main() -> None:
     train_paths = [relative(path) for path, _ in splits["train"]]
     manifest = {
         "schema_version": 2,
-        "dataset_id": "cyberrunner_fixed_board_40train_8val_8test_v1",
-        "generator_version": GENERATOR_VERSION,
+        "dataset_id": (
+            f"cyberrunner_fixed_board_{train_count}train_"
+            f"{validation_count}val_{test_count}test_"
+            f"{'v1' if args.profile == 'legacy' else 'v2'}"
+        ),
+        "generator_version": (
+            GENERATOR_VERSION if args.profile == "legacy" else V2_GENERATOR_VERSION
+        ),
+        "generation_profile": args.profile,
         "split_policy": "disjoint deterministic seeds; validation and test never enter replay",
         "smoke": [train_paths[0]],
         "train": train_paths,
@@ -189,7 +260,7 @@ def main() -> None:
         "test": [relative(path) for path, _ in splits["test"]],
         "metadata": metadata,
     }
-    args.manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     bands = {
         split: {
             band: sum(item["difficulty_band"] == band for _, item in entries)
@@ -197,7 +268,7 @@ def main() -> None:
         }
         for split, entries in splits.items()
     }
-    print(json.dumps({"manifest": str(args.manifest), "counts": {key: len(value) for key, value in splits.items()}, "difficulty_bands": bands}, indent=2))
+    print(json.dumps({"manifest": str(manifest_path), "counts": {key: len(value) for key, value in splits.items()}, "difficulty_bands": bands}, indent=2))
 
 
 if __name__ == "__main__":

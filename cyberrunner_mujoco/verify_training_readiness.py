@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 from typing import Any
@@ -41,11 +42,20 @@ def _jsonable(value: Any):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument(
+        "--rollout-limit",
+        type=int,
+        default=0,
+        help="Limit dynamic smoke rollouts; zero checks every layout.",
+    )
+    args = parser.parse_args()
     registry = load_parameter_registry()
-    manifest = load_manifest(DEFAULT_MANIFEST)
-    train = load_split("train", DEFAULT_MANIFEST)
-    validation_split = load_split("validation", DEFAULT_MANIFEST)
-    test = load_split("test", DEFAULT_MANIFEST)
+    manifest = load_manifest(args.manifest)
+    train = load_split("train", args.manifest)
+    validation_split = load_split("validation", args.manifest)
+    test = load_split("test", args.manifest)
     layouts = list(train.paths + validation_split.paths + test.paths)
     config = PlannerConfig()
     layout_results = {}
@@ -59,12 +69,13 @@ def main() -> None:
             "route_length_m": route_check.route_length_m,
         }
 
-    task = CyberRunnerTask(layout_paths=[str(path) for path in layouts], seed=123)
+    rollout_layouts = layouts[: args.rollout_limit or None]
+    task = CyberRunnerTask(layout_paths=[str(path) for path in rollout_layouts], seed=123)
     rollout_results = []
     finite = True
     contract_valid = True
     contract = TagPolicyContract()
-    for layout_index in range(len(layouts)):
+    for layout_index in range(len(rollout_layouts)):
         observation, info = task.reset(
             seed=1000 + layout_index, options={"layout_index": layout_index}
         )
@@ -87,7 +98,7 @@ def main() -> None:
                 break
         rollout_results.append(
             {
-                "layout": layouts[layout_index].name,
+                "layout": rollout_layouts[layout_index].name,
                 "steps": info["episode_steps"],
                 "termination_reason": info["termination_reason"],
                 "finite": finite,
@@ -125,9 +136,9 @@ def main() -> None:
             all_routes_pass
             and finite
             and contract_valid
-            and len(train.paths) == 40
-            and len(validation_split.paths) == 8
-            and len(test.paths) == 8
+            and len(train.paths) > 0
+            and len(validation_split.paths) > 0
+            and len(test.paths) > 0
         ),
     }
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
