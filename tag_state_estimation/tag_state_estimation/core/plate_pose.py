@@ -128,6 +128,17 @@ class PlatePoseEstimator:
             for candidate in candidates
             if candidate[0] <= best_error + max(1.0, 0.20 * best_error)
         ]
+        if pose_key == "camera":
+            # The fixed-camera planar solve has two mirror solutions with very
+            # similar reprojection error. On this CyberRunner installation the
+            # physically valid fixed-frame normal has positive camera-X. This
+            # mounting-orientation prior prevents startup from alternating
+            # between roughly +21 and -36 degree published alpha branches.
+            mounted_orientation = [
+                candidate for candidate in eligible if candidate[3][0, 2] > 0.0
+            ]
+            if mounted_orientation:
+                eligible = mounted_orientation
         previous = self._previous_pnp_poses.get(pose_key)
         if previous is None:
             selected = eligible[0]
