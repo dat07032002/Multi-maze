@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-24",
+  "angle_independent": true,
+  "motor_commands_sent": false,
+  "camera": {
+    "shape": [400, 640, "bgr8"],
+    "runs": [
+      {
+        "duration_s": 30.0066,
+        "frames": 1719,
+        "effective_hz": 59.1416,
+        "median_interval_ms": 16.6670,
+        "p95_interval_ms": 19.5513,
+        "max_interval_ms": 350.9742,
+        "mean_header_age_ms": 2.1958
+      },
+      {
+        "duration_s": 30.0079,
+        "frames": 1731,
+        "effective_hz": 59.8686,
+        "median_interval_ms": 16.6930,
+        "p95_interval_ms": 19.5246,
+        "max_interval_ms": 33.4793,
+        "mean_header_age_ms": 2.2311
+      }
+    ]
+  },
+  "stationary_ball": {
+    "duration_s": 30.0086,
+    "messages": 1751,
+    "effective_hz": 58.3412,
+    "finite_fraction": 1.0,
+    "source": "fused",
+    "x_std_m": 0.0000615462,
+    "y_std_m": 0.0000549168,
+    "x_peak_to_peak_m": 0.0006840862,
+    "y_peak_to_peak_m": 0.0004277861,
+    "vx_mean_mps": -0.0076881,
+    "vx_std_mps": 0.0048694,
+    "vy_mean_mps": -0.0018255,
+    "vy_std_mps": 0.0045222,
+    "ai_confidence_mean": 0.99936,
+    "detector_disagreement_mean_px": 0.7435
+  },
+  "occlusion": {
+    "messages": 1897,
+    "finite_fraction": 0.95361,
+    "lost_uncertain_after_first_loss_s": 0.4306,
+    "lost_after_first_loss_s": 1.5152,
+    "visual_reacquire_to_fused_approx_s": 0.1
+  },
+  "manual_motion": {
+    "messages": 2129,
+    "finite_fraction": 1.0,
+    "all_sources_fused": true,
+    "maximum_estimated_speed_mps": 0.22079,
+    "tracked_path_length_m": 0.23412,
+    "valid_for_friction_fit": false
+  },
+  "hole_loss": {
+    "messages": 1194,
+    "finite_fraction": 0.79983,
+    "lost_uncertain_after_first_loss_s": 0.4830,
+    "lost_after_first_loss_s": 1.6159,
+    "recovered_after_manual_replacement": true
+  },
+  "hiwonder_driver": {
+    "command_rate_hz": 30.0,
+    "move_time_ms": 30,
+    "home": [500, 500],
+    "scale": [1.5, 1.5],
+    "max_step_per_tick": [20.0, 20.0],
+    "deadband_servo_units": 1.0,
+    "command_timeout_s": 1.0,
+    "timeout_go_home": true,
+    "temperature_telemetry_available": false
+  },
+  "limitations": [
+    "board angle unavailable",
+    "state message does not carry the exact source image timestamp",
+    "stationary velocity estimate is biased",
+    "manual event timing is not a precision latency reference"
+  ]
+}

@@ -14,6 +14,8 @@
 - [sysid_step_2026-07-24.json](sysid_step_2026-07-24.json): machine-readable step magnitudes, timing, confidence, safety, and raw-file hashes
 - [SYSID_SWEEP_2026-07-24.md](SYSID_SWEEP_2026-07-24.md): completed three-cycle +/-5/10/15 static sweep with calibrated home zero and hysteresis findings
 - [sysid_sweep_2026-07-24.json](sysid_sweep_2026-07-24.json): machine-readable sweep protocol, response summary, safety result, and raw-file hashes
+- [BALL_CAMERA_TESTS_2026-07-24.md](BALL_CAMERA_TESTS_2026-07-24.md): angle-independent camera, stationary-ball, occlusion, motion-tracking, and hole-loss measurements
+- [ball_camera_tests_2026-07-24.json](ball_camera_tests_2026-07-24.json): machine-readable aggregate results and modeling limitations
 - [CLEANUP_AUDIT.md](CLEANUP_AUDIT.md): what was removed, what was retained, and why
 - [HANDOFF.md](HANDOFF.md): clone and continue from another desktop
 
