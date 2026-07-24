@@ -14,7 +14,10 @@ from tag_state_estimation.core.estimation_pipeline import EstimationPipeline
 from tag_state_estimation.core.opencv_acceleration import (
     configure_opencv_acceleration,
 )
-from tag_state_estimation.core.pose_continuity import PoseContinuityGate
+from tag_state_estimation.core.pose_continuity import (
+    PoseContinuityGate,
+    apply_published_angle_zero,
+)
 from tag_interfaces.msg import StateEstimate, StateEstimateSub
 
 
@@ -41,6 +44,8 @@ class ImageSubscriber(Node):
         self.declare_parameter("pose_max_abs_deg", 20.0)
         self.declare_parameter("pose_max_step_deg", 3.0)
         self.declare_parameter("pose_reject_hold_frames", 2)
+        self.declare_parameter("pose_zero_alpha_deg", 0.0)
+        self.declare_parameter("pose_zero_beta_deg", 0.0)
 
         self.skip = max(1, int(self.get_parameter("process_every_n").value))
         self.pipeline_fps = float(self.get_parameter("pipeline_fps").value)
@@ -63,6 +68,12 @@ class ImageSubscriber(Node):
             hold_frames=int(
                 self.get_parameter("pose_reject_hold_frames").value
             ),
+        )
+        self.pose_zero_alpha_deg = float(
+            self.get_parameter("pose_zero_alpha_deg").value
+        )
+        self.pose_zero_beta_deg = float(
+            self.get_parameter("pose_zero_beta_deg").value
         )
         self.pose_rejection_active = False
 
@@ -160,6 +171,11 @@ class ImageSubscriber(Node):
         t_est0 = time.perf_counter()
         x_hat, P, angles, subimg, xb, yb = self.estimation_pipeline.estimate(
             frame, return_ball_subimg=True
+        )
+        angles = apply_published_angle_zero(
+            angles,
+            alpha_zero_deg=self.pose_zero_alpha_deg,
+            beta_zero_deg=self.pose_zero_beta_deg,
         )
         pose_result = self.pose_gate.update(angles)
         if not pose_result.accepted:

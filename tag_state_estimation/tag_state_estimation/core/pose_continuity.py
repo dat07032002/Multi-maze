@@ -15,6 +15,16 @@ class PoseGateResult:
     consecutive_rejections: int
 
 
+def apply_published_angle_zero(angles, alpha_zero_deg=0.0, beta_zero_deg=0.0):
+    """Apply home offsets expressed in the published alpha/beta convention."""
+    # The estimator internally returns (x_rotation, y_rotation), while the
+    # ROS state publishes beta=x_rotation and alpha=-y_rotation.
+    return (
+        float(angles[0]) - math.radians(beta_zero_deg),
+        float(angles[1]) + math.radians(alpha_zero_deg),
+    )
+
+
 class PoseContinuityGate:
     """Reject PnP pose branches that cannot be physical frame-to-frame motion."""
 

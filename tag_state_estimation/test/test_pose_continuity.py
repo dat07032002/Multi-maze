@@ -1,10 +1,23 @@
 import math
 import unittest
 
-from tag_state_estimation.core.pose_continuity import PoseContinuityGate
+from tag_state_estimation.core.pose_continuity import (
+    PoseContinuityGate,
+    apply_published_angle_zero,
+)
 
 
 class PoseContinuityGateTest(unittest.TestCase):
+    def test_applies_zero_in_published_alpha_beta_convention(self):
+        # Internal (x, y)=(beta, -alpha). Published state before zeroing is
+        # therefore alpha=20 degrees and beta=-2 degrees.
+        raw = (math.radians(-2), math.radians(-20))
+        corrected = apply_published_angle_zero(
+            raw, alpha_zero_deg=20, beta_zero_deg=-2
+        )
+        self.assertAlmostEqual(corrected[0], 0.0)
+        self.assertAlmostEqual(corrected[1], 0.0)
+
     def test_accepts_small_continuous_motion(self):
         gate = PoseContinuityGate()
         first = gate.update((math.radians(10), math.radians(-1)))
