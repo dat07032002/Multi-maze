@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "audit_time_utc": "2026-07-24T20:15:56Z",
+  "mode": "read_only",
+  "board": {
+    "playable_width_m": 0.259,
+    "playable_height_m": 0.229
+  },
+  "camera": {
+    "model": "See3CAM_24CUG",
+    "transport": "USB",
+    "capture": {
+      "codec": "MJPG",
+      "width_px": 1280,
+      "height_px": 720,
+      "requested_fps": 60,
+      "buffer_frames": 1
+    },
+    "published": {
+      "width_px": 640,
+      "height_px": 400,
+      "encoding": "bgr8",
+      "content_height_px": 360,
+      "border_top_px": 20,
+      "border_bottom_px": 20
+    },
+    "measured_message_rate_hz": 43.55,
+    "manual_controls": {
+      "white_balance_auto": false,
+      "white_balance_temperature": 5477,
+      "auto_exposure_mode": 1,
+      "exposure_ms": 8.0,
+      "saturation": 40,
+      "gamma": 193,
+      "contrast": 30,
+      "brightness": -6,
+      "power_line_frequency": 0
+    }
+  },
+  "observation": {
+    "image": {
+      "shape": [64, 64, 1],
+      "dtype": "uint8",
+      "color": "grayscale",
+      "timestamp_status": "missing_on_observed_subimage"
+    },
+    "states": {
+      "shape": [4],
+      "order": ["alpha", "beta", "x", "y"],
+      "angle_normalization_deg": 10.0,
+      "published_angle_mapping": {
+        "alpha": "-raw_axis_1",
+        "beta": "raw_axis_0"
+      }
+    },
+    "goal": {
+      "shape": [10],
+      "relative_route_points": 5
+    },
+    "detector_miss_frames": 6,
+    "ball_loss_grace_s": 0.35,
+    "occlusion_grace_s": 1.5
+  },
+  "action": {
+    "shape": [2],
+    "policy_range": [-1.0, 1.0],
+    "environment_command_limit": [240, 240],
+    "tcp_bridge_command_limit": [180, 180],
+    "limit_status": "mismatch"
+  },
+  "hiwonder": {
+    "servo_ids": [1, 2],
+    "home": [500, 500],
+    "limits": [[100, 900], [100, 900]],
+    "scale": [1.5, 1.5],
+    "command_rate_hz": 30,
+    "max_step_per_tick": [20, 20],
+    "deadband": [1, 1],
+    "command_timeout_s": 1.0,
+    "reset": {
+      "prehome": [700, 700],
+      "prehome_move_ms": 60,
+      "wait_s": 0.5,
+      "home_move_ms": 600
+    },
+    "temperature_guard": {
+      "threshold_c": 70,
+      "pause_s": 300,
+      "check_period_s": 2,
+      "telemetry_status": "unverified_default_port_empty"
+    }
+  },
+  "runtime": {
+    "ros_distribution": "Humble",
+    "command_topic_observed": "/cyberrunner_dynamixel/cmd",
+    "state_topic_observed": "/cyberrunner_state_estimation/estimate",
+    "organized_command_topic": "/tag_hiwonder/cmd",
+    "organized_state_topic": "/tag_state_estimation/estimate",
+    "tcp_nodelay": true,
+    "tcp_newer_state_wait_max_ms": 18,
+    "estimator_source": "external_ros_workspace",
+    "estimator_source_install_hash_match": true,
+    "estimator_present_at_final_snapshot": false,
+    "ros_cli_status": "daemon_fault_prevented_final_parameter_dump"
+  },
+  "passive_recording": {
+    "duration_s": 600,
+    "camera_messages": 26129,
+    "primary_state_messages": 35611,
+    "command_messages": 6152,
+    "active_command_median_hz": 28.22,
+    "longest_command_silence_s": 98.964,
+    "episodes": 28,
+    "steps": 6116,
+    "successes": 0,
+    "saturation_percent": {
+      "axis_1": 62.94,
+      "axis_2": 62.48,
+      "either": 85.47,
+      "both": 39.95
+    },
+    "plant_fit_status": "rejected_low_r_squared"
+  },
+  "safety": {
+    "active_commands_sent_by_audit": false,
+    "nodes_restarted_by_audit": false,
+    "files_removed_by_audit": false,
+    "hardware_root_disk_percent_used": 99,
+    "hardware_root_disk_free_gb_approx": 1.4
+  }
+}

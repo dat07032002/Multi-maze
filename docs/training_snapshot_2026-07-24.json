@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "audit_time_utc": "2026-07-24T20:15:56Z",
+  "run_label": "newmap",
+  "hardware_connected_run_process_present": false,
+  "unrelated_dreamerv3_process_present_on_shared_server": true,
+  "artifacts": {
+    "checkpoint_bytes": 1016489994,
+    "checkpoint_modified_server_local": "2026-07-24T14:15:15-05:00",
+    "metrics_records": 810,
+    "scores_records": 809
+  },
+  "latest_episode": {
+    "step": 213180,
+    "length": 494,
+    "score": 0.30800000214367174,
+    "duration_s": 17.423479080200195,
+    "success": 0,
+    "success_rate_20": 0.0,
+    "success_rate_50": 0.0,
+    "success_rate_100": 0.0,
+    "reported_fps": 11.534683770715688,
+    "replay_size": 1000000
+  },
+  "latest_five_scores": [
+    {"step": 211297, "score": 0.4430000012507662},
+    {"step": 211918, "score": 0.48825000575743616},
+    {"step": 212294, "score": 0.2925000025134068},
+    {"step": 212685, "score": 0.4845000035711564},
+    {"step": 213180, "score": 0.30800000214367174}
+  ],
+  "config_snapshot": {
+    "script": "train_top5",
+    "train_ratio": 256,
+    "batch_size": 16,
+    "batch_length": 64,
+    "imag_horizon": 15,
+    "replay_capacity": 1000000,
+    "physical_gpu_count": 1,
+    "rssm_deter": 2048,
+    "rssm_stoch": 32,
+    "rssm_classes": 32,
+    "actor_units": 768,
+    "critic_units": 768,
+    "environment_length": 3000,
+    "exploration_behavior": "None"
+  },
+  "provenance_warning": "The config file was modified after the passive hardware recording and reports train_ratio 256; recording context reported 128. Treat them as different run snapshots."
+}

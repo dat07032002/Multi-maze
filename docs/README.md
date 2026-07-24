@@ -5,6 +5,9 @@
 - [V2_TRAINING.md](V2_TRAINING.md): adaptive 512/64/64 profile, demonstrations, and rollout gates
 - [TAG_REFERENCE.md](TAG_REFERENCE.md): exactly what was imported from the updated working TAG repository
 - [HARDWARE_RECORDING_2026-07-24.md](HARDWARE_RECORDING_2026-07-24.md): sanitized passive measurements and remaining calibration tests
+- [HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md](HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md): read-only live hardware/training inventory, compatibility matrix, and deployment blockers
+- [hardware_runtime_contract_2026-07-24.json](hardware_runtime_contract_2026-07-24.json): machine-readable camera, observation, action, Hiwonder, timing, and safety snapshot
+- [training_snapshot_2026-07-24.json](training_snapshot_2026-07-24.json): machine-readable status of the stopped hardware-connected DreamerV3 run
 - [CLEANUP_AUDIT.md](CLEANUP_AUDIT.md): what was removed, what was retained, and why
 - [HANDOFF.md](HANDOFF.md): clone and continue from another desktop
 

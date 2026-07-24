@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a sanitized read-only audit of the live hardware and training systems,
+  including machine-readable runtime and DreamerV3 snapshots.
+- Documented the 240-to-180 action clamp, legacy-to-`tag_*` topic remapping,
+  estimator provenance, missing image timestamp, stopped hardware run, and P0
+  deployment gates.
 - Added the passive `tag_sysid` recorder and offline analyzer.
 - Added guarded home, axis/sign, static-sweep, and step-response protocols.
 - Added hard bounds, publisher exclusivity, explicit arming, raw CSV output,
