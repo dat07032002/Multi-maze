@@ -30,7 +30,14 @@ class InterfaceProfileTest(unittest.TestCase):
             self.assertTrue(profile.state_topic.startswith("/"))
             self.assertTrue(profile.command_topic.startswith("/"))
             command_topics.add(profile.command_topic)
-        self.assertEqual(len(command_topics), len(PROFILES))
+        self.assertGreaterEqual(len(command_topics), 2)
+
+    def test_filtered_estimator_profile_keeps_legacy_motor_contract(self):
+        profile = get_profile("legacy-hardware-filtered-estimator")
+        self.assertEqual(profile.state_module, "tag_interfaces.msg")
+        self.assertEqual(profile.state_topic, "/tag_state_estimation/estimate")
+        self.assertEqual(profile.command_module, "cyberrunner_interfaces.msg")
+        self.assertEqual(profile.command_topic, "/cyberrunner_dynamixel/cmd")
 
     def test_unknown_profile_is_rejected(self):
         with self.assertRaises(ValueError):

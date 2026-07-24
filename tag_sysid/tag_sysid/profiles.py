@@ -44,6 +44,17 @@ PROFILES = {
         command_module="cyberrunner_interfaces.msg",
         command_class="DynamixelVel",
     ),
+    "legacy-hardware-filtered-estimator": InterfaceProfile(
+        name="legacy-hardware-filtered-estimator",
+        camera_topic="/cyberrunner_camera/image",
+        state_topic="/tag_state_estimation/estimate",
+        command_topic="/cyberrunner_dynamixel/cmd",
+        expected_driver_node="cyberrunner_hiwonder_compat",
+        state_module="tag_interfaces.msg",
+        state_class="StateEstimate",
+        command_module="cyberrunner_interfaces.msg",
+        command_class="DynamixelVel",
+    ),
 }
 
 

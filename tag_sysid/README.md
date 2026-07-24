@@ -103,6 +103,11 @@ Add `--interface-profile legacy-hardware` when measuring the existing working
 stack. This selects its legacy topics, message package, and expected Hiwonder
 node; it does not weaken any safety interlock.
 
+Use `legacy-hardware-filtered-estimator` when the clean `tag_state_estimation`
+node is connected to the legacy camera by topic remapping while the working
+legacy Hiwonder driver remains active. This mixed profile is intentional: state
+uses `tag_interfaces`, commands use `cyberrunner_interfaces`.
+
 If the dry-run amplitude is too large for the observed mechanism, use
 `--command-scale` in the hard-bounded range 0.1 through 1.0. For example,
 `--command-scale 0.5` changes the axis test from +/-40 to +/-20 without changing

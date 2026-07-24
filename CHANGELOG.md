@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added a bounded plate-pose continuity gate that resets corner tracking after
+  impossible PnP branches and fails non-finite after two held frames.
+- Added a mixed sysid profile for the clean filtered estimator with the working
+  legacy camera and Hiwonder command interfaces.
 - Recorded and documented the first accepted guarded physical Hiwonder axis/sign
   run at +/-20, including local gains, coupling, timing, home repeatability, and
   raw-artifact hashes.

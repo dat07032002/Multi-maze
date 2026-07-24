@@ -13,3 +13,9 @@ The checked-in calibration is `calib/calib_results_tag.txt`. The synchronized
 upstream detector masks the nearest corner marker and uses the updated marker
 radius, area, and circularity gates. Treat calibration and camera placement as
 hardware-specific: revalidate them if the camera mount changes.
+
+The policy-facing estimator rejects plate-pose solutions outside 20 degrees or
+more than 3 degrees from the previous accepted frame. It resets predictive
+corner tracking, holds at most two frames, then publishes non-finite state so a
+controller or sysid tool must stop if recovery fails. Thresholds are ROS
+parameters and retain hard validation bounds in the continuity gate.

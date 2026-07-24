@@ -14,6 +14,7 @@ from tag_state_estimation.core.estimation_pipeline import EstimationPipeline
 from tag_state_estimation.core.opencv_acceleration import (
     configure_opencv_acceleration,
 )
+from tag_state_estimation.core.pose_continuity import PoseContinuityGate
 from tag_interfaces.msg import StateEstimate, StateEstimateSub
 
 
@@ -37,6 +38,9 @@ class ImageSubscriber(Node):
         # published NaN, so the marble looked lost near the top/bottom. Expand
         # the accepted region instead of shrinking it.
         self.declare_parameter("playable_edge_tolerance", 0.015)
+        self.declare_parameter("pose_max_abs_deg", 20.0)
+        self.declare_parameter("pose_max_step_deg", 3.0)
+        self.declare_parameter("pose_reject_hold_frames", 2)
 
         self.skip = max(1, int(self.get_parameter("process_every_n").value))
         self.pipeline_fps = float(self.get_parameter("pipeline_fps").value)
@@ -53,6 +57,14 @@ class ImageSubscriber(Node):
         )
         self.playable_half_x = playable_width / 2.0 + edge_tolerance
         self.playable_half_y = playable_height / 2.0 + edge_tolerance
+        self.pose_gate = PoseContinuityGate(
+            max_abs_deg=float(self.get_parameter("pose_max_abs_deg").value),
+            max_step_deg=float(self.get_parameter("pose_max_step_deg").value),
+            hold_frames=int(
+                self.get_parameter("pose_reject_hold_frames").value
+            ),
+        )
+        self.pose_rejection_active = False
 
         self.acceleration_backend, acceleration_msg = configure_opencv_acceleration(
             self.use_gpu,
@@ -149,6 +161,26 @@ class ImageSubscriber(Node):
         x_hat, P, angles, subimg, xb, yb = self.estimation_pipeline.estimate(
             frame, return_ball_subimg=True
         )
+        pose_result = self.pose_gate.update(angles)
+        if not pose_result.accepted:
+            detector = self.estimation_pipeline.measurements.detector
+            detector.corners = None
+            detector.corners_missing = True
+            xb = np.nan
+            yb = np.nan
+            x_hat[2] = np.nan
+            x_hat[3] = np.nan
+            subimg = np.zeros_like(subimg)
+            if not self.pose_rejection_active:
+                self.get_logger().warn(
+                    "Rejecting discontinuous plate-pose solution and "
+                    "resetting corner tracking."
+                )
+                self.pose_rejection_active = True
+        elif self.pose_rejection_active:
+            self.get_logger().info("Plate-pose tracking recovered.")
+            self.pose_rejection_active = False
+        angles = pose_result.angles
         if self.profile_timing:
             self._prof_compute.append(time.perf_counter() - t_est0)
             if len(self._prof_compute) >= self.profile_window:
