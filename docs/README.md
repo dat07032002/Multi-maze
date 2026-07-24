@@ -8,6 +8,8 @@
 - [HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md](HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md): read-only live hardware/training inventory, compatibility matrix, and deployment blockers
 - [hardware_runtime_contract_2026-07-24.json](hardware_runtime_contract_2026-07-24.json): machine-readable camera, observation, action, Hiwonder, timing, and safety snapshot
 - [training_snapshot_2026-07-24.json](training_snapshot_2026-07-24.json): machine-readable status of the stopped hardware-connected DreamerV3 run
+- [SYSID_AXIS_2026-07-24.md](SYSID_AXIS_2026-07-24.md): accepted guarded +/-20 hardware axis/sign response and remaining identification work
+- [sysid_axis_2026-07-24.json](sysid_axis_2026-07-24.json): machine-readable low-amplitude actuator response, timing, repeatability, and raw-file hashes
 - [CLEANUP_AUDIT.md](CLEANUP_AUDIT.md): what was removed, what was retained, and why
 - [HANDOFF.md](HANDOFF.md): clone and continue from another desktop
 

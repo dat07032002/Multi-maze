@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-24",
+  "status": "accepted_low_amplitude_axis_sign",
+  "interface_profile": "legacy-hardware",
+  "protocol": {
+    "test": "axis",
+    "command_scale": 0.5,
+    "command_magnitude": 20.0,
+    "repetitions_per_direction": 3,
+    "phases": 24,
+    "state_samples": 2999,
+    "command_samples": 495
+  },
+  "safety": {
+    "operator_present": true,
+    "ball_removed": true,
+    "max_board_angle_deg": 20.0,
+    "max_excursion_deg": 4.0,
+    "runtime_state_timeout_s": 0.25,
+    "tcp_bridge_stopped": true,
+    "command_publishers_after_run": 0
+  },
+  "baseline_deg": {
+    "alpha": 11.458231252571593,
+    "beta": -0.5467107659722381
+  },
+  "responses_deg": [
+    {"axis": 1, "command": 20.0, "delta_alpha_mean": -0.1476340961, "delta_alpha_std": 0.0345704056, "delta_beta_mean": -0.7932602001, "delta_beta_std": 0.0457383615},
+    {"axis": 1, "command": -20.0, "delta_alpha_mean": -0.2209434863, "delta_alpha_std": 0.0194109045, "delta_beta_mean": 0.6895989076, "delta_beta_std": 0.0062803305},
+    {"axis": 2, "command": 20.0, "delta_alpha_mean": -0.4775690090, "delta_alpha_std": 0.1324425878, "delta_beta_mean": -0.0693744018, "delta_beta_std": 0.0077542597},
+    {"axis": 2, "command": -20.0, "delta_alpha_mean": 0.4053533056, "delta_alpha_std": 0.0736458830, "delta_beta_mean": 0.0399537455, "delta_beta_std": 0.0092494368}
+  ],
+  "primary_slopes_deg_per_command": {
+    "axis_1_positive_to_beta": -0.0396630100,
+    "axis_1_negative_to_beta": -0.0344799454,
+    "axis_2_positive_to_alpha": -0.0238784504,
+    "axis_2_negative_to_alpha": -0.0202676653
+  },
+  "median_timing_s": [
+    {"axis": 1, "command": 20.0, "crossing_10_percent": 0.1333268290, "crossing_90_percent": 0.2021185680},
+    {"axis": 1, "command": -20.0, "crossing_10_percent": 0.1027570350, "crossing_90_percent": 0.1861758360},
+    {"axis": 2, "command": 20.0, "crossing_10_percent": 0.0633568670, "crossing_90_percent": 0.1843692680},
+    {"axis": 2, "command": -20.0, "crossing_10_percent": 0.0646868160, "crossing_90_percent": 0.1816434170}
+  ],
+  "home_repeatability_deg": {
+    "alpha_median_min": 11.1890998646,
+    "alpha_median_max": 11.5872654100,
+    "alpha_median_std": 0.1321537103,
+    "beta_median_min": -0.5732989685,
+    "beta_median_max": -0.4421028623,
+    "beta_median_std": 0.0410439445
+  },
+  "raw_artifacts": {
+    "metadata_json": {"bytes": 5027, "sha256": "1575436f9c83b66d58fd430bb0629bda777cea4d214ae2371d480ad635b0217b"},
+    "commands_csv": {"bytes": 29631, "sha256": "06ebe6b1d05154052880d51889e27627f23853cfdc422af39b39f413162415a3"},
+    "board_angles_csv": {"bytes": 561709, "sha256": "ca6e9b698167ab2bae596644615feed220e08564f80fdb91fe4d0805e34f8c74"}
+  },
+  "limitations": [
+    "Single command magnitude only",
+    "Timing includes camera and estimator latency",
+    "Estimator plate-pose ambiguity was observed before the accepted run",
+    "Absolute board-angle zero is not calibrated",
+    "No marble dynamics were identified"
+  ]
+}
