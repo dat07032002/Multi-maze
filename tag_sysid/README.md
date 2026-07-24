@@ -24,6 +24,17 @@ ros2 run tag_sysid record --ros-args \
   -p max_duration_sec:=600.0
 ```
 
+The currently working hardware checkout still uses legacy CyberRunner topic and
+message names. Record that graph without changing its running nodes by selecting
+the compatibility profile:
+
+```bash
+ros2 run tag_sysid record --ros-args \
+  -p interface_profile:=legacy-hardware \
+  -p session_name:=legacy_policy_01 \
+  -p max_duration_sec:=600.0
+```
+
 The default output is `~/tag_sysid_logs/<session_name>/`:
 
 - `camera.csv`: receipt time, image header time, dimensions, and encoding only;
@@ -88,6 +99,10 @@ ros2 run tag_sysid active --test sweep
 ros2 run tag_sysid active --test step
 ```
 
+Add `--interface-profile legacy-hardware` when measuring the existing working
+stack. This selects its legacy topics, message package, and expected Hiwonder
+node; it does not weaken any safety interlock.
+
 Execution requires the exact arm token, an operator at the emergency stop,
 confirmation that the marble is removed, finite board-angle estimates, the
 expected `tag_hiwonder_compat` driver subscriber, no other command publisher,
@@ -98,6 +113,7 @@ Run the small axis/sign measurement first:
 ```bash
 ros2 run tag_sysid active \
   --test axis \
+  --interface-profile legacy-hardware \
   --execute \
   --arm START_ACTIVE_SYSID \
   --operator-present \

@@ -15,19 +15,16 @@ import json
 import math
 from pathlib import Path
 import time
+from typing import Any
 
 import rclpy
 from rclpy.node import Node
-from tag_interfaces.msg import HiwonderVel, StateEstimate
 
+from .profiles import PROFILES, InterfaceProfile, get_profile, load_message_types
 from .protocols import HARD_COMMAND_LIMIT, Phase, build_protocol, validate_protocol
 
 
 ARM_TOKEN = "START_ACTIVE_SYSID"
-COMMAND_TOPIC = "/tag_hiwonder/cmd"
-STATE_TOPIC = "/tag_state_estimation/estimate"
-EXPECTED_DRIVER_NODE = "tag_hiwonder_compat"
-
 STATE_FIELDS = (
     "monotonic_ns",
     "elapsed_seconds",
@@ -69,7 +66,9 @@ def _plan_dict(phase: Phase) -> dict[str, object]:
     }
 
 
-def _print_plan(test: str, phases: list[Phase]) -> None:
+def _print_plan(
+    test: str, phases: list[Phase], profile: InterfaceProfile
+) -> None:
     total = sum(phase.duration_seconds for phase in phases)
     maximum = max(
         max(abs(phase.command_1), abs(phase.command_2)) for phase in phases
@@ -78,6 +77,10 @@ def _print_plan(test: str, phases: list[Phase]) -> None:
     print(f"Phases: {len(phases)}")
     print(f"Planned duration: {total:.1f} seconds")
     print(f"Maximum absolute command: {maximum:.1f}")
+    print(f"Interface profile: {profile.name}")
+    print(f"State topic: {profile.state_topic}")
+    print(f"Command topic: {profile.command_topic}")
+    print(f"Expected driver: {profile.expected_driver_node}")
     print("Dry run only: no ROS node was created and no command was published.")
     print(json.dumps([_plan_dict(phase) for phase in phases], indent=2))
 
@@ -85,13 +88,23 @@ def _print_plan(test: str, phases: list[Phase]) -> None:
 class ActiveSysId(Node):
     """Run one exclusive, bounded actuator measurement protocol."""
 
-    def __init__(self, args: argparse.Namespace, phases: list[Phase]) -> None:
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        phases: list[Phase],
+        profile: InterfaceProfile,
+        state_type: type,
+        command_type: type,
+    ) -> None:
         super().__init__("tag_sysid_active")
         self.args = args
         self.phases = phases
+        self.profile = profile
+        self.state_type = state_type
+        self.command_type = command_type
         self.started_ns = time.monotonic_ns()
         self.started_utc = datetime.now(timezone.utc).isoformat()
-        self.latest_state: StateEstimate | None = None
+        self.latest_state: Any | None = None
         self.state_count = 0
         self.command_count = 0
         self.current_phase_index = -1
@@ -120,14 +133,14 @@ class ActiveSysId(Node):
         self.state_writer.writeheader()
         self.command_writer.writeheader()
         self.state_subscription = self.create_subscription(
-            StateEstimate, STATE_TOPIC, self._on_state, 100
+            self.state_type, self.profile.state_topic, self._on_state, 100
         )
         self._write_metadata("preflight")
 
     def _elapsed(self, now_ns: int) -> float:
         return (now_ns - self.started_ns) / 1e9
 
-    def _on_state(self, message: StateEstimate) -> None:
+    def _on_state(self, message: Any) -> None:
         self.latest_state = message
         self.state_count += 1
         now_ns = time.monotonic_ns()
@@ -155,7 +168,9 @@ class ActiveSysId(Node):
 
     def _external_publishers(self) -> list[str]:
         result = []
-        for endpoint in self.get_publishers_info_by_topic(COMMAND_TOPIC):
+        for endpoint in self.get_publishers_info_by_topic(
+            self.profile.command_topic
+        ):
             if endpoint.node_name != self.get_name():
                 result.append(
                     f"{endpoint.node_namespace.rstrip('/')}/{endpoint.node_name}"
@@ -164,8 +179,10 @@ class ActiveSysId(Node):
 
     def _driver_subscriber_present(self) -> bool:
         return any(
-            endpoint.node_name == EXPECTED_DRIVER_NODE
-            for endpoint in self.get_subscriptions_info_by_topic(COMMAND_TOPIC)
+            endpoint.node_name == self.profile.expected_driver_node
+            for endpoint in self.get_subscriptions_info_by_topic(
+                self.profile.command_topic
+            )
         )
 
     def preflight(self) -> None:
@@ -173,7 +190,7 @@ class ActiveSysId(Node):
         while self.latest_state is None and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.1)
         if self.latest_state is None:
-            raise RuntimeError(f"no state received on {STATE_TOPIC}")
+            raise RuntimeError(f"no state received on {self.profile.state_topic}")
         if not (
             math.isfinite(self.latest_state.alpha)
             and math.isfinite(self.latest_state.beta)
@@ -181,7 +198,8 @@ class ActiveSysId(Node):
             raise RuntimeError("board-angle estimator is not producing finite values")
         if not self._driver_subscriber_present():
             raise RuntimeError(
-                f"expected driver node {EXPECTED_DRIVER_NODE!r} is not subscribed"
+                "expected driver node "
+                f"{self.profile.expected_driver_node!r} is not subscribed"
             )
         external = self._external_publishers()
         if external:
@@ -189,7 +207,9 @@ class ActiveSysId(Node):
                 "refusing active sysid; other command publishers exist: "
                 + ", ".join(external)
             )
-        self.publisher = self.create_publisher(HiwonderVel, COMMAND_TOPIC, 10)
+        self.publisher = self.create_publisher(
+            self.command_type, self.profile.command_topic, 10
+        )
         # Recheck after our endpoint has entered the graph to close the startup
         # race with a policy or TCP bridge starting concurrently.
         end = time.monotonic() + 0.5
@@ -213,7 +233,7 @@ class ActiveSysId(Node):
             )
         if self.publisher is None:
             raise RuntimeError("publisher is not armed")
-        message = HiwonderVel()
+        message = self.command_type()
         message.vel_1 = float(phase.command_1)
         message.vel_2 = float(phase.command_2)
         self.publisher.publish(message)
@@ -272,9 +292,10 @@ class ActiveSysId(Node):
             "hard_command_limit": HARD_COMMAND_LIMIT,
             "operator_present_confirmed": bool(self.args.operator_present),
             "ball_removed_confirmed": bool(self.args.ball_removed),
-            "command_topic": COMMAND_TOPIC,
-            "state_topic": STATE_TOPIC,
-            "expected_driver_node": EXPECTED_DRIVER_NODE,
+            "interface_profile": self.profile.name,
+            "command_topic": self.profile.command_topic,
+            "state_topic": self.profile.state_topic,
+            "expected_driver_node": self.profile.expected_driver_node,
             "state_samples": self.state_count,
             "command_samples": self.command_count,
             "plan": [_plan_dict(phase) for phase in self.phases],
@@ -305,6 +326,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--hold-seconds", type=float)
     parser.add_argument("--max-command", type=float, default=40.0)
     parser.add_argument("--state-timeout", type=float, default=10.0)
+    parser.add_argument(
+        "--interface-profile",
+        choices=tuple(sorted(PROFILES)),
+        default="tag",
+        help="ROS names and message package used by the running stack",
+    )
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--arm", default="")
     parser.add_argument("--operator-present", action="store_true")
@@ -315,13 +342,14 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv=None) -> None:
     parser = _parser()
     args, ros_args = parser.parse_known_args(argv)
+    profile = get_profile(args.interface_profile)
     phases = build_protocol(args.test, args.repetitions, args.hold_seconds)
     validate_protocol(phases)
     planned_maximum = max(
         max(abs(phase.command_1), abs(phase.command_2)) for phase in phases
     )
     if not args.execute:
-        _print_plan(args.test, phases)
+        _print_plan(args.test, phases, profile)
         return
     if args.arm != ARM_TOKEN:
         parser.error(f"execution requires --arm {ARM_TOKEN}")
@@ -337,8 +365,9 @@ def main(argv=None) -> None:
             f"--max-command {planned_maximum:g}"
         )
 
+    state_type, command_type = load_message_types(profile)
     rclpy.init(args=ros_args)
-    node = ActiveSysId(args, phases)
+    node = ActiveSysId(args, phases, profile, state_type, command_type)
     failure = None
     try:
         node.preflight()

@@ -23,7 +23,8 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
-from tag_interfaces.msg import HiwonderVel, StateEstimate
+
+from .profiles import get_profile, load_message_types
 
 
 CAMERA_FIELDS = (
@@ -102,6 +103,12 @@ class SysIdRecorder(Node):
         self.declare_parameter("servo_max_1", 900.0)
         self.declare_parameter("servo_min_2", 100.0)
         self.declare_parameter("servo_max_2", 900.0)
+        self.declare_parameter("interface_profile", "tag")
+
+        self.profile = get_profile(
+            str(self.get_parameter("interface_profile").value)
+        )
+        self.state_type, self.command_type = load_message_types(self.profile)
 
         output_root = Path(
             str(self.get_parameter("output_root").value)
@@ -155,19 +162,19 @@ class SysIdRecorder(Node):
         if self.record_camera:
             self.camera_subscription = self.create_subscription(
                 Image,
-                "/tag_camera/image",
+                self.profile.camera_topic,
                 self.on_camera,
                 qos_profile_sensor_data,
             )
         self.state_subscription = self.create_subscription(
-            StateEstimate,
-            "/tag_state_estimation/estimate",
+            self.state_type,
+            self.profile.state_topic,
             self.on_state,
             100,
         )
         self.command_subscription = self.create_subscription(
-            HiwonderVel,
-            "/tag_hiwonder/cmd",
+            self.command_type,
+            self.profile.command_topic,
             self.on_command,
             100,
         )
@@ -210,7 +217,7 @@ class SysIdRecorder(Node):
         )
         self.camera_count += 1
 
-    def on_state(self, msg: StateEstimate) -> None:
+    def on_state(self, msg) -> None:
         ros_ns, monotonic_ns = self._times()
         visible = math.isfinite(float(msg.x_b)) and math.isfinite(float(msg.y_b))
         self.state_sink.write(
@@ -229,7 +236,7 @@ class SysIdRecorder(Node):
         self.state_count += 1
         self.ball_missing_count += int(not visible)
 
-    def on_command(self, msg: HiwonderVel) -> None:
+    def on_command(self, msg) -> None:
         ros_ns, monotonic_ns = self._times()
         vel_1, vel_2 = float(msg.vel_1), float(msg.vel_2)
         target_1 = round(self.home[0] + self.scale[0] * vel_1)
@@ -284,10 +291,13 @@ class SysIdRecorder(Node):
             "hostname": socket.gethostname(),
             "platform": platform.platform(),
             "python": sys.version,
+            "interface_profile": self.profile.name,
             "topics": {
-                "camera": "/tag_camera/image" if self.record_camera else None,
-                "state": "/tag_state_estimation/estimate",
-                "command": "/tag_hiwonder/cmd",
+                "camera": (
+                    self.profile.camera_topic if self.record_camera else None
+                ),
+                "state": self.profile.state_topic,
+                "command": self.profile.command_topic,
             },
             "counts": {
                 "camera": self.camera_count,
