@@ -160,17 +160,45 @@ class ActiveSysId(Node):
             and math.isfinite(float(message.beta))
         ):
             self.angle_limit_exceeded = "non-finite board angle received"
-        elif abs(float(message.alpha)) > limit_rad:
-            self.angle_limit_exceeded = (
-                f"alpha {math.degrees(float(message.alpha)):.2f} deg exceeds "
-                f"{self.args.max_board_angle_deg:.2f} deg"
-            )
-        elif abs(float(message.beta)) > limit_rad:
-            self.angle_limit_exceeded = (
-                f"beta {math.degrees(float(message.beta)):.2f} deg exceeds "
-                f"{self.args.max_board_angle_deg:.2f} deg"
-            )
-        elif self.baseline_alpha_rad is not None:
+        elif (
+            self.args.baseline_relative_angle_safety
+            and self.baseline_alpha_rad is None
+        ):
+            # During preflight, collect a finite neutral reference before
+            # evaluating placement-dependent camera angle offsets.
+            self.angle_limit_exceeded = None
+        else:
+            safety_alpha = float(message.alpha)
+            safety_beta = float(message.beta)
+            if self.args.baseline_relative_angle_safety:
+                safety_alpha -= self.baseline_alpha_rad
+                safety_beta -= self.baseline_beta_rad
+            if abs(safety_alpha) > limit_rad:
+                label = (
+                    "alpha excursion"
+                    if self.args.baseline_relative_angle_safety
+                    else "alpha"
+                )
+                self.angle_limit_exceeded = (
+                    f"{label} {math.degrees(safety_alpha):.2f} deg exceeds "
+                    f"{self.args.max_board_angle_deg:.2f} deg"
+                )
+            elif abs(safety_beta) > limit_rad:
+                label = (
+                    "beta excursion"
+                    if self.args.baseline_relative_angle_safety
+                    else "beta"
+                )
+                self.angle_limit_exceeded = (
+                    f"{label} {math.degrees(safety_beta):.2f} deg exceeds "
+                    f"{self.args.max_board_angle_deg:.2f} deg"
+                )
+            else:
+                self.angle_limit_exceeded = None
+        if (
+            self.angle_limit_exceeded is None
+            and self.baseline_alpha_rad is not None
+        ):
             excursion_limit = math.radians(
                 self.args.max_angle_excursion_deg
             )
@@ -367,6 +395,9 @@ class ActiveSysId(Node):
             "hard_command_limit": HARD_COMMAND_LIMIT,
             "command_scale": self.args.command_scale,
             "max_board_angle_deg": self.args.max_board_angle_deg,
+            "baseline_relative_angle_safety": bool(
+                self.args.baseline_relative_angle_safety
+            ),
             "max_angle_excursion_deg": self.args.max_angle_excursion_deg,
             "baseline_seconds": self.args.baseline_seconds,
             "baseline_alpha_deg": (
@@ -448,6 +479,14 @@ def _parser() -> argparse.ArgumentParser:
         type=float,
         default=4.0,
         help="maximum alpha/beta change from the preflight median",
+    )
+    parser.add_argument(
+        "--baseline-relative-angle-safety",
+        action="store_true",
+        help=(
+            "evaluate board-angle safety after subtracting the measured "
+            "neutral baseline; raw angles remain recorded"
+        ),
     )
     parser.add_argument(
         "--baseline-seconds",
