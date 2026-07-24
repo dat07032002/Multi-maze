@@ -68,6 +68,85 @@ class PlatePoseEstimator:
         self.T__W_C = None
         self.img_points_corners_undist = None
         self.img_points_fixed_corners_undist = None
+        self._previous_pnp_poses = {}
+
+    @staticmethod
+    def _rotation_distance(rotation_a, rotation_b):
+        """Return the geodesic distance between two rotations in radians."""
+        relative = rotation_a.T @ rotation_b
+        cosine = np.clip((np.trace(relative) - 1.0) / 2.0, -1.0, 1.0)
+        return float(np.arccos(cosine))
+
+    def _select_planar_pose(self, model_points, img_points, pose_key):
+        """Select a positive-depth IPPE solution without planar branch flips."""
+        result = cv2.solvePnPGeneric(
+            model_points,
+            img_points,
+            self.K,
+            None,
+            flags=cv2.SOLVEPNP_IPPE,
+        )
+        success, rotation_vectors, translation_vectors = result[:3]
+        if not success or not rotation_vectors:
+            raise RuntimeError("IPPE could not solve the planar plate pose")
+
+        candidates = []
+        for rotation_vec, translation_vec in zip(
+            rotation_vectors, translation_vectors
+        ):
+            rotation_vec = np.asarray(rotation_vec, dtype=float).reshape(3, 1)
+            translation_vec = np.asarray(translation_vec, dtype=float).reshape(3, 1)
+            rotation_mat, _ = cv2.Rodrigues(rotation_vec)
+            points_camera = (
+                rotation_mat @ np.asarray(model_points, dtype=float).T
+                + translation_vec
+            ).T
+            if np.any(points_camera[:, 2] <= 0.0):
+                continue
+            projected, _ = cv2.projectPoints(
+                model_points,
+                rotation_vec,
+                translation_vec,
+                self.K,
+                None,
+            )
+            residual = projected.reshape(-1, 2) - img_points.reshape(-1, 2)
+            reprojection_rmse = float(np.sqrt(np.mean(np.sum(residual**2, axis=1))))
+            candidates.append(
+                (reprojection_rmse, rotation_vec, translation_vec, rotation_mat)
+            )
+
+        if not candidates:
+            raise RuntimeError("IPPE produced no positive-depth plate pose")
+
+        candidates.sort(key=lambda candidate: candidate[0])
+        best_error = candidates[0][0]
+        # Only let temporal continuity break a near-tie. A geometrically poor
+        # solution must never win merely because it resembles the previous one.
+        eligible = [
+            candidate
+            for candidate in candidates
+            if candidate[0] <= best_error + max(1.0, 0.20 * best_error)
+        ]
+        previous = self._previous_pnp_poses.get(pose_key)
+        if previous is None:
+            selected = eligible[0]
+        else:
+            previous_rotation, previous_translation = previous
+
+            def continuity_cost(candidate):
+                rotation_cost = self._rotation_distance(
+                    previous_rotation, candidate[3]
+                )
+                translation_cost = float(
+                    np.linalg.norm(candidate[2] - previous_translation)
+                )
+                return rotation_cost + translation_cost
+
+            selected = min(eligible, key=continuity_cost)
+
+        self._previous_pnp_poses[pose_key] = (selected[3], selected[2])
+        return selected[1], selected[2], selected[3]
 
     def estimate_anglesXY(self, corners_undist):  # (x,y)
         """
@@ -88,7 +167,11 @@ class PlatePoseEstimator:
         return alpha, beta
 
     def get_pose_T__C_P(
-        self, model_points: np.ndarray, img_points: np.ndarray, print_=False
+        self,
+        model_points: np.ndarray,
+        img_points: np.ndarray,
+        print_=False,
+        pose_key="plate",
     ):
         """
         Compute the pose of the frame {p} in which model points are expressed wrt to the camera frame {c}.
@@ -111,10 +194,9 @@ class PlatePoseEstimator:
         img_points = np.flip(
             img_points, axis=1
         )  # conversion to opencv convention: (u,v) = (column, line)
-        _, rotation_vec, translation_vec = cv2.solvePnP(
-            model_points, img_points, self.K, None, flags=cv2.SOLVEPNP_ITERATIVE
+        rotation_vec, translation_vec, rotation_mat = self._select_planar_pose(
+            model_points, img_points, pose_key
         )
-        rotation_mat, _ = cv2.Rodrigues(rotation_vec)
 
         if self.print_details:
             print("rot vec [deg]:")
@@ -141,7 +223,9 @@ class PlatePoseEstimator:
                   inverse of the matrix T in SE(3)
         """
         T__C_M, _, _ = self.get_pose_T__C_P(
-            PlatePoseEstimator.MODEL_POINTS_CORNERS, image_points
+            PlatePoseEstimator.MODEL_POINTS_CORNERS,
+            image_points,
+            pose_key="maze",
         )
         self.T__C_M = T__C_M
         T__W_M = self.T__W_C @ T__C_M
@@ -234,6 +318,7 @@ class PlatePoseEstimator:
         T__C_W, _, _ = self.get_pose_T__C_P(
             PlatePoseEstimator.MODEL_POINTS_FIXED_CORNERS,
             self.img_points_fixed_corners_undist,
+            pose_key="camera",
         )
         self.T__C_W = T__C_W
         self.T__W_C = self.invert_pose(T__C_W)
