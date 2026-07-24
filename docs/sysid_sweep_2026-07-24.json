@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "run": "sweep_20260724T210924Z",
+  "hardware": "Hiwonder two-axis mechanism",
+  "protocol": {
+    "levels": [-15, -10, -5, 0, 5, 10, 15],
+    "cycles_per_axis": 3,
+    "static_hold_seconds": 2.5,
+    "home_settle_seconds": 3.0,
+    "max_command": 15,
+    "max_board_angle_deg": 20.0,
+    "max_angle_excursion_deg": 4.0,
+    "runtime_state_timeout_seconds": 0.25
+  },
+  "calibration": {
+    "pose_zero_alpha_deg": 20.4660,
+    "pose_zero_beta_deg": -1.7529,
+    "baseline_alpha_deg": 0.19056018021687232,
+    "baseline_beta_deg": 0.04940832990830271,
+    "placement_specific": true
+  },
+  "samples": {
+    "state": 12912,
+    "command": 2083
+  },
+  "angle_extrema_deg": {
+    "alpha_min": -0.384520170346144,
+    "alpha_max": 0.71954407322183,
+    "beta_min": -0.543298165417093,
+    "beta_max": 0.758801421324219
+  },
+  "findings": {
+    "axis_1": "measurable asymmetric response with strong hysteresis",
+    "axis_2": "response at +/-15 and below is near the estimator noise floor",
+    "linear_symmetric_model_supported": false,
+    "confirmed_mapping": {
+      "motor_1": "negative beta",
+      "motor_2": "negative alpha from earlier +/-20 run"
+    }
+  },
+  "raw_files": {
+    "remote_directory": "/home/trungbao/tag_sysid_logs/active/sweep_20260724T210924Z",
+    "commands_csv": {
+      "bytes": 123180,
+      "sha256": "d3dd8562e1e0dd5b3a80348ebe8a0d567af1758bf8e39f560b936a5d6ae24983"
+    },
+    "board_angles_csv": {
+      "bytes": 2428879,
+      "sha256": "096b9714a9a36f43c61fb52620965f5a57a5df04cdb3a62734b1cf0b4861f537"
+    },
+    "metadata_json": {
+      "bytes": 14710,
+      "sha256": "122ee3b3d318e12a3a6067575c51648e52b21cb7b859b778160b282171823fa0"
+    }
+  }
+}
