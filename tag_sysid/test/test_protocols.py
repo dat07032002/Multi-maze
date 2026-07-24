@@ -44,6 +44,14 @@ class ProtocolTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_protocol("axis", command_scale=1.01)
 
+    def test_axis_only_protocol_never_commands_other_axis(self):
+        phases = build_protocol("axis", repetitions=2, axes=(2,))
+        self.assertTrue(phases)
+        self.assertTrue(any(phase.command_2 for phase in phases))
+        self.assertTrue(all(phase.command_1 == 0.0 for phase in phases))
+        self.assertTrue(all(phase.axis in (0, 2) for phase in phases))
+        validate_protocol(phases)
+
     def test_invalid_dual_axis_protocol_is_rejected(self):
         phases = [Phase("unsafe", 1, 0, 40.0, 40.0, 1.0)]
         with self.assertRaises(ValueError):

@@ -418,6 +418,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--repetitions", type=int)
     parser.add_argument("--hold-seconds", type=float)
     parser.add_argument(
+        "--axis-only",
+        type=int,
+        choices=(1, 2),
+        help="run only the selected motor axis; default runs both axes",
+    )
+    parser.add_argument(
         "--command-scale",
         type=float,
         default=1.0,
@@ -471,6 +477,7 @@ def main(argv=None) -> None:
         args.repetitions,
         args.hold_seconds,
         command_scale=args.command_scale,
+        axes=(args.axis_only,) if args.axis_only else (1, 2),
     )
     validate_protocol(phases)
     planned_maximum = max(

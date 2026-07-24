@@ -50,11 +50,14 @@ def build_protocol(
     repetitions: int | None = None,
     hold_seconds: float | None = None,
     command_scale: float = 1.0,
+    axes: tuple[int, ...] = (1, 2),
 ) -> list[Phase]:
     """Return the conservative command phases for a named measurement."""
 
     if not 0.1 <= command_scale <= 1.0:
         raise ValueError("command_scale must be in [0.1, 1.0]")
+    if not axes or any(axis not in (1, 2) for axis in axes):
+        raise ValueError("axes must contain only axis 1 and/or axis 2")
 
     def scaled(value: float) -> float:
         return float(value) * command_scale
@@ -85,7 +88,7 @@ def build_protocol(
         hold = hold_seconds if hold_seconds is not None else 2.0
         plan = []
         for repetition in range(1, count + 1):
-            for axis in (1, 2):
+            for axis in axes:
                 for value in (40.0, 0.0, -40.0, 0.0):
                     name = "axis_measurement" if value else "home_settle"
                     duration = hold if value else 2.0
@@ -106,7 +109,7 @@ def build_protocol(
         values = (0, 40, 80, 120, 80, 40, 0, -40, -80, -120, -80, -40, 0)
         plan = []
         for repetition in range(1, count + 1):
-            for axis in (1, 2):
+            for axis in axes:
                 for value in values:
                     plan.append(
                         _phase(
@@ -125,7 +128,7 @@ def build_protocol(
         hold = hold_seconds if hold_seconds is not None else 1.5
         plan = []
         for repetition in range(1, count + 1):
-            for axis in (1, 2):
+            for axis in axes:
                 for value in (0.0, 80.0, 0.0, -80.0, 0.0):
                     name = "step_measurement" if value else "home_settle"
                     plan.append(
