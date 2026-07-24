@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "date": "2026-07-24",
+  "status": "accepted_low_amplitude_step_response",
+  "interface_profile": "legacy-hardware",
+  "protocol": {
+    "test": "step",
+    "command_scale": 0.125,
+    "command_magnitude": 10.0,
+    "repetitions_per_direction": 10,
+    "phases": 100,
+    "state_samples": 9145,
+    "command_samples": 1520
+  },
+  "safety": {
+    "operator_present": true,
+    "ball_removed": true,
+    "max_board_angle_deg": 20.0,
+    "max_excursion_deg": 4.0,
+    "runtime_state_timeout_s": 0.25,
+    "tcp_bridge_stopped": true,
+    "command_publishers_after_run": 0
+  },
+  "baseline_deg": {
+    "alpha": 11.319570319024587,
+    "beta": -0.7432123714757799
+  },
+  "responses_deg": [
+    {"axis": 1, "command": 10.0, "primary": "beta", "primary_mean": -0.2756085128, "primary_std": 0.0587921499, "cross_mean": -0.0018465043, "cross_std": 0.0267153165},
+    {"axis": 1, "command": -10.0, "primary": "beta", "primary_mean": 0.3125021017, "primary_std": 0.0347743000, "cross_mean": -0.0532155648, "cross_std": 0.0409433617},
+    {"axis": 2, "command": 10.0, "primary": "alpha", "primary_mean": -0.1095354037, "primary_std": 0.0256904159, "cross_mean": -0.0102052295, "cross_std": 0.0303178227},
+    {"axis": 2, "command": -10.0, "primary": "alpha", "primary_mean": 0.0900392074, "primary_std": 0.0186569191, "cross_mean": 0.0015673571, "cross_std": 0.0215122054}
+  ],
+  "primary_slopes_deg_per_command": {
+    "axis_1_positive_to_beta": -0.0275608513,
+    "axis_1_negative_to_beta": -0.0312502102,
+    "axis_2_positive_to_alpha": -0.0109535404,
+    "axis_2_negative_to_alpha": -0.0090039207
+  },
+  "median_timing_s": [
+    {"axis": 1, "command": 10.0, "crossing_10_percent": 0.0266521445, "crossing_90_percent": 0.1720500800},
+    {"axis": 1, "command": -10.0, "crossing_10_percent": 0.0411791430, "crossing_90_percent": 0.1791587555},
+    {"axis": 2, "command": 10.0, "crossing_10_percent": 0.0410865500, "crossing_90_percent": 0.1311823540, "confidence": "low_signal_to_noise"},
+    {"axis": 2, "command": -10.0, "crossing_10_percent": 0.0437211285, "crossing_90_percent": 0.0835574035, "confidence": "low_signal_to_noise"}
+  ],
+  "home_repeatability_deg": {
+    "alpha_median_min": 11.2955894547,
+    "alpha_median_max": 11.4289334921,
+    "alpha_median_std": 0.0236370570,
+    "beta_median_min": -0.7607897422,
+    "beta_median_max": -0.4643527220,
+    "beta_median_std": 0.1039881873
+  },
+  "rejected_trial": {
+    "command_magnitude": 20.0,
+    "reason": "beta excursion exceeded 4 degrees after delayed rapid movement",
+    "observed_beta_excursion_deg": -4.87,
+    "approximate_quiet_interval_before_motion_s": 1.15,
+    "commands_sent_before_abort": 37
+  },
+  "raw_artifacts": {
+    "metadata_json": {"bytes": 17382, "sha256": "16d62edac9d87def4a8d3c8f51618c27093c892cc097529a99fc45a1163f157a"},
+    "commands_csv": {"bytes": 91164, "sha256": "f11eb8a4b1da22e6acfc661b106ef0062f95eded1dc307b6013f18023b90fcf4"},
+    "board_angles_csv": {"bytes": 1715754, "sha256": "1520ae684336515e9d6ad184acb49d72ee696c9489ae12bf340f452e8265e065"}
+  },
+  "limitations": [
+    "Motor-axis-2 response at magnitude 10 is close to estimator noise",
+    "Timing includes camera and estimator latency",
+    "Overshoot ratios are rejected because noise is large relative to response",
+    "Absolute board-angle zero is not calibrated",
+    "Magnitude-20 behavior was intermittent and triggered the safety bound",
+    "No marble dynamics were identified"
+  ]
+}

@@ -5,6 +5,8 @@
 - Recorded and documented the first accepted guarded physical Hiwonder axis/sign
   run at +/-20, including local gains, coupling, timing, home repeatability, and
   raw-artifact hashes.
+- Recorded and documented an accepted 40-transition Hiwonder step-response run at
+  +/-10 and a safely rejected delayed stick-slip transition at +20.
 - Added an explicitly selected `legacy-hardware` sysid profile so guarded passive
   and active measurements can use the working CyberRunner ROS message types and
   topics without replacing its camera, estimator, or Hiwonder driver.
