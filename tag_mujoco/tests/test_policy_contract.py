@@ -5,9 +5,9 @@ import unittest
 
 import numpy as np
 
-from cyberrunner_mujoco.policy_contract import TagPolicyContract
-from cyberrunner_mujoco.actuator_model import HiwonderActuatorModel
-from cyberrunner_mujoco.system_config import ActuatorConfig
+from tag_mujoco.policy_contract import TagPolicyContract
+from tag_mujoco.actuator_model import HiwonderActuatorModel
+from tag_mujoco.system_config import ActuatorConfig
 
 
 class TagPolicyContractTest(unittest.TestCase):

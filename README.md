@@ -16,18 +16,19 @@ points. It never receives a maze ID and is not retrained maze by maze.
 - Actuators: two Hiwonder servos through `tag_hiwonder`
 - Messages and services: `tag_interfaces`
 - Real-robot TCP environment: `tag_dreamer`
-- Simulator and printable-maze pipeline: `cyberrunner_mujoco`
+- Simulator and printable-maze pipeline: `tag_mujoco`
 - Learner: the maintained fork under `dreamerv3`
 
-This project does not use Dynamixel motors or Dreamer4. The imported hardware
-snapshot is pinned to TAG commit `35b80ad28a1792af9c4f3ae312fc90b5a6f14bdd`,
-which includes the corner-marker rejection update for marble detection.
+This project uses Hiwonder motors and DreamerV3 exclusively. The hardware stack
+retains the proven pose-continuity and safety fixes from this project while the
+learned marble detector was selectively imported from TAG commits `4014cec` and
+`e746f67`; the unrelated upstream files were not merged.
 
 ## Repository map
 
 | Path | Purpose |
 | --- | --- |
-| `cyberrunner_mujoco/` | MuJoCo model, legacy 40/8/8 and adaptive v2 512/64/64 datasets, route planner, camera/actuator model, tests |
+| `tag_mujoco/` | MuJoCo model, legacy 40/8/8 and adaptive v2 512/64/64 datasets, route planner, camera/actuator model, tests |
 | `dreamerv3/` | DreamerV3 plus the multi-maze simulator adapter and TAG hardware profile |
 | `tag_camera/` | ROS 2 camera package |
 | `tag_state_estimation/` | Calibrated marble and board-state estimator |
@@ -37,17 +38,23 @@ which includes the corner-marker rejection update for marble detection.
 | `tag_dreamer/` | Real-hardware Gym/TCP environment and preserved route data |
 | `hardware/mazes/` | Versioned removable-maze authoring template |
 | `scripts/` | GPU 2 training and GPU 3/4 validation launchers |
+| `tools/camera/` | Camera tuning, HSV comparison, safe viewing, and overlays |
 | `docs/` | Architecture, training, upstream reference, cleanup, and handoff |
+
+The learned detector is integrated behind `off`, `shadow`, and `hybrid` modes.
+It remains `off` by default. See
+[tag_state_estimation/AI_MARBLE_DETECTOR.md](tag_state_estimation/AI_MARBLE_DETECTOR.md)
+before running shadow validation or requesting hybrid activation.
 
 ## Quick verification
 
 On Windows, using the existing project environment:
 
 ```powershell
-.\cyberrunner_mujoco\.venv\Scripts\python.exe -m unittest discover `
-  -s cyberrunner_mujoco\tests -v
+.\tag_mujoco\.venv\Scripts\python.exe -m unittest discover `
+  -s tag_mujoco\tests -v
 
-Push-Location cyberrunner_mujoco
+Push-Location tag_mujoco
 .\.venv\Scripts\python.exe verify_dreamer_config.py
 .\.venv\Scripts\python.exe verify_dreamer_adapter.py
 .\.venv\Scripts\python.exe verify_training_readiness.py

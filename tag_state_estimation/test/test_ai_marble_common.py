@@ -1,3 +1,7 @@
+import hashlib
+from pathlib import Path
+
+import cv2
 import numpy as np
 
 from tag_state_estimation.ai_marble_common import decode_heatmap, sigmoid
@@ -40,3 +44,13 @@ def test_decode_heatmap_rejects_stronger_peak_outside_roi():
     assert detection.visible
     assert abs(detection.x_px - 240.0) < 0.01
     assert abs(detection.y_px - 160.0) < 0.01
+
+
+def test_deployed_model_has_expected_hash_and_output_shape():
+    model_path = Path(__file__).parents[1] / "models" / "marble_detector.onnx"
+    digest = hashlib.sha256(model_path.read_bytes()).hexdigest()
+    assert digest == "0a09032fb6a62c680dcc16f1411973aebe7e1d77771e094cfbd828adbdeb154b"
+
+    network = cv2.dnn.readNetFromONNX(str(model_path))
+    network.setInput(np.zeros((1, 3, 200, 320), dtype=np.float32))
+    assert network.forward().shape == (1, 1, 50, 80)

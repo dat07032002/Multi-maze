@@ -6,8 +6,9 @@ if [ -f /opt/ros/humble/setup.bash ]; then
   source /opt/ros/humble/setup.bash
 fi
 
-if [ -f /home/trungbao/CYBER/cyberruner-main/install/setup.bash ]; then
-  source /home/trungbao/CYBER/cyberruner-main/install/setup.bash
+tag_workspace="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$tag_workspace/install/setup.bash" ]; then
+  source "$tag_workspace/install/setup.bash"
 fi
 
 export ROS_DOMAIN_ID=0

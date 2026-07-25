@@ -29,7 +29,7 @@ class FastCameraPublisher(Node):
         # v4l2-ctl after the device opens, so the marble's blue is STABLE across
         # every maze position. -999 means "leave the camera default / skip".
         self.declare_parameter("v4l2_white_balance_automatic", 0)
-        self.declare_parameter("v4l2_white_balance_temperature", 5477)
+        self.declare_parameter("v4l2_white_balance_temperature", 4000)
         # 1 = Manual (locks exposure_time_absolute -> stable frame rate). Do NOT
         # use 3 (aperture priority): the camera then auto-picks a long exposure in
         # this lighting (~55ms), which caps the frame rate at ~18fps and starves
@@ -37,9 +37,9 @@ class FastCameraPublisher(Node):
         self.declare_parameter("v4l2_auto_exposure", 1)
         self.declare_parameter("v4l2_exposure_time_absolute", 80)
         self.declare_parameter("v4l2_saturation", 40)
-        self.declare_parameter("v4l2_gamma", 193)
-        self.declare_parameter("v4l2_contrast", 30)
-        self.declare_parameter("v4l2_brightness", -6)
+        self.declare_parameter("v4l2_gamma", -999)
+        self.declare_parameter("v4l2_contrast", -999)
+        self.declare_parameter("v4l2_brightness", -999)
         self.declare_parameter("v4l2_power_line_frequency", 0)
 
         self.device = self.get_parameter("device").value

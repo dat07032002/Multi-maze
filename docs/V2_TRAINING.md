@@ -20,16 +20,16 @@ checkpoint or replay.
 
 The v2 implementation was completed and verified locally on 2026-07-23:
 
-- `cyberrunner_mujoco/maze_splits_v2.json` defines 512 training, 64 validation,
+- `tag_mujoco/maze_splits_v2.json` defines 512 training, 64 validation,
   and 64 test layouts;
-- `cyberrunner_mujoco/generated_mazes_v2/` contains all 640 immutable JSON
+- `tag_mujoco/generated_mazes_v2/` contains all 640 immutable JSON
   layouts with unique content hashes;
-- `cyberrunner_mujoco/expert_controller.py` implements the privileged route
+- `tag_mujoco/expert_controller.py` implements the privileged route
   controller and demonstration exporter;
-- `dreamerv3/dreamerv3/configs.yaml` contains the `cyberrunner_v2` profile;
+- `dreamerv3/dreamerv3/configs.yaml` contains the `tag_sim_v2` profile;
 - Dreamer replay can preload complete `.npz` demonstration episodes without
   joining streams across episode boundaries;
-- `scripts/run_cyberrunner_v2_gpu2.sh` launches fresh approval-gated v2 jobs on
+- `scripts/run_tag_sim_v2_gpu2.sh` launches fresh approval-gated v2 jobs on
   physical GPU 2; and
 - the validation monitor accepts the v2 manifest and evaluates canonical and
   robust held-out rollouts on physical GPUs 3 and 4.
@@ -117,9 +117,9 @@ completed baseline and reuses the stable 500k snapshot:
 
 ```bash
 cd /home/tn22833/TAG_hardware_contract_fed232e
-export CYBERRUNNER_VALIDATION_APPROVED=YES
-export CYBERRUNNER_MANIFEST="$PWD/cyberrunner_mujoco/maze_splits_v2.json"
-export CYBERRUNNER_END_STEP=10000000
+export TAG_VALIDATION_APPROVED=YES
+export TAG_MANIFEST="$PWD/tag_mujoco/maze_splits_v2.json"
+export TAG_END_STEP=10000000
 bash scripts/start_remote_validation_monitor.sh \
   "$PWD" \
   "$HOME/cyberrunner_logs/multimaze_v2_production_10m_gpu2_20260723_221436"
@@ -130,28 +130,28 @@ over the interrupted run:
 
 ```bash
 cd /home/tn22833/TAG_hardware_contract_fed232e
-export CYBERRUNNER_TRAINING_APPROVED=YES
-export CYBERRUNNER_STEPS=10000000
-export CYBERRUNNER_PYTHON="$PWD/.venv/bin/python"
-export CYBERRUNNER_DEMO_DIR="$PWD/cyberrunner_mujoco/expert_demos_v2"
-export CYBERRUNNER_LOGDIR="$HOME/cyberrunner_logs/multimaze_v2_production_10m_gpu2_RESUME_TIMESTAMP"
-bash scripts/run_cyberrunner_v2_gpu2.sh \
+export TAG_TRAINING_APPROVED=YES
+export TAG_STEPS=10000000
+export TAG_PYTHON="$PWD/.venv/bin/python"
+export TAG_DEMO_DIR="$PWD/tag_mujoco/expert_demos_v2"
+export TAG_LOGDIR="$HOME/cyberrunner_logs/multimaze_v2_production_10m_gpu2_RESUME_TIMESTAMP"
+bash scripts/run_tag_sim_v2_gpu2.sh \
   --run.from_checkpoint \
   "$HOME/cyberrunner_logs/multimaze_v2_production_10m_gpu2_20260723_221436/checkpoint.ckpt"
 ```
 
 After the fresh run directory and configuration exist, start a new validation
-monitor with `CYBERRUNNER_MANIFEST` set to the v2 manifest. The incomplete 500k
+monitor with `TAG_MANIFEST` set to the v2 manifest. The incomplete 500k
 validation from the interrupted directory should remain preserved as evidence,
 not treated as a completed metric.
 
 ## Rebuild and verify the dataset
 
 ```bash
-python cyberrunner_mujoco/build_maze_dataset.py --profile diverse_v2
-python -m unittest discover -s cyberrunner_mujoco/tests -v
-python cyberrunner_mujoco/verify_training_readiness.py \
-  --manifest cyberrunner_mujoco/maze_splits_v2.json \
+python tag_mujoco/build_maze_dataset.py --profile diverse_v2
+python -m unittest discover -s tag_mujoco/tests -v
+python tag_mujoco/verify_training_readiness.py \
+  --manifest tag_mujoco/maze_splits_v2.json \
   --rollout-limit 16
 ```
 
@@ -163,28 +163,28 @@ never be added to replay.
 Start with successful near-goal segments, then add full-start successes:
 
 ```bash
-python cyberrunner_mujoco/expert_controller.py \
-  --manifest cyberrunner_mujoco/maze_splits_v2.json \
-  --output cyberrunner_mujoco/expert_demos_v2/near_goal \
+python tag_mujoco/expert_controller.py \
+  --manifest tag_mujoco/maze_splits_v2.json \
+  --output tag_mujoco/expert_demos_v2/near_goal \
   --episodes 128 --random-start
 
-python cyberrunner_mujoco/expert_controller.py \
-  --manifest cyberrunner_mujoco/maze_splits_v2.json \
-  --output cyberrunner_mujoco/expert_demos_v2/full_start \
+python tag_mujoco/expert_controller.py \
+  --manifest tag_mujoco/maze_splits_v2.json \
+  --output tag_mujoco/expert_demos_v2/full_start \
   --episodes 128
 ```
 
 The generator discards failed attempts by default. Demonstrations are local
-artifacts and are intentionally ignored by Git. Set `CYBERRUNNER_DEMO_DIR` to
+artifacts and are intentionally ignored by Git. Set `TAG_DEMO_DIR` to
 their common parent; the loader discovers episode files recursively.
 
 ## Guarded smoke launch
 
 ```bash
-export CYBERRUNNER_TRAINING_APPROVED=YES
-export CYBERRUNNER_STEPS=10000
-export CYBERRUNNER_DEMO_DIR=/absolute/path/to/expert_demos_v2
-bash scripts/run_cyberrunner_v2_gpu2.sh
+export TAG_TRAINING_APPROVED=YES
+export TAG_STEPS=10000
+export TAG_DEMO_DIR=/absolute/path/to/expert_demos_v2
+bash scripts/run_tag_sim_v2_gpu2.sh
 ```
 
 The launcher requires a fresh log directory, physical GPU 2, the v2 manifest,
@@ -193,9 +193,9 @@ and explicit approval. It rejects v1 resume data.
 ## Validation monitor
 
 ```bash
-export CYBERRUNNER_VALIDATION_APPROVED=YES
-export CYBERRUNNER_MANIFEST=/absolute/repo/cyberrunner_mujoco/maze_splits_v2.json
-export CYBERRUNNER_END_STEP=20000000
+export TAG_VALIDATION_APPROVED=YES
+export TAG_MANIFEST=/absolute/repo/tag_mujoco/maze_splits_v2.json
+export TAG_END_STEP=20000000
 bash scripts/start_remote_validation_monitor.sh REPO_ROOT DREAMER_LOGDIR
 ```
 

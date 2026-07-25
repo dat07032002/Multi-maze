@@ -1,4 +1,4 @@
-"""Nominal CyberRunner system parameters and simulation uncertainty ranges."""
+"""Nominal TAG system parameters and simulation uncertainty ranges."""
 
 from __future__ import annotations
 

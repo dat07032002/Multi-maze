@@ -1,6 +1,7 @@
 #!usr/bin/env python3
 
 import time
+import os
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -8,6 +9,8 @@ from cv_bridge import CvBridge
 import numpy as np
 from scipy.spatial.transform import Rotation
 from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import Float32, String
+from ament_index_python.packages import get_package_share_directory
 from tf2_ros import TransformBroadcaster
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tag_state_estimation.core.estimation_pipeline import EstimationPipeline
@@ -46,6 +49,20 @@ class ImageSubscriber(Node):
         self.declare_parameter("pose_reject_hold_frames", 2)
         self.declare_parameter("pose_zero_alpha_deg", 0.0)
         self.declare_parameter("pose_zero_beta_deg", 0.0)
+        self.declare_parameter("ai_mode", "off")
+        self.declare_parameter("ai_model_path", "")
+        self.declare_parameter("ai_backend", "cpu")
+        self.declare_parameter("ai_confidence_threshold", 0.90)
+        self.declare_parameter("ai_check_every_n_frames", 3)
+        self.declare_parameter("ai_roi_x_min", 0.25)
+        self.declare_parameter("ai_roi_y_min", 0.15)
+        self.declare_parameter("ai_roi_x_max", 0.72)
+        self.declare_parameter("ai_roi_y_max", 0.80)
+        self.declare_parameter("ai_agreement_radius_px", 12.0)
+        self.declare_parameter("ai_max_reacquire_jump_px", 25.0)
+        self.declare_parameter("ai_occlusion_grace_frames", 90)
+        self.declare_parameter("ai_reacquire_confirm_frames", 3)
+        self.declare_parameter("ai_max_prediction_std_m", 0.03)
 
         self.skip = max(1, int(self.get_parameter("process_every_n").value))
         self.pipeline_fps = float(self.get_parameter("pipeline_fps").value)
@@ -76,6 +93,14 @@ class ImageSubscriber(Node):
             self.get_parameter("pose_zero_beta_deg").value
         )
         self.pose_rejection_active = False
+        self.ai_mode = str(self.get_parameter("ai_mode").value).lower()
+        self.ai_model_path = str(self.get_parameter("ai_model_path").value)
+        if self.ai_mode != "off" and not self.ai_model_path:
+            self.ai_model_path = os.path.join(
+                get_package_share_directory("tag_state_estimation"),
+                "models",
+                "marble_detector.onnx",
+            )
 
         self.acceleration_backend, acceleration_msg = configure_opencv_acceleration(
             self.use_gpu,
@@ -94,6 +119,18 @@ class ImageSubscriber(Node):
         self.state_publisher_ = self.create_publisher(
             StateEstimate, "tag_state_estimation/estimate", 1
         )
+        self.ball_source_publisher = self.create_publisher(
+            String, "tag_state_estimation/ball_source", 10
+        )
+        self.ai_confidence_publisher = self.create_publisher(
+            Float32, "tag_state_estimation/ai_confidence", 10
+        )
+        self.ai_disagreement_publisher = self.create_publisher(
+            Float32, "tag_state_estimation/detection_disagreement_px", 10
+        )
+        self.ai_inference_publisher = self.create_publisher(
+            Float32, "tag_state_estimation/ai_inference_ms", 10
+        )
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
         self.tf_broadcaster = TransformBroadcaster(self)
 
@@ -108,6 +145,40 @@ class ImageSubscriber(Node):
             viewpoint="top",  # 'top', 'side', 'topandside'
             show_subimages_detector=False,
             acceleration_backend=self.acceleration_backend,
+            ai_mode=self.ai_mode,
+            ai_model_path=self.ai_model_path,
+            ai_backend=str(self.get_parameter("ai_backend").value),
+            ai_confidence_threshold=float(
+                self.get_parameter("ai_confidence_threshold").value
+            ),
+            ai_check_every_n_frames=int(
+                self.get_parameter("ai_check_every_n_frames").value
+            ),
+            ai_valid_roi=(
+                float(self.get_parameter("ai_roi_x_min").value),
+                float(self.get_parameter("ai_roi_y_min").value),
+                float(self.get_parameter("ai_roi_x_max").value),
+                float(self.get_parameter("ai_roi_y_max").value),
+            ),
+            ai_agreement_radius_px=float(
+                self.get_parameter("ai_agreement_radius_px").value
+            ),
+            ai_max_reacquire_jump_px=float(
+                self.get_parameter("ai_max_reacquire_jump_px").value
+            ),
+            ai_occlusion_grace_frames=int(
+                self.get_parameter("ai_occlusion_grace_frames").value
+            ),
+            ai_reacquire_confirm_frames=int(
+                self.get_parameter("ai_reacquire_confirm_frames").value
+            ),
+            ai_max_prediction_std_m=float(
+                self.get_parameter("ai_max_prediction_std_m").value
+            ),
+        )
+        self.get_logger().info(
+            f"Marble detector mode={self.ai_mode}; "
+            f"model={self.ai_model_path or 'disabled'}"
         )
         self.last_valid_ball_pixel = None
         self.outside_candidate_active = False
@@ -178,6 +249,7 @@ class ImageSubscriber(Node):
             beta_zero_deg=self.pose_zero_beta_deg,
         )
         pose_result = self.pose_gate.update(angles)
+        ball_source = self.estimation_pipeline.ball_source
         if not pose_result.accepted:
             detector = self.estimation_pipeline.measurements.detector
             detector.corners = None
@@ -187,6 +259,7 @@ class ImageSubscriber(Node):
             x_hat[2] = np.nan
             x_hat[3] = np.nan
             subimg = np.zeros_like(subimg)
+            ball_source = "lost_pose"
             if not self.pose_rejection_active:
                 self.get_logger().warn(
                     "Rejecting discontinuous plate-pose solution and "
@@ -224,6 +297,7 @@ class ImageSubscriber(Node):
                 self.outside_candidate_active = True
             xb = np.nan
             yb = np.nan
+            ball_source = "lost_outside"
         elif np.isfinite(xb) and np.isfinite(yb):
             detector = self.estimation_pipeline.measurements.detector
             if detector.ball_pos is not None:
@@ -232,6 +306,27 @@ class ImageSubscriber(Node):
                 self.get_logger().info("Marble tracking recovered inside playable map.")
             self.outside_candidate_active = False
             self.outside_candidate_count = 0
+
+        source_message = String()
+        source_message.data = ball_source
+        self.ball_source_publisher.publish(source_message)
+        for publisher, value in (
+            (
+                self.ai_confidence_publisher,
+                self.estimation_pipeline.measurements.ai_confidence,
+            ),
+            (
+                self.ai_disagreement_publisher,
+                self.estimation_pipeline.measurements.detection_disagreement_px,
+            ),
+            (
+                self.ai_inference_publisher,
+                self.estimation_pipeline.measurements.ai_inference_ms,
+            ),
+        ):
+            diagnostic = Float32()
+            diagnostic.data = float(value)
+            publisher.publish(diagnostic)
         if self.count % self.skip == 0:
             msg = StateEstimateSub()
             msg.state.x_b = xb
@@ -267,7 +362,11 @@ class ImageSubscriber(Node):
             'world',
         )
         T__B_M = np.eye(4)
-        T__B_M[:3, -1] = self.estimation_pipeline.measurements.get_ball_position_in_maze()
+        ball_position = (
+            self.estimation_pipeline.measurements.get_ball_position_in_maze().copy()
+        )
+        ball_position[:2] = (xb, yb)
+        T__B_M[:3, -1] = ball_position
         t_ball = self.get_tf_msg(
             T__B_M,
             'maze',

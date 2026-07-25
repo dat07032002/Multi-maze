@@ -1,4 +1,4 @@
-"""RL-agnostic CyberRunner plant, sensor, timing, and termination model."""
+"""RL-agnostic TAG plant, sensor, timing, and termination model."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ try:
     from .actuator_model import HiwonderActuatorModel
     from .camera_model import PolicyCameraModel
     from .observation_filter import TagObservationFilter
-    from .simulator import CyberRunnerSim
+    from .simulator import TagMazeSim
     from .system_config import ActuatorConfig, PhysicsConfig, SystemConfig
 except ImportError:
     from actuator_model import HiwonderActuatorModel
     from camera_model import PolicyCameraModel
     from observation_filter import TagObservationFilter
-    from simulator import CyberRunnerSim
+    from simulator import TagMazeSim
     from system_config import ActuatorConfig, PhysicsConfig, SystemConfig
 
 
@@ -105,7 +105,7 @@ class PolylineRoute:
         return np.asarray(targets, dtype=np.float32).reshape(-1), progress
 
 
-class CyberRunnerSystemModel:
+class TagSystemModel:
     """Complete simulator model, deliberately independent of reward design."""
 
     def __init__(self, layout: Dict[str, Any], config: SystemConfig | None = None):
@@ -113,7 +113,7 @@ class CyberRunnerSystemModel:
         self.config = config or SystemConfig()
         self.route = PolylineRoute(layout["waypoints"])
         self.rng = np.random.default_rng(0)
-        self.sim: CyberRunnerSim
+        self.sim: TagMazeSim
         self.actuator: HiwonderActuatorModel
         self.camera: PolicyCameraModel
         self.observation_filter: TagObservationFilter
@@ -146,7 +146,7 @@ class CyberRunnerSystemModel:
             if randomize
             else self.config.physics
         )
-        self.sim = CyberRunnerSim(
+        self.sim = TagMazeSim(
             self.layout,
             model_params=asdict(self.active_physics_config),
         )

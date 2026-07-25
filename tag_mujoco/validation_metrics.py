@@ -1,4 +1,4 @@
-"""Pure helpers for aggregating held-out CyberRunner policy evaluations."""
+"""Pure helpers for aggregating held-out TAG policy evaluations."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
-# CyberRunner MuJoCo Prototype
+# TAG MuJoCo Prototype
 
 This isolated prototype reconstructs the current printed maze directly from
-`cyberrunner_layout_custom.py`. It does not change the ROS, Hiwonder, or trained
+`tag_layout_custom.py`. It does not change the ROS, Hiwonder, or trained
 DreamerV3 paths.
 
 The first milestone contains:
@@ -29,7 +29,7 @@ The clean training layer now also contains:
   extracted-but-unverified, inferred, datasheet, or measured;
 - `route_planner.py`, which plans for the finite-radius ball and validates the
   complete swept route against walls, holes, and board boundaries;
-- `cyberrunner_env.py`, a new normalized Gym task that does not inherit the
+- `tag_env.py`, a new normalized Gym task that does not inherit the
   legacy ROS/TCP reward or replay implementation;
 - a direct DreamerV3 Embodied adapter using standard uniform replay; and
 - an approval-gated GPU-2 launcher that cannot start training accidentally.
@@ -41,7 +41,7 @@ policy-observation, Hiwonder-action, and swappable-insert deployment contract.
 ## Setup on Windows
 
 ```powershell
-cd cyberrunner_mujoco
+cd tag_mujoco
 uv venv --python 3.11 .venv
 uv pip install --python .venv\Scripts\python.exe -r requirements.txt
 ```
@@ -94,12 +94,12 @@ No Dreamer training is started by any verification command. The Linux server
 launcher exits unless approval has been recorded explicitly:
 
 ```bash
-export CYBERRUNNER_TRAINING_APPROVED=YES
-scripts/run_cyberrunner_dreamerv3_gpu2.sh
+export TAG_TRAINING_APPROVED=YES
+scripts/run_tag_dreamerv3_gpu2.sh
 ```
 
 The approved launcher exposes only physical GPU 2. Physical GPU 0 is never visible to
-the process. Start with the `cyberrunner medium` DreamerV3 configuration and a
+the process. Start with the `tag medium` DreamerV3 configuration and a
 training ratio of 32. Do not set the approval variable before the user approves
 each requested training run. Dataset generation, evaluation, and readiness
 checks never set this variable.
@@ -150,7 +150,7 @@ split is reserved for the final selected checkpoint.
 The status-tracked remote entry point is:
 
 ```bash
-CYBERRUNNER_VALIDATION_APPROVED=YES \
+TAG_VALIDATION_APPROVED=YES \
   scripts/start_remote_validation_monitor.sh REPO_ROOT DREAMER_LOGDIR
 ```
 

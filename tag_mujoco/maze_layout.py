@@ -21,7 +21,7 @@ DEFAULT_LAYOUT_PATH = (
 
 def load_layout(path: Path = DEFAULT_LAYOUT_PATH) -> Dict[str, Any]:
     namespace = runpy.run_path(str(path))
-    layout = namespace.get("tag_dxf_layout", namespace.get("cyberrunner_dxf_layout"))
+    layout = namespace.get("tag_dxf_layout", namespace.get("tag_dxf_layout"))
     if layout is None:
         raise KeyError(f"Layout module has no tag_dxf_layout mapping: {path}")
     required = {

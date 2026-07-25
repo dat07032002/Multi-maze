@@ -5,7 +5,7 @@ from . import limiters
 import numpy as np
 
 
-class Cyberrunner(generic.Generic):
+class TagMazeReplay(generic.Generic):
     def __init__(
         self,
         length,
@@ -35,24 +35,25 @@ class Cyberrunner(generic.Generic):
         )
 
     def add(self, step, worker=0, load=False):
-        # Do transformations
-        # print(step)
-        # print(worker)
         i = 0
         if load:
             super().add(step, str(i), load)
             return
-        for dir in [0]:
+        for direction in [0]:
             for flip_h in [0, 1]:
                 for flip_v in [0, 1]:
                     step = step.copy()
                     image = step["image"].copy()
                     states = step["states"].copy()
                     goal = (
-                        step["goal"].copy() if dir == 0 else step["goal_reverse"].copy()
+                        step["goal"].copy()
+                        if direction == 0
+                        else step["goal_reverse"].copy()
                     )
                     reward = (
-                        step["reward"].copy() if dir == 0 else -step["reward"].copy()
+                        step["reward"].copy()
+                        if direction == 0
+                        else -step["reward"].copy()
                     )
                     action = step["action"].copy()
                     if flip_h:
@@ -61,7 +62,6 @@ class Cyberrunner(generic.Generic):
                         states[0] *= -1
                         states[2] = 1 - states[2]
                         goal[0::2] *= -1
-                        # states[np.arange(4, 14, 2)] *= -1
 
                     if flip_v:
                         image = np.flip(image, axis=0)
@@ -69,7 +69,6 @@ class Cyberrunner(generic.Generic):
                         states[1] *= -1
                         states[3] = 1 - states[3]
                         goal[1::2] *= -1
-                        # states[np.arange(5, 14, 2)] *= -1
                     step["image"] = image
                     step["states"] = states
                     step["goal"] = goal

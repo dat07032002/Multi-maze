@@ -11,7 +11,7 @@ import mujoco.viewer
 import numpy as np
 
 from maze_layout import load_json_layout
-from system_model import CyberRunnerSystemModel
+from system_model import TagSystemModel
 
 
 HERE = Path(__file__).resolve().parent
@@ -27,7 +27,7 @@ def main() -> None:
     parser.add_argument("--randomize", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
-    system = CyberRunnerSystemModel(load_json_layout(args.layout))
+    system = TagSystemModel(load_json_layout(args.layout))
     print(f"Layout: {system.layout.get('name', args.layout.stem)}")
     print("W/S and A/D change normalized policy actions; C centers; R resets.")
     while True:

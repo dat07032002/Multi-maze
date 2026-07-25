@@ -1,4 +1,4 @@
-<mujoco model="cyberrunner_custom_maze">
+<mujoco model="tag_custom_maze">
   <compiler angle="radian" inertiafromgeom="auto"/>
   <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast" solver="Newton" iterations="12" tolerance="1e-9"/>
   <size nconmax="4000" njmax="12000"/>

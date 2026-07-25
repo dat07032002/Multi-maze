@@ -7,7 +7,7 @@ training layouts using outcome-based prioritized level replay with uniform and
 staleness coverage. The same policy must follow the supplied five-point route
 and react to walls and holes visible in the image.
 
-The active split in `cyberrunner_mujoco/maze_splits_v2.json` is fixed:
+The active split in `tag_mujoco/maze_splits_v2.json` is fixed:
 
 | Split | Count | Use |
 | --- | ---: | --- |
@@ -81,19 +81,19 @@ directories; the latest completed checkpoint and replay chunks remain useful.
 The launchers require approval and expose only physical GPU 2:
 
 ```bash
-export CYBERRUNNER_TRAINING_APPROVED=YES
-export CYBERRUNNER_STEPS=10000000
-export CYBERRUNNER_DEMO_DIR=/absolute/path/to/expert_demos_v2
-bash scripts/run_cyberrunner_v2_gpu2.sh \
+export TAG_TRAINING_APPROVED=YES
+export TAG_STEPS=10000000
+export TAG_DEMO_DIR=/absolute/path/to/expert_demos_v2
+bash scripts/run_tag_sim_v2_gpu2.sh \
   --run.from_checkpoint /absolute/path/to/v2/checkpoint.ckpt
 ```
 
 Start validation only after the production run directory exists:
 
 ```bash
-export CYBERRUNNER_VALIDATION_APPROVED=YES
-export CYBERRUNNER_MANIFEST=/absolute/path/to/maze_splits_v2.json
-export CYBERRUNNER_END_STEP=10000000
+export TAG_VALIDATION_APPROVED=YES
+export TAG_MANIFEST=/absolute/path/to/maze_splits_v2.json
+export TAG_END_STEP=10000000
 bash scripts/start_remote_validation_monitor.sh \
   /absolute/path/to/repository \
   /absolute/path/to/production/logdir

@@ -17,8 +17,8 @@ Create or reuse a Python environment with MuJoCo, NumPy, Pillow, Gymnasium, and
 the Dreamer dependencies. Then run:
 
 ```powershell
-python -m unittest discover -s cyberrunner_mujoco\tests -v
-Push-Location cyberrunner_mujoco
+python -m unittest discover -s tag_mujoco\tests -v
+Push-Location tag_mujoco
 python verify_dreamer_config.py
 python verify_dreamer_adapter.py
 python verify_training_readiness.py
@@ -36,7 +36,7 @@ source install/setup.bash
 Robot-side startup order:
 
 ```bash
-python3 fast_camera_publisher_v2.py
+ros2 run tag_camera fast_camera_publisher.py
 ros2 run tag_hiwonder hiwonder_compat_node.py
 ./run_tag_estimator.sh
 python3 tcp_ros_bridge.py 127.0.0.1 5555

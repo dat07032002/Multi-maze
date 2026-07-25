@@ -8,14 +8,14 @@ The JSON layout is the single source of truth for simulation, route validation,
 preview rendering, and the provisional STL. Export all of those together with:
 
 ```powershell
-.\cyberrunner_mujoco\.venv\Scripts\python.exe -m cyberrunner_mujoco.maze_artifact `
+.\tag_mujoco\.venv\Scripts\python.exe -m tag_mujoco.maze_artifact `
   hardware\mazes\maze_v1\maze.json `
   --output-root hardware\mazes\packages
 ```
 
 The generated STL is intentionally named `maze_prototype.stl`. Do not print it
 as a final-fit insert until the TAG mounting interface has been measured and
-recorded in `cyberrunner_mujoco/hardware_parameters.json`.
+recorded in `tag_mujoco/hardware_parameters.json`.
 
 The existing trained maze remains in its current compatibility locations:
 

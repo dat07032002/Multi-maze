@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from cyberrunner_mujoco.maze_layout import DEFAULT_LAYOUT_PATH, load_layout
-from cyberrunner_mujoco.system_config import DEFAULT_CAMERA_CALIBRATION
+from tag_mujoco.maze_layout import DEFAULT_LAYOUT_PATH, load_layout
+from tag_mujoco.system_config import DEFAULT_CAMERA_CALIBRATION
 from tag_dreamer.tag_dreamer.path import LinearPath
 
 

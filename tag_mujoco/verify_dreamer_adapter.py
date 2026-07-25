@@ -13,12 +13,12 @@ DREAMER_PACKAGE = HERE.parent / "dreamerv3" / "dreamerv3"
 sys.path.insert(0, str(DREAMER_PACKAGE))
 sys.path.insert(0, str(HERE.parent))
 
-from embodied.envs.cyberrunner import CyberRunner  # noqa: E402
-from cyberrunner_mujoco.policy_contract import TagPolicyContract  # noqa: E402
+from embodied.envs.tag_maze import TagMaze  # noqa: E402
+from tag_mujoco.policy_contract import TagPolicyContract  # noqa: E402
 
 
 def main() -> None:
-    env = CyberRunner(
+    env = TagMaze(
         maze_manifest=str(HERE / "maze_splits.json"),
         maze_split="train",
         maze_sampling="curriculum",

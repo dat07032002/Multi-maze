@@ -10,14 +10,14 @@ from typing import Any
 import numpy as np
 
 try:
-    from .cyberrunner_env import CyberRunnerTask
+    from .tag_env import TagMazeTask
     from .maze_layout import load_json_layout
     from .maze_dataset import DEFAULT_MANIFEST, load_manifest, load_split
     from .parameter_registry import load_parameter_registry, unresolved_parameters
     from .policy_contract import CONTRACT_VERSION, TagPolicyContract
     from .route_planner import PlannerConfig, validate_route
 except ImportError:
-    from cyberrunner_env import CyberRunnerTask
+    from tag_env import TagMazeTask
     from maze_layout import load_json_layout
     from maze_dataset import DEFAULT_MANIFEST, load_manifest, load_split
     from parameter_registry import load_parameter_registry, unresolved_parameters
@@ -70,7 +70,7 @@ def main() -> None:
         }
 
     rollout_layouts = layouts[: args.rollout_limit or None]
-    task = CyberRunnerTask(layout_paths=[str(path) for path in rollout_layouts], seed=123)
+    task = TagMazeTask(layout_paths=[str(path) for path in rollout_layouts], seed=123)
     rollout_results = []
     finite = True
     contract_valid = True

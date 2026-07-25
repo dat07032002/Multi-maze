@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from cyberrunner_mujoco.observation_filter import TagObservationFilter
+from tag_mujoco.observation_filter import TagObservationFilter
 
 
 class TagObservationFilterTest(unittest.TestCase):

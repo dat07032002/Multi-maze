@@ -1,4 +1,4 @@
-"""Direct Embodied adapter for the clean MuJoCo CyberRunner task."""
+"""Direct Embodied adapter for the clean MuJoCo TagMaze task."""
 
 from __future__ import annotations
 
@@ -15,18 +15,18 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[4]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from cyberrunner_mujoco.cyberrunner_env import CyberRunnerTask, TaskConfig  # noqa: E402
+from tag_mujoco.tag_env import TagMazeTask, TaskConfig  # noqa: E402
 
 
-class CyberRunner(embodied.Env):
+class TagMaze(embodied.Env):
     def __init__(self, task: str = "sim", layout_paths=None, seed: int = 0, **kwargs: Any):
         if task != "sim":
-            raise ValueError(f"Unsupported clean CyberRunner task {task!r}")
+            raise ValueError(f"Unsupported clean TagMaze task {task!r}")
         task_fields = set(TaskConfig.__dataclass_fields__)
         task_kwargs = {key: kwargs.pop(key) for key in list(kwargs) if key in task_fields}
         if kwargs:
-            raise TypeError(f"Unknown CyberRunner environment options: {sorted(kwargs)}")
-        self._env = CyberRunnerTask(
+            raise TypeError(f"Unknown TagMaze environment options: {sorted(kwargs)}")
+        self._env = TagMazeTask(
             layout_paths=layout_paths,
             seed=seed,
             task_config=TaskConfig(**task_kwargs),

@@ -24,16 +24,16 @@ import embodied  # noqa: E402
 
 from . import agent as agt  # noqa: E402
 from . import train as trainlib  # noqa: E402
-from .embodied.envs.cyberrunner import CyberRunner  # noqa: E402
-from cyberrunner_mujoco.maze_dataset import file_sha256, load_split  # noqa: E402
-from cyberrunner_mujoco.validation_metrics import (  # noqa: E402
+from .embodied.envs.tag_maze import TagMaze  # noqa: E402
+from tag_mujoco.maze_dataset import file_sha256, load_split  # noqa: E402
+from tag_mujoco.validation_metrics import (  # noqa: E402
     episode_record,
     summarize_records,
 )
 
 
 def _make_env(config, layout_path: pathlib.Path, seed: int, robust: bool):
-    kwargs = dict(config.env.cyberrunner)
+    kwargs = dict(config.env.tagmaze)
     kwargs.update(
         maze_manifest="",
         maze_split="",
@@ -43,7 +43,7 @@ def _make_env(config, layout_path: pathlib.Path, seed: int, robust: bool):
         start_curriculum=False,
         randomization_curriculum=False,
     )
-    env = CyberRunner(
+    env = TagMaze(
         "sim",
         layout_paths=[str(layout_path)],
         seed=seed,
@@ -90,7 +90,7 @@ def main() -> None:
         {
             "jax.prealloc": False,
             "wrapper.length": args.max_steps,
-            "env.cyberrunner.maze_sampling": "uniform",
+            "env.tagmaze.maze_sampling": "uniform",
         }
     )
     split = load_split(args.split, args.manifest)

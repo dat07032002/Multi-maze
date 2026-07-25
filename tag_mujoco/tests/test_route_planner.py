@@ -5,19 +5,19 @@ from pathlib import Path
 
 import numpy as np
 
-from cyberrunner_mujoco.maze_generator import generate_maze
-from cyberrunner_mujoco.route_planner import (
+from tag_mujoco.maze_generator import generate_maze
+from tag_mujoco.route_planner import (
     PlannerConfig,
     apply_safe_route,
     signed_ball_clearance,
     validate_route,
 )
-from cyberrunner_mujoco.maze_layout import (
+from tag_mujoco.maze_layout import (
     DEFAULT_WALL_HEIGHT_M,
     DEFAULT_WALL_THICKNESS_M,
     load_json_layout,
 )
-from cyberrunner_mujoco.model_builder import WALL_THICKNESS
+from tag_mujoco.model_builder import WALL_THICKNESS
 
 
 class RoutePlannerTest(unittest.TestCase):

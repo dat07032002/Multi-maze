@@ -7,6 +7,8 @@
 - [HARDWARE_RECORDING_2026-07-24.md](HARDWARE_RECORDING_2026-07-24.md): sanitized passive measurements and remaining calibration tests
 - [HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md](HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md): read-only live hardware/training inventory, compatibility matrix, and deployment blockers
 - [hardware_runtime_contract_2026-07-24.json](hardware_runtime_contract_2026-07-24.json): machine-readable camera, observation, action, Hiwonder, timing, and safety snapshot
+- [LOCAL_CLEANUP_CANDIDATES_2026-07-24.md](LOCAL_CLEANUP_CANDIDATES_2026-07-24.md): approval-gated local cache and recording cleanup manifest
+- [`tag_state_estimation/AI_MARBLE_DETECTOR.md`](../tag_state_estimation/AI_MARBLE_DETECTOR.md): learned detector modes, diagnostics, limitations, and safe validation
 - [training_snapshot_2026-07-24.json](training_snapshot_2026-07-24.json): machine-readable status of the stopped hardware-connected DreamerV3 run
 - [SYSID_AXIS_2026-07-24.md](SYSID_AXIS_2026-07-24.md): accepted guarded +/-20 hardware axis/sign response and remaining identification work
 - [sysid_axis_2026-07-24.json](sysid_axis_2026-07-24.json): machine-readable low-amplitude actuator response, timing, repeatability, and raw-file hashes
@@ -21,7 +23,7 @@
 
 Detailed simulator documentation remains next to the implementation:
 
-- [`cyberrunner_mujoco/HARDWARE_CONTRACT.md`](../cyberrunner_mujoco/HARDWARE_CONTRACT.md)
-- [`cyberrunner_mujoco/MODEL.md`](../cyberrunner_mujoco/MODEL.md)
-- [`cyberrunner_mujoco/IMPLEMENTATION_STATUS.md`](../cyberrunner_mujoco/IMPLEMENTATION_STATUS.md)
-- [`cyberrunner_mujoco/README.md`](../cyberrunner_mujoco/README.md)
+- [`tag_mujoco/HARDWARE_CONTRACT.md`](../tag_mujoco/HARDWARE_CONTRACT.md)
+- [`tag_mujoco/MODEL.md`](../tag_mujoco/MODEL.md)
+- [`tag_mujoco/IMPLEMENTATION_STATUS.md`](../tag_mujoco/IMPLEMENTATION_STATUS.md)
+- [`tag_mujoco/README.md`](../tag_mujoco/README.md)

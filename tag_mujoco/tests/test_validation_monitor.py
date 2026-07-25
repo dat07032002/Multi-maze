@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cyberrunner_mujoco.validation_monitor import latest_metric_step, milestones
+from tag_mujoco.validation_monitor import latest_metric_step, milestones
 
 
 class ValidationMonitorTests(unittest.TestCase):

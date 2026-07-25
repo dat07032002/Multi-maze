@@ -4,8 +4,9 @@
 import cv2
 import numpy as np
 
-
+from tag_state_estimation.ai_marble_common import OnnxMarbleDetector
 from tag_state_estimation.core.detection import Detector, DetectorFixedPts
+from tag_state_estimation.core.hybrid_ball import HybridBallTracker
 from tag_state_estimation.core.plate_pose import PlatePoseEstimator
 from tag_state_estimation.utils.anim_3d import Anim3d
 from tag_state_estimation.utils.divers import init_win_subimages
@@ -19,6 +20,16 @@ class Measurements:
         viewpoint="side",
         show_subimages_detector=False,
         acceleration_backend="cpu",
+        ai_mode="off",
+        ai_model_path=None,
+        ai_backend="cpu",
+        ai_confidence_threshold=0.90,
+        ai_check_every_n_frames=3,
+        ai_valid_roi=(0.25, 0.15, 0.72, 0.80),
+        ai_agreement_radius_px=12.0,
+        ai_max_reacquire_jump_px=25.0,
+        ai_occlusion_grace_frames=90,
+        ai_reacquire_confirm_frames=3,
     ):
         self.acceleration_backend = acceleration_backend
         self.detector = Detector(
@@ -32,6 +43,34 @@ class Measurements:
             acceleration_backend=acceleration_backend,
         )
         self.plate_pose = PlatePoseEstimator()
+
+        self.ai_mode = str(ai_mode).lower()
+        if self.ai_mode not in {"off", "shadow", "hybrid"}:
+            raise ValueError(
+                f"ai_mode must be off, shadow, or hybrid; got {self.ai_mode!r}"
+            )
+        self.ai_check_every_n_frames = max(1, int(ai_check_every_n_frames))
+        self.ai_frame_count = 0
+        self.ai_detector = None
+        if self.ai_mode != "off":
+            if not ai_model_path:
+                raise ValueError("ai_model_path is required when ai_mode is not off")
+            self.ai_detector = OnnxMarbleDetector(
+                ai_model_path,
+                confidence_threshold=float(ai_confidence_threshold),
+                backend=str(ai_backend),
+                valid_roi=tuple(ai_valid_roi),
+            )
+        self.hybrid_tracker = HybridBallTracker(
+            agreement_radius_px=ai_agreement_radius_px,
+            max_reacquire_jump_px=ai_max_reacquire_jump_px,
+            occlusion_grace_frames=ai_occlusion_grace_frames,
+            far_reacquire_confirm_frames=ai_reacquire_confirm_frames,
+        )
+        self.ball_source = "hsv" if self.ai_mode == "off" else "initializing"
+        self.ai_confidence = np.nan
+        self.detection_disagreement_px = np.nan
+        self.ai_inference_ms = 0.0
 
         self.plate_angles = (None, None)
         self.ball_pos = None
@@ -66,6 +105,7 @@ class Measurements:
         Args :
             frame: np.ndarray, dim: (400, 640)
         """
+        ai_frame = frame.copy() if self.ai_detector is not None else None
         if self.plate_pose.T__W_C is None:
             self.camera_localization(frame)
             if self.anim_3d_top is not None:
@@ -81,9 +121,56 @@ class Measurements:
         if get_ball_subimg:
             frame_copy = frame.copy()
 
-        corners_img_coords, ball_img_coords = self.detector.process_frame(
-            frame
-        )  # (x,y)
+        corners_img_coords, hsv_ball_img_coords = self.detector.process_frame(frame)
+        hsv_measured = (
+            hsv_ball_img_coords
+            if self.detector.last_ball_detection_found
+            else None
+        )
+        ball_img_coords = hsv_ball_img_coords
+        self.detection_disagreement_px = np.nan
+
+        run_ai = self.ai_detector is not None and (
+            self.ai_mode == "hybrid"
+            or self.ai_frame_count % self.ai_check_every_n_frames == 0
+        )
+        ai_position = None
+        if run_ai:
+            import time
+
+            started = time.perf_counter()
+            ai_detection = self.ai_detector.detect(ai_frame)
+            self.ai_inference_ms = 1000.0 * (time.perf_counter() - started)
+            self.ai_confidence = ai_detection.confidence
+            if ai_detection.visible:
+                # Classical coordinates are [row, column]; AI coordinates are [x, y].
+                ai_position = np.array(
+                    [ai_detection.y_px, ai_detection.x_px], dtype=np.float32
+                )
+        self.ai_frame_count += 1
+
+        if self.ai_mode == "hybrid":
+            result = self.hybrid_tracker.update(hsv_measured, ai_position)
+            ball_img_coords = result.measurement
+            self.ball_source = result.source
+            self.detection_disagreement_px = result.disagreement_px
+            if np.all(np.isfinite(ball_img_coords)):
+                # Let the HSV crop follow an AI-authoritative accepted position.
+                self.detector.ball_pos = ball_img_coords.copy()
+                self.detector.is_ball_found = True
+        else:
+            if np.all(np.isfinite(hsv_ball_img_coords)):
+                self.ball_source = (
+                    "hsv"
+                    if self.detector.last_ball_detection_found
+                    else "hsv_hold"
+                )
+            else:
+                self.ball_source = "lost"
+            if ai_position is not None and np.all(np.isfinite(hsv_ball_img_coords)):
+                self.detection_disagreement_px = float(
+                    np.linalg.norm(ai_position - hsv_ball_img_coords)
+                )
 
         raw_pts = np.zeros((5, 2))
         raw_pts[:4, :] = corners_img_coords

@@ -1,6 +1,6 @@
-# CyberRunner system model
+# TAG system model
 
-This directory contains an RL-agnostic model of the physical CyberRunner loop.
+This directory contains an RL-agnostic model of the physical TAG loop.
 It deliberately does not define a reward, replay format, learner, or RL
 algorithm.
 
@@ -41,7 +41,7 @@ by the deployed policy. Exact normalization is defined in
 Reward and termination interpretation also remain outside this layer, although
 the model reports physical terminal reasons such as `ball_fell`.
 
-The separate `cyberrunner_env.py` task layer normalizes these signals, tracks
+The separate `tag_env.py` task layer normalizes these signals, tracks
 route progress within a bounded window so adjacent corridors cannot cause
 false jumps, samples only from the requested immutable maze split, defines
 configurable progress reward variants, and logs success, fall, cross-track,

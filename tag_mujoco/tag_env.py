@@ -1,4 +1,4 @@
-"""New route-conditioned CyberRunner task and optional Gym wrapper.
+"""New route-conditioned TAG task and optional Gym wrapper.
 
 This module is intentionally independent of the legacy ROS/TCP environments,
 their reward shaping, and their replay implementation.
@@ -35,7 +35,7 @@ try:
         validate_route,
     )
     from .system_config import SystemConfig
-    from .system_model import CyberRunnerSystemModel, PolylineRoute
+    from .system_model import TagSystemModel, PolylineRoute
 except ImportError:  # Preserve direct-script execution from this directory.
     from maze_layout import load_json_layout
     from maze_dataset import DEFAULT_MANIFEST, load_split
@@ -47,7 +47,7 @@ except ImportError:  # Preserve direct-script execution from this directory.
         validate_route,
     )
     from system_config import SystemConfig
-    from system_model import CyberRunnerSystemModel, PolylineRoute
+    from system_model import TagSystemModel, PolylineRoute
 
 
 HERE = Path(__file__).resolve().parent
@@ -127,13 +127,13 @@ def _resolve_layout_paths(layout_paths: str | Sequence[str] | None) -> List[Path
     resolved = [path.resolve() for path in resolved]
     missing = [path for path in resolved if not path.is_file()]
     if missing:
-        raise FileNotFoundError(f"Missing CyberRunner layouts: {missing}")
+        raise FileNotFoundError(f"Missing TAG layouts: {missing}")
     if not resolved:
         raise ValueError("At least one layout is required")
     return sorted(set(resolved))
 
 
-class CyberRunnerTask:
+class TagMazeTask:
     """RL task with normalized observations and independently defined rewards."""
 
     def __init__(
@@ -184,7 +184,7 @@ class CyberRunnerTask:
         self.rng = np.random.default_rng(seed)
         self._layout_cache: Dict[Path, Dict[str, Any]] = {}
         self.layout: Dict[str, Any]
-        self.model: CyberRunnerSystemModel
+        self.model: TagSystemModel
         self.route: PolylineRoute
         self.layout_path: Path
         self.progress_m = 0.0
@@ -429,7 +429,7 @@ class CyberRunnerTask:
             servo_command_scale=self.system_config.actuator.command_scale,
             servo_limits=self.system_config.actuator.servo_limits,
         )
-        self.model = CyberRunnerSystemModel(self.layout, self.system_config)
+        self.model = TagSystemModel(self.layout, self.system_config)
         self.route = self.model.route
         ball_xy, velocity = self._select_start()
         model_seed = int(self.rng.integers(0, 2**31 - 1))
@@ -617,8 +617,8 @@ class CyberRunnerTask:
         pass
 
 
-class CyberRunnerEnv(gym.Env):  # type: ignore[misc]
-    """Gym/Gymnasium compatibility wrapper around :class:`CyberRunnerTask`."""
+class TagMazeEnv(gym.Env):  # type: ignore[misc]
+    """Gym/Gymnasium compatibility wrapper around :class:`TagMazeTask`."""
 
     metadata = {"render_modes": ["rgb_array"]}
 
@@ -626,7 +626,7 @@ class CyberRunnerEnv(gym.Env):  # type: ignore[misc]
         super().__init__()
         task_fields = set(TaskConfig.__dataclass_fields__)
         task_kwargs = {key: kwargs.pop(key) for key in list(kwargs) if key in task_fields}
-        self.task = CyberRunnerTask(task_config=TaskConfig(**task_kwargs), **kwargs)
+        self.task = TagMazeTask(task_config=TaskConfig(**task_kwargs), **kwargs)
         points = self.task.system_config.relative_goal_points
         self.observation_space = gym.spaces.Dict(
             {

@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from cyberrunner_mujoco.validation_metrics import episode_record, summarize_records
+from tag_mujoco.validation_metrics import episode_record, summarize_records
 
 
 class ValidationMetricsTests(unittest.TestCase):

@@ -8,8 +8,9 @@ if [ -f /home/tbt589/micromamba/envs/tag_ros/setup.bash ]; then
   source /home/tbt589/micromamba/envs/tag_ros/setup.bash
 fi
 
-if [ -f /home/tbt589/cyberruner-main/install/setup.bash ]; then
-  source /home/tbt589/cyberruner-main/install/setup.bash
+tag_workspace="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$tag_workspace/install/setup.bash" ]; then
+  source "$tag_workspace/install/setup.bash"
 fi
 
 unset ROS_DISCOVERY_SERVER

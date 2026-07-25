@@ -57,7 +57,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0}
     dmc: {size: [64, 64], repeat: 2, camera: -1}
     loconav: {size: [64, 64], repeat: 2, camera: -1}
-    cyberrunner: {randomize_plant: False, random_start: False, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_window: 50, randomization_success_threshold: 0.60}
+    tagmaze: {randomize_plant: False, random_start: False, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_window: 50, randomization_success_threshold: 0.60}
 
   # Agent
   task_behavior: Greedy
@@ -105,8 +105,8 @@ defaults:
   disag_target: [stoch]
   disag_models: 8
 
-cyberrunner:
-  task: cyberrunner_sim
+tag_sim:
+  task: tagmaze_sim
   tensorboard: False
   envs.amount: 1
   envs.parallel: none
@@ -120,14 +120,14 @@ cyberrunner:
     save_every: 10
     log_keys_sum: '^log_(reward|fall_cost|success)$'
     log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty)$'
-  env.cyberrunner:
+  env.tagmaze:
     randomize_plant: False
     random_start: False
     reward_mode: scaled_progress
     progress_reward_scale: 10.0
     success_bonus: 10.0
     failure_penalty: 5.0
-    maze_manifest: cyberrunner_mujoco/maze_splits.json
+    maze_manifest: tag_mujoco/maze_splits.json
     maze_split: train
     maze_sampling: curriculum
     curriculum_episodes: 5000
@@ -137,8 +137,8 @@ cyberrunner:
 
 # Adaptive multi-maze profile. This remains checkpoint/replay incompatible with
 # the original 40-maze run and must always use a fresh log directory.
-cyberrunner_v2:
-  task: cyberrunner_sim
+tag_sim_v2:
+  task: tagmaze_sim
   tensorboard: False
   envs.amount: 8
   envs.parallel: process
@@ -154,14 +154,14 @@ cyberrunner_v2:
     demo_limit_steps: 0
     log_keys_sum: '^log_(reward|fall_cost|success)$'
     log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength)$'
-  env.cyberrunner:
+  env.tagmaze:
     randomize_plant: True
     random_start: True
     reward_mode: scaled_progress
     progress_reward_scale: 10.0
     success_bonus: 10.0
     failure_penalty: 10.0
-    maze_manifest: cyberrunner_mujoco/maze_splits_v2.json
+    maze_manifest: tag_mujoco/maze_splits_v2.json
     maze_split: train
     maze_sampling: plr
     curriculum_episodes: 5000
@@ -188,7 +188,7 @@ cyberrunner_v2:
   wrapper: {length: 3000}
 
 # Real TAG hardware over the TCP bridge. This profile is kept separate from
-# `cyberrunner`, which is the multi-maze MuJoCo training environment.
+# `tag_sim`, which is the multi-maze MuJoCo training environment.
 tag:
   task: gym_tag_dreamer:tag-ros-v0
   tensorboard: True

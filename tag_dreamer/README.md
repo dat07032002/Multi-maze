@@ -10,4 +10,4 @@ artifacts. The loader retains compatibility with their old pre-rename Python
 module name. They are reference data, not the multi-maze training split.
 
 Use the `tag` profile in `dreamerv3/dreamerv3/configs.yaml` for hardware. Use
-the `cyberrunner` profile for MuJoCo multi-maze training.
+the `tag_sim` profile for MuJoCo multi-maze training.

@@ -17,10 +17,10 @@ from typing import Any, Dict, List
 import numpy as np
 
 try:
-    from .cyberrunner_env import CyberRunnerTask, TaskConfig
+    from .tag_env import TagMazeTask, TaskConfig
     from .maze_dataset import DEFAULT_MANIFEST
 except ImportError:
-    from cyberrunner_env import CyberRunnerTask, TaskConfig
+    from tag_env import TagMazeTask, TaskConfig
     from maze_dataset import DEFAULT_MANIFEST
 
 
@@ -45,7 +45,7 @@ class RouteExpertController:
     def reset(self) -> None:
         self._last_action[:] = 0.0
 
-    def action(self, task: CyberRunnerTask) -> np.ndarray:
+    def action(self, task: TagMazeTask) -> np.ndarray:
         position = task.model.sim.ball_board_position()[:2]
         velocity = np.asarray(
             task.last_info.get("ball_velocity_board_mps", np.zeros(2)),
@@ -119,7 +119,7 @@ def _transition(
 
 
 def collect_episode(
-    task: CyberRunnerTask,
+    task: TagMazeTask,
     controller: RouteExpertController,
     *,
     layout_index: int,
@@ -188,7 +188,7 @@ def main() -> None:
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
 
-    task = CyberRunnerTask(
+    task = TagMazeTask(
         seed=args.seed,
         task_config=TaskConfig(
             maze_manifest=str(args.manifest),

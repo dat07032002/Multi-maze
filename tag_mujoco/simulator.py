@@ -17,7 +17,7 @@ except ImportError:
     from model_builder import build_mjcf
 
 
-class CyberRunnerSim:
+class TagMazeSim:
     def __init__(
         self,
         layout: Dict[str, Any] | None = None,

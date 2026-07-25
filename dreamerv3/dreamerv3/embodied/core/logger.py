@@ -314,9 +314,9 @@ def _encode_gif(frames, fps):
 
     h, w, c = frames[0].shape
     pxfmt = {1: "gray", 3: "rgb24"}[c]
-    ffmpeg = shutil.which("ffmpeg") or "/home/tbt589/micromamba/envs/cyberrunner_ros/bin/ffmpeg"
+    ffmpeg = shutil.which("ffmpeg")
     if not os.path.exists(ffmpeg):
-        raise OSError("ffmpeg was not found in PATH or the cyberrunner conda env")
+        raise OSError("ffmpeg was not found in PATH")
     cmd = [
         ffmpeg,
         "-y",

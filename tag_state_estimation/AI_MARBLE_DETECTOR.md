@@ -1,152 +1,98 @@
-# AI Marble Detector (TAG)
+# AI marble detector
 
-A learned full-camera marble detector that augments the classical HSV state
-estimator when HSV struggles: pendulum-arm occlusion, reflections, holes, corner
-markers, blue hardware, or objects outside the board. **It never controls
-motors** — it only produces a marble pixel detection / confidence, or assists the
-existing estimator through guarded fusion + Kalman prediction.
+TAG includes a learned full-camera marble detector for cases where HSV alone
+confuses the blue marble with dark holes, reflections, or blue reference
+markers. The detector never publishes motor commands.
 
-Diagnostic outputs only (no motor/control topics):
-- `/tag_ai_marble/pixel` (`geometry_msgs/PointStamped`) and
-  `/tag_ai_marble/confidence` (`std_msgs/Float32`) from the standalone node
-- `/tag_state_estimation/{ball_source, ai_confidence, detection_disagreement_px}`
-  when integrated into the estimator
+## Runtime architecture
 
-> ⚠️ **Validation status:** the shipped model has known evaluation weaknesses
-> (see *Validation caveats*). Safe in `off` (default) and `shadow`. Do **not**
-> enable `hybrid` on the robot until shadow-mode acceptance criteria pass.
+- `ai_marble_common.py`: OpenCV-DNN inference and heatmap decoding
+- `core/hybrid_ball.py`: guarded HSV/AI selection and reacquisition
+- `ai_marble_detector_node.py`: standalone subscribe-only diagnostic node
+- `ai_dataset_labeler.py`: click-label and not-visible data collection
+- `train_ai_marble.py`: supervised training and ONNX export
+- `models/marble_detector.onnx`: installed runtime model
 
----
+The model accepts `320 x 200` RGB and returns an `80 x 50` heatmap. Its output
+stride is 4 and its SHA-256 is
+`0a09032fb6a62c680dcc16f1411973aebe7e1d77771e094cfbd828adbdeb154b`.
+PyTorch is needed only for training; robot inference uses OpenCV.
 
-## Files & model
-| File | Purpose |
-|---|---|
-| `tag_state_estimation/ai_marble_common.py` | ONNX inference (OpenCV DNN, no PyTorch at runtime) + heatmap decode + ROI |
-| `tag_state_estimation/core/hybrid_ball.py` | AI-authoritative HSV/AI fusion + confirmed-reacquire state machine |
-| `tag_state_estimation/ai_marble_detector_node.py` | Standalone diagnostic node (`ai_detector`) — pixel + confidence only |
-| `tag_state_estimation/train_ai_marble.py` / `ai_dataset_labeler.py` | trainer (`ai_train`) + labeler (`ai_labeler`) |
-| `models/marble_detector.onnx` | Deployed weights |
+## Estimator modes
 
-**Model:** 320×200 RGB in → 80×50 heatmap out, output stride **4**, ~510 KB.
-**SHA-256:** `0a09032fb6a62c680dcc16f1411973aebe7e1d77771e094cfbd828adbdeb154b`
+- `off` is the default. The retuned HSV detector controls the measurement and
+  the AI model is not loaded.
+- `shadow` runs AI periodically while HSV remains authoritative. Use this for
+  hardware validation.
+- `hybrid` runs AI every frame. AI is authoritative when the detectors
+  disagree, while nearby agreement is fused.
 
-> The AI **library + standalone diagnostic + trainer + model** ship here. The
-> full estimator wiring (the `detection.py` / `subimg.py` hooks that drive the
-> behavior below) is the deployment target — integrate it only after shadow
-> validation.
+Hybrid rejects HSV-only candidates, requires three spatially consistent frames
+after any loss, and sends NaN as the measurement during a gap. The Kalman
+prediction is published only during the bounded 90-frame grace period and only
+while position uncertainty is at most `0.03 m`.
 
----
+Diagnostics:
 
-## Modes
-- **off** (default): HSV-only; original behavior, byte-for-byte.
-- **shadow**: AI runs and publishes diagnostics; HSV still drives the estimator.
-  `ai_check_every_n_frames` throttles AI work in this mode.
-- **hybrid**: **AI-authoritative.** AI is evaluated **every frame**.
+- `/tag_state_estimation/ball_source`
+- `/tag_state_estimation/ai_confidence`
+- `/tag_state_estimation/detection_disagreement_px`
+- `/tag_state_estimation/ai_inference_ms`
 
-## How hybrid detection behaves
-- **Agreeing HSV + AI** (within `ai_agreement_radius_px`, 12 px) → **fused**.
-- **AI-only** detection → accepted only through the continuity/confirmation gates.
-- **HSV-only** detection (no AI support) → **treated as missing.** This is what
-  stops a blue board marker from resetting the marble-loss timer.
-- **Disagreement** → AI is authoritative.
-- **Reacquisition confirmation:** after *any* missing frame, a replacement
-  position must stay spatially consistent for **three frames** before it is
-  accepted (both fused and AI-only paths → `fused_reacquired_confirmed` /
-  `ai_reacquired_confirmed`). A rejected candidate **cannot** reset the loss timer.
-- **Marker masking:** the moving *and* fixed blue reference markers are masked at
-  their freshly-detected pixel positions **every frame before HSV** detection. The
-  AI detector receives an **unmodified** copy of the image, so it can still find a
-  real marble near a marker.
-- **HSV crop reset:** after **six** consecutive missing HSV measurements the
-  predictive HSV crop resets to a full-board search, while the bounded Kalman
-  occlusion grace continues (the same "cover/uncover by hand" recovery, automated).
-- **Kalman occlusion:** during `kalman_occlusion` the KF gets a **missing**
-  measurement and the node publishes its bounded prediction, only while position
-  uncertainty ≤ `ai_max_prediction_std_m` (0.03 m). After **90 frames** or
-  excessive uncertainty, the normal finite/NaN loss contract resumes.
+Possible sources include `hsv`, `hsv_hold`, `fused`, `ai_disagreement`,
+`ai_reacquired`, `fused_reacquired_confirmed`, `ai_reacquired_confirmed`,
+`kalman_occlusion`, `lost`, `lost_uncertain`, `lost_outside`, and `lost_pose`.
 
-**`ball_source` values:** `hsv`, `hsv_hold`, `fused`, `fused_reacquired_confirmed`,
-`ai_reacquired`, `ai_reacquired_confirmed`, `kalman_occlusion`, `lost`,
-`lost_uncertain`, `lost_outside`.
+## Safe operation
 
-**Coordinates:** classical detector is `[row, col]`; the AI reports `[x, y]` and is
-converted to `[y, x]` before fusion. When lost, the KF receives **NaN** (no fake
-repeated measurement).
-
----
-
-## Reproducible training (stride 4)
-The deployed model is **stride 4**; the trainer defaults to stride 8, so you
-**must** pass `--output-stride 4`:
 ```bash
-ros2 run tag_state_estimation ai_train ai_marble_dataset \
-  --output models/marble_detector.onnx --epochs 60 --output-stride 4
-```
-Config: input 320×200, 60 epochs, batch 32, lr 3e-4, AdamW,
-BCEWithLogitsLoss(pos_weight=20), brightness/contrast + H/V flips, seed 7.
-Collect ≥500 images across the full maze, angles, lighting, moving/stationary
-marble, arm occlusions, and true ball-loss frames (holes, blue markers, cables,
-highlights). The trainer also inpaints one synthetic negative per visible click —
-useful, but not a substitute for real `N` (occluded / off-board) examples.
+# AI diagnostics while HSV still controls the estimator
+ros2 launch tag_camera camera_estimation_gpu.launch.py ai_mode:=shadow
 
-## Safe commands
-```bash
-# collect labels (left-click=center, N=not visible, Space=freeze, Q=quit)
-ros2 run tag_state_estimation ai_labeler ai_marble_dataset
-
-# standalone diagnostic (subscribe-only; publishes only pixel + confidence)
-ros2 run tag_state_estimation ai_detector \
-  --ros-args -p model_path:=models/marble_detector.onnx
-
-# shadow (after estimator integration; same camera view the model was trained on)
-ros2 launch tag_camera camera_estimation_gpu.launch.py \
-  ai_mode:=shadow \
-  ai_model_path:=/home/trungbao/CYBER/tag/models/marble_detector.onnx
-
-# hybrid (ONLY after shadow criteria pass)
-ros2 launch tag_camera camera_estimation_gpu.launch.py ai_mode:=hybrid \
-  ai_model_path:=/home/trungbao/CYBER/tag/models/marble_detector.onnx
-
-# immediate rollback to HSV-only
-ros2 launch tag_camera camera_estimation_gpu.launch.py ai_mode:=off
-```
-Inspect diagnostics:
-```bash
+# Inspect the four diagnostic topics
 ros2 topic echo /tag_state_estimation/ball_source
 ros2 topic echo /tag_state_estimation/ai_confidence
 ros2 topic echo /tag_state_estimation/detection_disagreement_px
+ros2 topic echo /tag_state_estimation/ai_inference_ms
+
+# Immediate rollback; the model is not loaded
+ros2 launch tag_camera camera_estimation_gpu.launch.py ai_mode:=off
 ```
-> ⚠️ The full launch starts **both** a camera and an estimator. Never run it while
-> another camera already owns the video device. To run against an existing feed,
-> launch the estimator only and remap + pass pose-zero:
-> ```bash
-> ros2 run tag_state_estimation estimator_sub --ros-args \
->   -r tag_camera/image:=/cyberrunner_camera/image -p ai_mode:=off \
->   -p pose_zero_alpha_deg:=<deg> -p pose_zero_beta_deg:=<deg>
-> ```
-> Don't run the standalone `ai_detector` at the same time as hybrid mode — both
-> perform the same ONNX inference.
 
----
+Do not run the standalone `ai_detector` together with estimator `hybrid` mode;
+both would perform the same inference. The full launch also starts a camera, so
+do not use it while another process owns the video device.
 
-## Geometry (important)
-The model + ROI (`x=[0.25,0.72]`, `y=[0.15,0.80]`) were trained on the CyberRunner
-camera view (640×400, that crop/border/board placement). They are valid **only**
-if the estimator receives the same resolution, crop, border, and board placement.
-A different tag camera/mount requires new labels / ROI recalibration.
+## Training
 
-## Validation caveats (from the technical review)
-- **Train/test leakage:** random per-image split; capture sessions straddle the
-  train/test boundary (adjacent ~0.18 s frames are near-duplicates). Reported test
-  error (~2.6 px) and 100% recall are **optimistic** — use a session/group split.
-- **No negative/occlusion coverage in the test set** (150 all-visible) → false-
-  positive rate essentially unvalidated.
-- **Threshold** 0.90 not chosen on an independent validation split.
-- **Synthetic negatives** dominate the real ones (risk: "blurred patch = empty").
+```bash
+ros2 run tag_state_estimation ai_labeler ai_marble_dataset
+ros2 run tag_state_estimation ai_train ai_marble_dataset \
+  --output tag_state_estimation/models/marble_detector.onnx \
+  --epochs 60 --output-stride 4
+```
 
-**Before enabling hybrid:** run shadow for several hours across real lighting and
-deliberate occlusions / off-board / holes / corners, and require:
-`detection_disagreement_px` median < ~5 px (95th < ~12 px) when both detectors see
-the marble; **zero** `ai_confidence ≥ 0.90` when the marble is truly absent/occluded;
-no spurious reacquisitions. Ideally collect more real negatives/occlusions and
-re-evaluate on a group split first.
+Collect real visible and not-visible examples across board locations, tilt,
+lighting, motion, holes, markers, reflections, and deliberate occlusion.
+Synthetic inpainted negatives generated by the trainer do not replace real
+negative frames.
+
+## Geometry and validation boundary
+
+The deployed ROI is normalized `x=[0.25, 0.72]`, `y=[0.15, 0.80]`. The model
+expects the same `640 x 400` TAG camera output, crop, border, and board placement
+used during collection. Recalibrate the ROI and retrain after changing the mount.
+
+The reported approximately `2.6 px` test error and high recall are optimistic:
+adjacent frames were randomly split, the held-out set lacked true negative and
+occlusion cases, and threshold `0.90` was not independently calibrated.
+
+Before enabling `hybrid`, run `shadow` for several hours and require:
+
+- median disagreement below about `5 px` and 95th percentile below `12 px`
+- no confidence at or above `0.90` while the marble is absent
+- no false reacquisition from holes, markers, reflections, or cables
+- acceptable camera FPS and AI inference latency
+
+Hybrid hardware activation and real policy training both require separate user
+approval.

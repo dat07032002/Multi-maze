@@ -2,7 +2,9 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
+from launch.substitutions import PathJoinSubstitution
 
 
 def generate_launch_description():
@@ -11,6 +13,8 @@ def generate_launch_description():
     gpu_device_id = LaunchConfiguration("gpu_device_id")
     require_gpu = LaunchConfiguration("require_gpu")
     estimator_executable = LaunchConfiguration("estimator_executable")
+    ai_mode = LaunchConfiguration("ai_mode")
+    ai_model_path = LaunchConfiguration("ai_model_path")
 
     return LaunchDescription(
         [
@@ -27,18 +31,28 @@ def generate_launch_description():
             DeclareLaunchArgument("pipeline_fps", default_value="55.0"),
             DeclareLaunchArgument("process_every_n", default_value="1"),
             DeclareLaunchArgument("estimator_executable", default_value="estimator_sub"),
+            DeclareLaunchArgument("ai_mode", default_value="off"),
+            DeclareLaunchArgument(
+                "ai_model_path",
+                default_value=PathJoinSubstitution(
+                    [
+                        FindPackageShare("tag_state_estimation"),
+                        "models",
+                        "marble_detector.onnx",
+                    ]
+                ),
+            ),
+            DeclareLaunchArgument("ai_backend", default_value="cpu"),
+            DeclareLaunchArgument("ai_confidence_threshold", default_value="0.90"),
+            DeclareLaunchArgument("ai_check_every_n_frames", default_value="3"),
             Node(
                 package="tag_camera",
-                executable="cam_publisher.py",
+                executable="fast_camera_publisher.py",
                 name="tag_camera",
-                arguments=[device],
                 output="screen",
                 parameters=[
                     {
-                        "use_gpu": True,
-                        "gpu_backend": gpu_backend,
-                        "gpu_device_id": ParameterValue(gpu_device_id, value_type=int),
-                        "require_gpu": ParameterValue(require_gpu, value_type=bool),
+                        "device": device,
                         "fps": ParameterValue(
                             LaunchConfiguration("camera_fps"), value_type=float
                         ),
@@ -84,6 +98,17 @@ def generate_launch_description():
                                 ),
                                 "process_every_n": ParameterValue(
                                     LaunchConfiguration("process_every_n"),
+                                    value_type=int,
+                                ),
+                                "ai_mode": ai_mode,
+                                "ai_model_path": ai_model_path,
+                                "ai_backend": LaunchConfiguration("ai_backend"),
+                                "ai_confidence_threshold": ParameterValue(
+                                    LaunchConfiguration("ai_confidence_threshold"),
+                                    value_type=float,
+                                ),
+                                "ai_check_every_n_frames": ParameterValue(
+                                    LaunchConfiguration("ai_check_every_n_frames"),
                                     value_type=int,
                                 ),
                             }

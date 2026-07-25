@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw
 from maze_generator import generate_maze, validate_generated_layout
 from maze_layout import load_layout, save_json_layout
 from route_planner import PlannerConfig, apply_safe_route
-from simulator import CyberRunnerSim
+from simulator import TagMazeSim
 
 
 HERE = Path(__file__).resolve().parent
@@ -80,7 +80,7 @@ def main() -> None:
         draw_blueprint(original), "ORIGINAL: PLAN + RECORDED ROUTE"
     )
     original_blueprint.save(OUTPUTS / "original_maze_plan.png")
-    original_sim = CyberRunnerSim(original)
+    original_sim = TagMazeSim(original)
     original_render = add_title(
         Image.fromarray(original_sim.render(width=600, height=530)),
         "ORIGINAL: MUJOCO REFERENCE",
@@ -120,7 +120,7 @@ def main() -> None:
             add_title(draw_blueprint(layout), f"SEED {seed}: PLAN + COMPUTED ROUTE")
         )
         blueprints[-1].save(OUTPUTS / f"maze_seed_{seed}_plan.png")
-        sim = CyberRunnerSim(layout)
+        sim = TagMazeSim(layout)
         sim.save_xml(GENERATED / f"maze_seed_{seed}.xml")
         start = np.asarray(layout["waypoints"][0], dtype=float)
         sim.step(400)

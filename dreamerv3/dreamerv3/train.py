@@ -146,18 +146,18 @@ def make_logger(parsed, logdir, step, config):
 
 
 def make_replay(config, directory=None, is_eval=False, rate_limit=False, **kwargs):
-    assert config.replay in ["uniform", "cyberrunner", "tag"] or not rate_limit
+    assert config.replay in ["uniform", "tag_maze", "tag"] or not rate_limit
     length = config.batch_length
     size = config.replay_size // 10 if is_eval else config.replay_size
-    if config.replay in ["uniform", "cyberrunner", "tag"] or is_eval:
+    if config.replay in ["uniform", "tag_maze", "tag"] or is_eval:
         kw = {"online": config.replay_online}
         if rate_limit and config.run.train_ratio > 0:
             kw["samples_per_insert"] = config.run.train_ratio / config.batch_length
             kw["tolerance"] = 10 * config.batch_size
             kw["min_size"] = config.batch_size
-        if config.replay == "cyberrunner":
-            print("CYBERRUNNER Replay buffer")
-            replay = embodied.replay.Cyberrunner(length, size, directory, **kw)
+        if config.replay == "tag_maze":
+            print("TAG maze replay buffer")
+            replay = embodied.replay.TagMazeReplay(length, size, directory, **kw)
         elif config.replay == "tag":
             print("TAG Replay buffer")
             replay = embodied.replay.Tag(length, size, directory, **kw)
@@ -177,7 +177,7 @@ def make_envs(config, **overrides):
     ctors = []
     for index in range(config.envs.amount):
         env_overrides = dict(overrides)
-        if suite == "cyberrunner" and "seed" not in env_overrides:
+        if suite == "tagmaze" and "seed" not in env_overrides:
             env_overrides["seed"] = int(config.seed) + index
         ctor = bind(make_env, config, **env_overrides)
         if config.envs.parallel != "none":
@@ -205,7 +205,7 @@ def make_env(config, **overrides):
         "minecraft": "embodied.envs.minecraft:Minecraft",
         "loconav": "embodied.envs.loconav:LocoNav",
         "pinpad": "embodied.envs.pinpad:PinPad",
-        "cyberrunner": "embodied.envs.cyberrunner:CyberRunner",
+        "tagmaze": "embodied.envs.tag_maze:TagMaze",
     }[suite]
     if isinstance(ctor, str):
         module, cls = ctor.split(":")

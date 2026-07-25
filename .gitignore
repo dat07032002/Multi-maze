@@ -23,8 +23,8 @@ cmake-build-debug/
 /replay/
 /runs/
 /wandb/
-/cyberrunner_mujoco/outputs/
-/cyberrunner_mujoco/expert_demos_v2/
+/tag_mujoco/outputs/
+/tag_mujoco/expert_demos_v2/
 /printable_mazes/
 /tag_sysid_logs/
 /hardware_recordings/

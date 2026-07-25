@@ -11,7 +11,7 @@ import mujoco
 import mujoco.viewer
 
 from maze_layout import load_json_layout
-from simulator import CyberRunnerSim
+from simulator import TagMazeSim
 
 
 TILT_STEP = math.radians(1.0)
@@ -26,7 +26,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     layout = load_json_layout(args.layout) if args.layout else None
-    sim = CyberRunnerSim(layout)
+    sim = TagMazeSim(layout)
     tilt = [0.0, 0.0]
 
     def on_key(keycode: int) -> None:
@@ -52,7 +52,7 @@ def main() -> None:
             f"y={math.degrees(tilt[1]):.1f} deg"
         )
 
-    print("CyberRunner MuJoCo viewer controls")
+    print("TAG MuJoCo viewer controls")
     print(f"  Layout: {sim.layout.get('name', 'custom maze')}")
     print("  W/S: tilt X axis by 1 degree")
     print("  A/D: tilt Y axis by 1 degree")

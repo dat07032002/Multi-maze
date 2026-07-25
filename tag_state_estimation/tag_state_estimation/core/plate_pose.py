@@ -130,7 +130,7 @@ class PlatePoseEstimator:
         ]
         if pose_key == "camera":
             # The fixed-camera planar solve has two mirror solutions with very
-            # similar reprojection error. On this CyberRunner installation the
+            # similar reprojection error. On this TAG installation the
             # physically valid fixed-frame normal has positive camera-X. This
             # mounting-orientation prior prevents startup from alternating
             # between roughly +21 and -36 degree published alpha branches.

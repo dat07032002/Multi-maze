@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${CYBERRUNNER_VALIDATION_APPROVED:-NO}" != "YES" ]]; then
-  echo "Validation is locked. Set CYBERRUNNER_VALIDATION_APPROVED=YES after approval."
+if [[ "${TAG_VALIDATION_APPROVED:-NO}" != "YES" ]]; then
+  echo "Validation is locked. Set TAG_VALIDATION_APPROVED=YES after approval."
   exit 2
 fi
 
 repo_root="${1:?Pass the absolute staged repository path as argument 1.}"
 run_dir="${2:?Pass the absolute Dreamer production log directory as argument 2.}"
 python_bin="$repo_root/.venv/bin/python"
-monitor="$repo_root/cyberrunner_mujoco/validation_monitor.py"
-manifest="${CYBERRUNNER_MANIFEST:-$repo_root/cyberrunner_mujoco/maze_splits.json}"
-end_step="${CYBERRUNNER_END_STEP:-10000000}"
+monitor="$repo_root/tag_mujoco/validation_monitor.py"
+manifest="${TAG_MANIFEST:-$repo_root/tag_mujoco/maze_splits.json}"
+end_step="${TAG_END_STEP:-10000000}"
 validation_root="$run_dir/validation"
 mkdir -p "$validation_root"
 

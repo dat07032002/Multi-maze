@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from simulator import CyberRunnerSim
+from simulator import TagMazeSim
 
 
 HERE = Path(__file__).resolve().parent
@@ -20,7 +20,7 @@ def _distance_xy(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def verify() -> dict:
-    sim = CyberRunnerSim()
+    sim = TagMazeSim()
     results = {}
 
     # A quiet open location away from the listed holes and most interior walls.
@@ -92,8 +92,8 @@ def verify() -> dict:
 
 def main() -> None:
     OUTPUTS.mkdir(parents=True, exist_ok=True)
-    sim = CyberRunnerSim()
-    sim.save_xml(OUTPUTS / "cyberrunner_custom_maze.xml")
+    sim = TagMazeSim()
+    sim.save_xml(OUTPUTS / "tag_custom_maze.xml")
     results = verify()
     (OUTPUTS / "verification.json").write_text(
         json.dumps(results, indent=2), encoding="utf-8"

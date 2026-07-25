@@ -1,4 +1,4 @@
-"""Clearance-aware route planning for a finite-radius CyberRunner ball."""
+"""Clearance-aware route planning for a finite-radius TAG ball."""
 
 from __future__ import annotations
 

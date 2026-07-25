@@ -48,7 +48,7 @@ action is scaled by 240, signed on both axes, clamped by the bridge to 180, then
 converted to servo targets around position 500 with scale 1.5.
 
 See the canonical numerical specification in
-[`HARDWARE_CONTRACT.md`](../cyberrunner_mujoco/HARDWARE_CONTRACT.md).
+[`HARDWARE_CONTRACT.md`](../tag_mujoco/HARDWARE_CONTRACT.md).
 
 ## Maze contract
 

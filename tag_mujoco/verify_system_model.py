@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw
 from actuator_model import HiwonderActuatorModel
 from maze_layout import load_json_layout
 from system_config import ActuatorConfig, SystemConfig
-from system_model import CyberRunnerSystemModel
+from system_model import TagSystemModel
 
 
 HERE = Path(__file__).resolve().parent
@@ -33,7 +33,7 @@ def _jsonable(value: Any):
     return value
 
 
-def _camera_montage(model: CyberRunnerSystemModel) -> Image.Image:
+def _camera_montage(model: TagSystemModel) -> Image.Image:
     points = [
         model.route.point_at(0.0),
         model.route.point_at(model.route.total_length * 0.5),
@@ -91,7 +91,7 @@ def main() -> None:
         and results["actuator"]["positive_x_negative_y_mapping"]
     )
 
-    model = CyberRunnerSystemModel(layout, config)
+    model = TagSystemModel(layout, config)
     observation = model.reset(seed=1234, randomize=False)
     camera_metadata = model.camera.metadata()
     results["camera"] = {

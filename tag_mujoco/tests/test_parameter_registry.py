@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from cyberrunner_mujoco.parameter_registry import (
+from tag_mujoco.parameter_registry import (
     load_parameter_registry,
     unresolved_parameters,
 )

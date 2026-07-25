@@ -2,7 +2,7 @@
 
 `build_maze.py` validates a versioned `maze.json` and produces:
 
-- `layout_generated.py`: importable geometry for CyberRunner code
+- `layout_generated.py`: importable geometry for TAG code
 - `maze_preview.svg`: reviewable wall, hole, and waypoint overlay
 - `manifest.json`: normalized generated geometry
 - optionally `path_custom.pkl`: a `LinearPath` compatible with the current environment

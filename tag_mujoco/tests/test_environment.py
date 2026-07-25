@@ -6,22 +6,22 @@ from pathlib import Path
 
 import numpy as np
 
-from cyberrunner_mujoco.cyberrunner_env import (
-    CyberRunnerEnv,
-    CyberRunnerTask,
+from tag_mujoco.tag_env import (
+    TagMazeEnv,
+    TagMazeTask,
     TaskConfig,
     reward_components,
 )
-from cyberrunner_mujoco.build_maze_dataset import _generation_kwargs
-from cyberrunner_mujoco.expert_controller import RouteExpertController, collect_episode
-from cyberrunner_mujoco.maze_dataset import (
+from tag_mujoco.build_maze_dataset import _generation_kwargs
+from tag_mujoco.expert_controller import RouteExpertController, collect_episode
+from tag_mujoco.maze_dataset import (
     DEFAULT_MANIFEST,
     file_sha256,
     load_manifest,
     load_split,
 )
-from cyberrunner_mujoco.system_model import PolylineRoute
-from cyberrunner_mujoco.system_config import ActuatorConfig, PhysicsConfig
+from tag_mujoco.system_model import PolylineRoute
+from tag_mujoco.system_config import ActuatorConfig, PhysicsConfig
 
 
 class EnvironmentTest(unittest.TestCase):
@@ -67,7 +67,7 @@ class EnvironmentTest(unittest.TestCase):
         )
 
     def test_curriculum_starts_easy_and_converges_to_uniform(self):
-        task = CyberRunnerTask(
+        task = TagMazeTask(
             task_config=TaskConfig(
                 maze_manifest=str(DEFAULT_MANIFEST),
                 maze_split="train",
@@ -86,7 +86,7 @@ class EnvironmentTest(unittest.TestCase):
         )
 
     def test_plr_retains_uniform_coverage_and_prioritizes_unseen_mazes(self):
-        task = CyberRunnerTask(
+        task = TagMazeTask(
             task_config=TaskConfig(
                 maze_manifest=str(DEFAULT_MANIFEST),
                 maze_split="train",
@@ -103,7 +103,7 @@ class EnvironmentTest(unittest.TestCase):
         self.assertGreater(probabilities[3], float(np.median(probabilities)))
 
     def test_success_threshold_expands_start_and_randomization_curricula(self):
-        task = CyberRunnerTask(
+        task = TagMazeTask(
             task_config=TaskConfig(
                 random_start=True,
                 start_curriculum=True,
@@ -147,7 +147,7 @@ class EnvironmentTest(unittest.TestCase):
         self.assertGreater(len(variants), 1)
 
     def test_privileged_expert_emits_finite_contract_actions(self):
-        task = CyberRunnerTask(seed=8)
+        task = TagMazeTask(seed=8)
         task.reset(seed=8)
         controller = RouteExpertController()
         action = controller.action(task)
@@ -157,7 +157,7 @@ class EnvironmentTest(unittest.TestCase):
 
     def test_privileged_expert_can_save_success_without_privileged_fields(self):
         manifest = DEFAULT_MANIFEST.with_name("maze_splits_v2.json")
-        task = CyberRunnerTask(
+        task = TagMazeTask(
             seed=10,
             task_config=TaskConfig(
                 maze_manifest=str(manifest),
@@ -181,8 +181,8 @@ class EnvironmentTest(unittest.TestCase):
         self.assertNotIn("true_ball_position", episode)
 
     def test_scaled_progress_preserves_progress_direction_and_scale(self):
-        legacy = CyberRunnerTask(task_config=TaskConfig(reward_mode="progress"))
-        scaled = CyberRunnerTask(
+        legacy = TagMazeTask(task_config=TaskConfig(reward_mode="progress"))
+        scaled = TagMazeTask(
             task_config=TaskConfig(
                 reward_mode="scaled_progress",
                 progress_reward_scale=10.0,
@@ -233,8 +233,8 @@ class EnvironmentTest(unittest.TestCase):
         self.assertLess(local_progress, 0.03)
 
     def test_reset_and_step_are_deterministic(self):
-        first = CyberRunnerTask(seed=4)
-        second = CyberRunnerTask(seed=4)
+        first = TagMazeTask(seed=4)
+        second = TagMazeTask(seed=4)
         first_obs, _ = first.reset(seed=11)
         second_obs, _ = second.reset(seed=11)
         for key in first_obs:
@@ -246,7 +246,7 @@ class EnvironmentTest(unittest.TestCase):
             np.testing.assert_array_equal(first_step[0][key], second_step[0][key])
 
     def test_gym_space_contains_observations_and_no_nan(self):
-        env = CyberRunnerEnv()
+        env = TagMazeEnv()
         reset_result = env.reset(seed=5)
         observation = reset_result[0] if isinstance(reset_result, tuple) else reset_result
         self.assertTrue(env.observation_space.contains(observation))

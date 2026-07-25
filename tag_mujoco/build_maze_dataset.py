@@ -245,7 +245,7 @@ def main() -> None:
     manifest = {
         "schema_version": 2,
         "dataset_id": (
-            f"cyberrunner_fixed_board_{train_count}train_"
+            f"tag_fixed_board_{train_count}train_"
             f"{validation_count}val_{test_count}test_"
             f"{'v1' if args.profile == 'legacy' else 'v2'}"
         ),

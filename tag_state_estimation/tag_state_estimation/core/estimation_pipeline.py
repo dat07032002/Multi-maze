@@ -19,6 +19,17 @@ class EstimationPipeline:
         viewpoint="side",
         show_subimages_detector=False,
         acceleration_backend="cpu",
+        ai_mode="off",
+        ai_model_path=None,
+        ai_backend="cpu",
+        ai_confidence_threshold=0.90,
+        ai_check_every_n_frames=3,
+        ai_valid_roi=(0.25, 0.15, 0.72, 0.80),
+        ai_agreement_radius_px=12.0,
+        ai_max_reacquire_jump_px=25.0,
+        ai_occlusion_grace_frames=90,
+        ai_reacquire_confirm_frames=3,
+        ai_max_prediction_std_m=0.03,
     ):
 
         share = get_package_share_directory("tag_state_estimation")
@@ -29,6 +40,16 @@ class EstimationPipeline:
             viewpoint=viewpoint,
             show_subimages_detector=show_subimages_detector,
             acceleration_backend=acceleration_backend,
+            ai_mode=ai_mode,
+            ai_model_path=ai_model_path,
+            ai_backend=ai_backend,
+            ai_confidence_threshold=ai_confidence_threshold,
+            ai_check_every_n_frames=ai_check_every_n_frames,
+            ai_valid_roi=ai_valid_roi,
+            ai_agreement_radius_px=ai_agreement_radius_px,
+            ai_max_reacquire_jump_px=ai_max_reacquire_jump_px,
+            ai_occlusion_grace_frames=ai_occlusion_grace_frames,
+            ai_reacquire_confirm_frames=ai_reacquire_confirm_frames,
         )
         if estimator == "FiniteDiff":
             self.estimator = FiniteDiff(fps, FiniteDiff_mean_steps)
@@ -39,6 +60,8 @@ class EstimationPipeline:
 
         self.print_measurements = print_measurements
         self.show_image = show_image
+        self.ai_max_prediction_std_m = float(ai_max_prediction_std_m)
+        self.ball_source = self.measurements.ball_source
 
     def estimate(self, frame, return_ball_subimg=False):
         """
@@ -66,6 +89,13 @@ class EstimationPipeline:
         x_hat, P = self.estimator.estimate(
             inputs=inputs, measurement=np.array([xb, yb])
         )
+        self.ball_source = self.measurements.ball_source
+        if self.ball_source == "kalman_occlusion":
+            prediction_std = float(np.sqrt(np.max(np.diag(P)[:2])))
+            if prediction_std <= self.ai_max_prediction_std_m:
+                xb, yb = map(float, x_hat[:2])
+            else:
+                self.ball_source = "lost_uncertain"
 
         if type(self.estimator).__name__ == "KFBias":
             alpha_est = inputs[0] + x_hat[4]

@@ -19,9 +19,9 @@ class Detector:
     DEFAULT_TH_CORNERS = 0.002  # gaussian detection threshold
 
     DEFAULT_HSV_BALL = (
-        (79, 111),  # (minHue, maxHue) — blue (locked-WB camera, saturation 40)
-        (106, 255),  # (minSat, maxSat)
-        (0, 242),
+        (60, 116),  # (minHue, maxHue) - blue under the locked camera settings
+        (162, 255),  # (minSat, maxSat)
+        (50, 243),  # reject dark holes while retaining the blue marble
     )  # (minVal, maxVal)
     DEFAULT_Q_BALL = 6  # gaussian detection param -> q-th quentile
     DEFAULT_TH_BALL = 10 ** (-4)  # gaussian detection threshold
@@ -63,6 +63,7 @@ class Detector:
 
         self.fixed_corners = None
         self.is_ball_found = False
+        self.last_ball_detection_found = False
         self.consecutive_ball_misses = 0
 
         self.corner_subimage_half_size = corner_subimage_half_size
@@ -98,6 +99,7 @@ class Detector:
     def reset_ball_tracking(self):
         """Forget the last ball crop so the next frame searches the full board."""
         self.is_ball_found = False
+        self.last_ball_detection_found = False
         self.ball_pos = None
         self.consecutive_ball_misses = 0
 
@@ -219,6 +221,7 @@ class Detector:
         mask_initial=True,
     ):
 
+        self.last_ball_detection_found = False
         if self.is_ball_found:
             if mask_corner:
                 corner_ball = self.is_ball_in_corner()
@@ -267,6 +270,7 @@ class Detector:
             mask, 4, self.q_ball, self.th_ball, show_sub=self.show_subimages
         )
         if found:
+            self.last_ball_detection_found = True
             self.consecutive_ball_misses = 0
             self.is_ball_found = True
             c = (coords_ul_cropped_img + c_local).astype("float32")  # (x,y)

@@ -256,7 +256,7 @@ def main() -> None:
     args.manifest = (
         args.manifest.resolve()
         if args.manifest
-        else (args.repo_root / "cyberrunner_mujoco/maze_splits.json").resolve()
+        else (args.repo_root / "tag_mujoco/maze_splits.json").resolve()
     )
     if not args.manifest.is_file():
         raise FileNotFoundError(args.manifest)

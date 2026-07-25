@@ -1,2 +1,2 @@
-"""Tests for the clean CyberRunner simulator and task environment."""
+"""Tests for the clean TAG simulator and task environment."""
 

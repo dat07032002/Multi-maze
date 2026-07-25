@@ -1,4 +1,4 @@
-"""Procedurally build a MuJoCo model of the current CyberRunner maze."""
+"""Procedurally build a MuJoCo model of the current TAG maze."""
 
 from __future__ import annotations
 
@@ -251,7 +251,7 @@ def build_mjcf(layout: Dict[str, Any], model_params: Dict[str, Any] | None = Non
     goal_x, goal_y = map(float, layout["waypoints"][-1])
     goal_local = (goal_x - half_w, goal_y - half_h)
     model = f"""
-<mujoco model="cyberrunner_custom_maze">
+<mujoco model="tag_custom_maze">
   <compiler angle="radian" inertiafromgeom="auto"/>
   <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast" solver="Newton" iterations="12" tolerance="1e-9"/>
   <size nconmax="4000" njmax="12000"/>

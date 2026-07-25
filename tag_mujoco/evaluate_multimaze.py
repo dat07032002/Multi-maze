@@ -12,10 +12,10 @@ from typing import Any, Callable, Dict
 import numpy as np
 
 try:
-    from .cyberrunner_env import CyberRunnerTask, TaskConfig
+    from .tag_env import TagMazeTask, TaskConfig
     from .maze_dataset import DEFAULT_MANIFEST, load_split
 except ImportError:
-    from cyberrunner_env import CyberRunnerTask, TaskConfig
+    from tag_env import TagMazeTask, TaskConfig
     from maze_dataset import DEFAULT_MANIFEST, load_split
 
 
@@ -40,7 +40,7 @@ def evaluate_policy(
     seed: int = 0,
 ) -> Dict[str, Any]:
     split = load_split(split_name, manifest_path)
-    task = CyberRunnerTask(
+    task = TagMazeTask(
         seed=seed,
         task_config=TaskConfig(
             maze_manifest=str(split.manifest_path),

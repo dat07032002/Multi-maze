@@ -1,2 +1,2 @@
-"""CyberRunner simulation, planning, and training environment."""
+"""TAG simulation, planning, and training environment."""
 

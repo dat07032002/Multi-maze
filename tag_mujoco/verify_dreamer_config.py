@@ -21,10 +21,10 @@ def main() -> None:
         (DREAMER_PACKAGE / "configs.yaml").read_text(encoding="utf-8")
     )
     config = embodied.Config(configs["defaults"])
-    for name in ("cyberrunner", "medium"):
+    for name in ("tag_sim", "medium"):
         config = config.update(configs[name])
     expected = {
-        "task": "cyberrunner_sim",
+        "task": "tagmaze_sim",
         "maze_split": "train",
         "maze_sampling": "curriculum",
         "reward_mode": "scaled_progress",
@@ -32,18 +32,18 @@ def main() -> None:
     }
     actual = {
         "task": config.task,
-        "maze_split": config.env.cyberrunner.maze_split,
-        "maze_sampling": config.env.cyberrunner.maze_sampling,
-        "reward_mode": config.env.cyberrunner.reward_mode,
+        "maze_split": config.env.tagmaze.maze_split,
+        "maze_sampling": config.env.tagmaze.maze_sampling,
+        "reward_mode": config.env.tagmaze.reward_mode,
         "encoder_mlp_keys": config.encoder.mlp_keys,
     }
     if actual != expected:
         raise RuntimeError(f"Unexpected merged Dreamer configuration: {actual}")
     v2 = embodied.Config(configs["defaults"])
-    for name in ("cyberrunner_v2", "medium"):
+    for name in ("tag_sim_v2", "medium"):
         v2 = v2.update(configs[name])
     v2_expected = {
-        "task": "cyberrunner_sim",
+        "task": "tagmaze_sim",
         "env_count": 8,
         "env_parallel": "process",
         "maze_sampling": "plr",
@@ -55,10 +55,10 @@ def main() -> None:
         "task": v2.task,
         "env_count": v2.envs.amount,
         "env_parallel": v2.envs.parallel,
-        "maze_sampling": v2.env.cyberrunner.maze_sampling,
-        "failure_penalty": v2.env.cyberrunner.failure_penalty,
-        "start_curriculum": v2.env.cyberrunner.start_curriculum,
-        "randomization_curriculum": v2.env.cyberrunner.randomization_curriculum,
+        "maze_sampling": v2.env.tagmaze.maze_sampling,
+        "failure_penalty": v2.env.tagmaze.failure_penalty,
+        "start_curriculum": v2.env.tagmaze.start_curriculum,
+        "randomization_curriculum": v2.env.tagmaze.randomization_curriculum,
     }
     if v2_actual != v2_expected:
         raise RuntimeError(f"Unexpected v2 Dreamer configuration: {v2_actual}")

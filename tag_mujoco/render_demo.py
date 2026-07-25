@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from simulator import CyberRunnerSim
+from simulator import TagMazeSim
 
 
 HERE = Path(__file__).resolve().parent
@@ -22,7 +22,7 @@ def _save(image, name: str) -> Path:
 
 def main() -> None:
     OUTPUTS.mkdir(parents=True, exist_ok=True)
-    sim = CyberRunnerSim()
+    sim = TagMazeSim()
 
     sim.reset()
     level = sim.render()

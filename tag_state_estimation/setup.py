@@ -12,6 +12,7 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         ("share/" + package_name, glob("calib/*.txt")),
         ("share/" + package_name, ["markers.csv"]),
+        ("share/" + package_name + "/models", glob("models/*.onnx")),
         #("share/" + package_name, "rviz/config.rviz"),
     ],
     install_requires=["setuptools"],

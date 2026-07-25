@@ -1,5 +1,6 @@
 source /opt/ros/humble/setup.bash
-source ~/CYBER/cyberruner-main/install/setup.bash
+tag_workspace="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$tag_workspace/install/setup.bash"
 
 export OPENCV_VIDEOIO_PRIORITY_GSTREAMER=0
 export ROS_DOMAIN_ID=0

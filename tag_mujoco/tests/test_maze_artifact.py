@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from cyberrunner_mujoco.maze_artifact import PrintConfig, export_maze_artifact
+from tag_mujoco.maze_artifact import PrintConfig, export_maze_artifact
 
 
 class MazeArtifactTest(unittest.TestCase):
