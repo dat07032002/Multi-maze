@@ -3,9 +3,9 @@
 <package format="3">
   <name>tag_dreamer</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>DreamerV3 real-hardware environment and control entry points for TAG.</description>
   <maintainer email="bit@ethz.ch">Thomas Bi</maintainer>
-  <license>TODO: License declaration</license>
+  <license>AGPL-3.0-only</license>
 
   <depend>rclpy</depend>
   <depend>cv_bridge</depend>  

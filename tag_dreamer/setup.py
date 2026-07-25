@@ -17,8 +17,8 @@ setup(
     zip_safe=True,
     maintainer="Thomas Bi",
     maintainer_email="bit@ethz.ch",
-    description="TODO: Package description",
-    license="TODO: License declaration",
+    description="DreamerV3 real-hardware environment and control entry points for TAG",
+    license="AGPL-3.0-only",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [

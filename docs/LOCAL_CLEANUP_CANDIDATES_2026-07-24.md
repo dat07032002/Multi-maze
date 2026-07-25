@@ -16,15 +16,23 @@ These directories contained no source code. Their working source remains under
 
 | Path | Size | SHA-256 or contents |
 | --- | ---: | --- |
-| `hardware_recordings/archive/tag_hardware_recorder_20260724T184830Z/` | 241,539 bytes | 42 extracted files, moved intact |
+| `hardware_recordings/archive/tag_hardware_recorder_20260724T184830Z/` | 203,081 bytes | 35 archive files restored; seven bytecode caches omitted |
 | `cyberrunner_hardware_recorder-20260724T184830Z-1-001.zip` | 83,326 bytes | `AFD918119EC26AD05AA7F70109AE3E788872E082349D2870326AC97945357B3A` |
-| `cyberrunner_hardware_recorder-20260724T191749Z-1-001.zip` | 83,326 bytes | `AB232D297FD45FDDF21401BBDE5866589EF6D3AD4027A4CD0822B5D1B4F43C94` |
 | `hardware_recordings-20260724T192033Z-1-001.zip` | 7,324,337 bytes | `241905EE2D17DF8D2C66B7539C6BC6752A0CDE79EC60ADE29ECABF18ED2BAC65` |
 
-The two 83 KB archives have different hashes and must not be treated as
-duplicates without comparing their sessions. The extracted recording was moved
-under the canonical `hardware_recordings/archive/` hierarchy for future system
-identification work.
+The two original 83 KB archives had different container hashes but an
+entry-by-entry comparison found all 35 files byte-identical. The later duplicate
+was removed and the earlier archive retained. The extracted recording remains
+under the canonical `hardware_recordings/archive/` hierarchy for future
+system-identification work.
+
+## Local simulation outputs
+
+The old ignored validation GIF and generated output directory were removed. The
+physics, system-model, and training-readiness reports were regenerated from the
+current source. The reusable GIF renderer was corrected for the current
+`TagMaze` adapter and moved to tracked source at
+`tools/visualization/render_validation_gif.py`.
 
 ## Explicitly protected
 

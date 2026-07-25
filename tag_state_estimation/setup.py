@@ -19,8 +19,8 @@ setup(
     zip_safe=True,
     maintainer="timflueckiger",
     maintainer_email="timflueckiger@outlook.com",
-    description="TODO: Package description",
-    license="TODO: License declaration",
+    description="Camera-based marble and board-pose estimation for TAG",
+    license="AGPL-3.0-only",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [

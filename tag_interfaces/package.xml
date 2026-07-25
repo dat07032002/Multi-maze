@@ -3,9 +3,9 @@
 <package format="3">
   <name>tag_interfaces</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>ROS 2 messages and services for the TAG labyrinth robot.</description>
   <maintainer email="thomas@novobit.ch">tactilecontrol</maintainer>
-  <license>TODO: License declaration</license>
+  <license>AGPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

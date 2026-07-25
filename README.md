@@ -39,6 +39,7 @@ learned marble detector was selectively imported from TAG commits `4014cec` and
 | `hardware/mazes/` | Versioned removable-maze authoring template |
 | `scripts/` | GPU 2 training and GPU 3/4 validation launchers |
 | `tools/camera/` | Camera tuning, HSV comparison, safe viewing, and overlays |
+| `tools/visualization/` | Reusable validation-rollout rendering tools |
 | `docs/` | Architecture, training, upstream reference, cleanup, and handoff |
 
 The learned detector is integrated behind `off`, `shadow`, and `hybrid` modes.

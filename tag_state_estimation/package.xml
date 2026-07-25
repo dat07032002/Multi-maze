@@ -3,9 +3,9 @@
 <package format="3">
   <name>tag_state_estimation</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Camera-based marble and board-pose estimation for TAG.</description>
   <maintainer email="timflueckiger@outlook.com">timflueckiger</maintainer>
-  <license>TODO: License declaration</license>
+  <license>AGPL-3.0-only</license>
 
   <depend>rclpy</depend>
   <depend>cv_bridge</depend>  
