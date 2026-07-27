@@ -4,7 +4,7 @@ import time
 import os
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, Imu
 from cv_bridge import CvBridge
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -20,6 +20,10 @@ from tag_state_estimation.core.opencv_acceleration import (
 from tag_state_estimation.core.pose_continuity import (
     PoseContinuityGate,
     apply_published_angle_zero,
+)
+from tag_state_estimation.core.orientation_fusion import (
+    CameraImuOrientationFusion,
+    board_xy_angles,
 )
 from tag_interfaces.msg import StateEstimate, StateEstimateSub
 
@@ -37,7 +41,7 @@ class ImageSubscriber(Node):
         self.declare_parameter("require_gpu", False)
         self.declare_parameter("playable_width", 0.259)
         self.declare_parameter("playable_height", 0.229)
-        # Tolerance ADDED beyond the nominal board edge. The marble legitimately
+        # Tolerance beyond the nominal board edge. The marble legitimately
         # reaches the board edge (~half the playable size), and the board tilts
         # during play, which shifts the estimated position by a few mm. A small
         # negative/zero tolerance rejected valid edge marbles as "outside" and
@@ -49,6 +53,14 @@ class ImageSubscriber(Node):
         self.declare_parameter("pose_reject_hold_frames", 2)
         self.declare_parameter("pose_zero_alpha_deg", 0.0)
         self.declare_parameter("pose_zero_beta_deg", 0.0)
+        self.declare_parameter("orientation_mode", "camera")
+        self.declare_parameter("imu_topic", "/tag_imu/data")
+        self.declare_parameter("imu_timeout_sec", 0.10)
+        self.declare_parameter("imu_camera_correction_gain", 0.05)
+        self.declare_parameter("imu_max_disagreement_deg", 8.0)
+        self.declare_parameter("imu_mount_roll_deg", 0.0)
+        self.declare_parameter("imu_mount_pitch_deg", 0.0)
+        self.declare_parameter("imu_mount_yaw_deg", 0.0)
         self.declare_parameter("ai_mode", "off")
         self.declare_parameter("ai_model_path", "")
         self.declare_parameter("ai_backend", "cpu")
@@ -66,7 +78,9 @@ class ImageSubscriber(Node):
 
         self.skip = max(1, int(self.get_parameter("process_every_n").value))
         self.pipeline_fps = float(self.get_parameter("pipeline_fps").value)
-        self.print_measurements = bool(self.get_parameter("print_measurements").value)
+        self.print_measurements = bool(
+            self.get_parameter("print_measurements").value
+        )
         self.show_image = bool(self.get_parameter("show_image").value)
         self.use_gpu = bool(self.get_parameter("use_gpu").value)
         self.gpu_backend = str(self.get_parameter("gpu_backend").value)
@@ -79,13 +93,15 @@ class ImageSubscriber(Node):
         )
         self.playable_half_x = playable_width / 2.0 + edge_tolerance
         self.playable_half_y = playable_height / 2.0 + edge_tolerance
-        self.pose_gate = PoseContinuityGate(
+        pose_gate_args = dict(
             max_abs_deg=float(self.get_parameter("pose_max_abs_deg").value),
             max_step_deg=float(self.get_parameter("pose_max_step_deg").value),
             hold_frames=int(
                 self.get_parameter("pose_reject_hold_frames").value
             ),
         )
+        self.camera_pose_gate = PoseContinuityGate(**pose_gate_args)
+        self.pose_gate = PoseContinuityGate(**pose_gate_args)
         self.pose_zero_alpha_deg = float(
             self.get_parameter("pose_zero_alpha_deg").value
         )
@@ -93,6 +109,26 @@ class ImageSubscriber(Node):
             self.get_parameter("pose_zero_beta_deg").value
         )
         self.pose_rejection_active = False
+        self.orientation_mode = str(
+            self.get_parameter("orientation_mode").value
+        ).lower()
+        self.orientation_fusion = CameraImuOrientationFusion(
+            mode=self.orientation_mode,
+            imu_timeout_sec=float(self.get_parameter("imu_timeout_sec").value),
+            camera_correction_gain=float(
+                self.get_parameter("imu_camera_correction_gain").value
+            ),
+            max_disagreement_deg=float(
+                self.get_parameter("imu_max_disagreement_deg").value
+            ),
+            imu_mount_rpy_deg=(
+                float(self.get_parameter("imu_mount_roll_deg").value),
+                float(self.get_parameter("imu_mount_pitch_deg").value),
+                float(self.get_parameter("imu_mount_yaw_deg").value),
+            ),
+        )
+        self.latest_imu_quaternion = None
+        self.latest_imu_received = None
         self.ai_mode = str(self.get_parameter("ai_mode").value).lower()
         self.ai_model_path = str(self.get_parameter("ai_model_path").value)
         if self.ai_mode != "off" and not self.ai_model_path:
@@ -102,7 +138,10 @@ class ImageSubscriber(Node):
                 "marble_detector.onnx",
             )
 
-        self.acceleration_backend, acceleration_msg = configure_opencv_acceleration(
+        (
+            self.acceleration_backend,
+            acceleration_msg,
+        ) = configure_opencv_acceleration(
             self.use_gpu,
             self.gpu_backend,
             self.gpu_device_id,
@@ -113,6 +152,14 @@ class ImageSubscriber(Node):
         self.subscription = self.create_subscription(
             Image, "tag_camera/image", self.listener_callback, 1
         )
+        self.imu_subscription = None
+        if self.orientation_mode != "camera":
+            self.imu_subscription = self.create_subscription(
+                Imu,
+                str(self.get_parameter("imu_topic").value),
+                self.imu_callback,
+                20,
+            )
         self.publisher_ = self.create_publisher(
             StateEstimateSub, "tag_state_estimation/estimate_subimg", 1
         )
@@ -131,6 +178,15 @@ class ImageSubscriber(Node):
         self.ai_inference_publisher = self.create_publisher(
             Float32, "tag_state_estimation/ai_inference_ms", 10
         )
+        self.orientation_source_publisher = self.create_publisher(
+            String, "tag_state_estimation/orientation_source", 10
+        )
+        self.imu_age_publisher = self.create_publisher(
+            Float32, "tag_state_estimation/imu_age_sec", 10
+        )
+        self.orientation_disagreement_publisher = self.create_publisher(
+            Float32, "tag_state_estimation/orientation_disagreement_deg", 10
+        )
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
         self.tf_broadcaster = TransformBroadcaster(self)
 
@@ -138,7 +194,7 @@ class ImageSubscriber(Node):
         self.br = CvBridge()
         self.estimation_pipeline = EstimationPipeline(
             fps=self.pipeline_fps,
-            estimator="KF",  #  "FiniteDiff",  "KF", "KFBias"
+            estimator="KF",  # "FiniteDiff", "KF", or "KFBias"
             print_measurements=self.print_measurements,
             show_image=self.show_image,
             do_anim_3d=False,
@@ -180,6 +236,10 @@ class ImageSubscriber(Node):
             f"Marble detector mode={self.ai_mode}; "
             f"model={self.ai_model_path or 'disabled'}"
         )
+        self.get_logger().info(
+            f"Board orientation mode={self.orientation_mode}; "
+            f"IMU topic={self.get_parameter('imu_topic').value}"
+        )
         self.last_valid_ball_pixel = None
         self.outside_candidate_active = False
         self.outside_candidate_count = 0
@@ -200,6 +260,26 @@ class ImageSubscriber(Node):
         self._prof_arrival = []           # s between consecutive frames
         self._prof_compute = []           # s spent inside estimate()
 
+    def imu_callback(self, message):
+        """Keep the newest normalized BNO086 orientation sample."""
+        quaternion = np.array(
+            [
+                message.orientation.x,
+                message.orientation.y,
+                message.orientation.z,
+                message.orientation.w,
+            ],
+            dtype=float,
+        )
+        norm = float(np.linalg.norm(quaternion))
+        if not np.all(np.isfinite(quaternion)) or norm < 0.5:
+            self.get_logger().warn(
+                "Ignoring invalid IMU quaternion.", throttle_duration_sec=2.0
+            )
+            return
+        self.latest_imu_quaternion = quaternion / norm
+        self.latest_imu_received = time.monotonic()
+
     def _profile_report(self):
         import statistics
         arr = self._prof_arrival
@@ -212,11 +292,14 @@ class ImageSubscriber(Node):
         cmp_fps = 1.0 / cmp_mean if cmp_mean > 0 else 0.0
         print(
             "[PROFILE] "
-            f"camera_arrival: {arr_mean*1000:.1f} ms avg / {max(arr)*1000:.1f} ms max "
+            f"camera_arrival: {arr_mean*1000:.1f} ms avg / "
+            f"{max(arr)*1000:.1f} ms max "
             f"(~{cam_fps:.1f} fps)  |  "
-            f"estimate(): {cmp_mean*1000:.1f} ms avg / {max(cmp)*1000:.1f} ms max "
+            f"estimate(): {cmp_mean*1000:.1f} ms avg / "
+            f"{max(cmp)*1000:.1f} ms max "
             f"(~{cmp_fps:.1f} fps cap)  ->  "
-            f"bottleneck={'COMPUTE' if cmp_mean >= arr_mean * 0.9 else 'CAMERA/USB'}"
+            "bottleneck="
+            f"{'COMPUTE' if cmp_mean >= arr_mean * 0.9 else 'CAMERA/USB'}"
         )
         self._prof_arrival.clear()
         self._prof_compute.clear()
@@ -243,14 +326,38 @@ class ImageSubscriber(Node):
         x_hat, P, angles, subimg, xb, yb = self.estimation_pipeline.estimate(
             frame, return_ball_subimg=True
         )
-        angles = apply_published_angle_zero(
+        camera_angles = apply_published_angle_zero(
             angles,
             alpha_zero_deg=self.pose_zero_alpha_deg,
             beta_zero_deg=self.pose_zero_beta_deg,
         )
-        pose_result = self.pose_gate.update(angles)
+        camera_pose_result = self.camera_pose_gate.update(camera_angles)
+        camera_rotation = None
+        if camera_pose_result.accepted:
+            camera_rotation = (
+                self.estimation_pipeline.measurements.plate_pose.T__W_M[:3, :3]
+            )
+        imu_age = (
+            time.monotonic() - self.latest_imu_received
+            if self.latest_imu_received is not None
+            else float("inf")
+        )
+        orientation_result = self.orientation_fusion.update(
+            camera_rotation,
+            self.latest_imu_quaternion,
+            imu_age,
+        )
+        if orientation_result.rotation is None:
+            fused_angles = (np.nan, np.nan)
+        else:
+            fused_angles = apply_published_angle_zero(
+                board_xy_angles(orientation_result.rotation),
+                alpha_zero_deg=self.pose_zero_alpha_deg,
+                beta_zero_deg=self.pose_zero_beta_deg,
+            )
+        pose_result = self.pose_gate.update(fused_angles)
         ball_source = self.estimation_pipeline.ball_source
-        if not pose_result.accepted:
+        if not camera_pose_result.accepted:
             detector = self.estimation_pipeline.measurements.detector
             detector.corners = None
             detector.corners_missing = True
@@ -269,6 +376,13 @@ class ImageSubscriber(Node):
         elif self.pose_rejection_active:
             self.get_logger().info("Plate-pose tracking recovered.")
             self.pose_rejection_active = False
+        if not pose_result.accepted:
+            xb = np.nan
+            yb = np.nan
+            x_hat[2] = np.nan
+            x_hat[3] = np.nan
+            subimg = np.zeros_like(subimg)
+            ball_source = "lost_orientation"
         angles = pose_result.angles
         if self.profile_timing:
             self._prof_compute.append(time.perf_counter() - t_est0)
@@ -303,13 +417,24 @@ class ImageSubscriber(Node):
             if detector.ball_pos is not None:
                 self.last_valid_ball_pixel = detector.ball_pos.copy()
             if self.outside_candidate_active:
-                self.get_logger().info("Marble tracking recovered inside playable map.")
+                self.get_logger().info(
+                    "Marble tracking recovered inside playable map."
+                )
             self.outside_candidate_active = False
             self.outside_candidate_count = 0
 
         source_message = String()
         source_message.data = ball_source
         self.ball_source_publisher.publish(source_message)
+        orientation_source_message = String()
+        orientation_source_message.data = orientation_result.source
+        self.orientation_source_publisher.publish(orientation_source_message)
+        imu_age_message = Float32()
+        imu_age_message.data = float(imu_age)
+        self.imu_age_publisher.publish(imu_age_message)
+        disagreement_message = Float32()
+        disagreement_message.data = float(orientation_result.disagreement_deg)
+        self.orientation_disagreement_publisher.publish(disagreement_message)
         for publisher, value in (
             (
                 self.ai_confidence_publisher,
@@ -317,7 +442,8 @@ class ImageSubscriber(Node):
             ),
             (
                 self.ai_disagreement_publisher,
-                self.estimation_pipeline.measurements.detection_disagreement_px,
+                self.estimation_pipeline.measurements
+                .detection_disagreement_px,
             ),
             (
                 self.ai_inference_publisher,
@@ -356,14 +482,21 @@ class ImageSubscriber(Node):
                 'world',
             )
             self.tf_static_broadcaster.sendTransform(t)
+        published_maze_pose = (
+            self.estimation_pipeline.measurements.plate_pose.T__W_M.copy()
+        )
+        if pose_result.accepted and orientation_result.rotation is not None:
+            published_maze_pose[:3, :3] = orientation_result.rotation
         t_maze = self.get_tf_msg(
-            self.estimation_pipeline.measurements.plate_pose.T__W_M,
+            published_maze_pose,
             'maze',
             'world',
         )
         T__B_M = np.eye(4)
         ball_position = (
-            self.estimation_pipeline.measurements.get_ball_position_in_maze().copy()
+            self.estimation_pipeline.measurements
+            .get_ball_position_in_maze()
+            .copy()
         )
         ball_position[:2] = (xb, yb)
         T__B_M[:3, -1] = ball_position
@@ -378,7 +511,6 @@ class ImageSubscriber(Node):
         # self.a[-1] = msg.state.alpha
         # self.b[:-1] = self.b[1:]
         # self.b[-1] = msg.state.beta
-        # print("a_dot: {:.4f}, b_dot: {:.4f}".format((self.a[-1] - self.a[0]) * 55.0 / 14.0, (self.b[-1] - self.b[0]) * 55.0 / 14.0))
         # #self.prev_a = msg.state.alpha
         # self.prev_b = msg.state.beta
         # cv2.imshow("sub", subimg)

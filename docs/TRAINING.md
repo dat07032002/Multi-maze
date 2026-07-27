@@ -38,11 +38,19 @@ Smoke checkpoint:
 /home/tn22833/cyberrunner_logs/multimaze_v2_smoke10k_gpu2_20260723_220438/checkpoint.ckpt
 ```
 
-The run reached step 510,432 at about 217 FPS before a server reboot at
-2026-07-23 23:02 CDT stopped training and the in-progress 500k validation. No
-training exception was logged and all artifacts were preserved. As of the
-2026-07-24 audit, the run is stopped and must be resumed into a fresh directory.
-See `V2_TRAINING.md` for the full experiment record and recovery command.
+That attempt reached step 510,432 before a server reboot. It was then resumed in
+`multimaze_v2_production_10m_resume_gpu2_20260724_095657` and reached step
+9,520,768. On 2026-07-24 the user requested a safe stop; SIGTERM was sent only
+to the confirmed training and validation processes. The main 470 MB checkpoint
+was saved, the copied 9.5M checkpoint passed its SHA-256 check, and replay,
+metrics and logs were preserved. The 9.5M validation was interrupted, so 9M is
+the latest completed milestone. No training or validation process remained after
+the stop.
+
+The 9M canonical result was 39.06% completion and 34.38% falls. Its robust result
+was 67.19% completion and 23.44% falls. The selector still ranks the 6.5M
+canonical checkpoint first at 40.63% completion. Audit the large difference
+between canonical and robust protocols before selecting a hardware checkpoint.
 
 ## GPU allocation
 

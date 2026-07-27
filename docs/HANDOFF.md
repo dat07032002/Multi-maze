@@ -49,7 +49,11 @@ and begin with a reduced command limit before deploying a learned policy.
 
 The current production artifacts are external to Git. Their paths, GPU mapping,
 status commands, and safe-stop instructions are in [TRAINING.md](TRAINING.md).
-Cloning on another desktop does not interrupt that run.
+The recovered run was intentionally stopped at step 9,520,768 on 2026-07-24;
+cloning or building this repository does not alter the preserved server files.
+
+For the next physical-hardware session, use the complete setup and test order in
+[HARDWARE_HANDOFF_2026-07-26.md](HARDWARE_HANDOFF_2026-07-26.md).
 
 ## Next work
 

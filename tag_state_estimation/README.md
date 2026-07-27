@@ -28,3 +28,9 @@ more than 3 degrees from the previous accepted frame. It resets predictive
 corner tracking, holds at most two frames, then publishes non-finite state so a
 controller or sysid tool must stop if recovery fails. Thresholds are ROS
 parameters and retain hard validation bounds in the continuity gate.
+
+Board-mounted BNO086 support is implemented behind the default-off
+`orientation_mode` parameter. It accepts standard ROS IMU data, includes an
+ESP32 serial adapter, aligns the IMU frame from a simultaneous camera pose, and
+provides guarded `camera`, `imu`, and `fused` modes. See
+[IMU_ORIENTATION.md](IMU_ORIENTATION.md) for the wire protocol and hardware test.

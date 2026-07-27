@@ -104,11 +104,23 @@ completion 0.1204 across 64 held-out mazes. This baseline was expected to be
 weak. The monitor copied a stable 500k checkpoint and began canonical
 validation, but the reboot interrupted evaluation before it produced a result.
 
-As of the 2026-07-24 audit, no training or validation process is running. The
+At that audit point, no training or validation process was running. The
 production checkpoint, replay chunks, metrics, baseline validation, and 500k
-validation snapshot remain on the server.
+validation snapshot remained on the server.
 
-### Recovery after the reboot
+### Subsequent recovery outcome
+
+The run was subsequently resumed in
+`multimaze_v2_production_10m_resume_gpu2_20260724_095657`. It reached step
+9,520,768 before the user requested a safe stop. Training, the validation
+monitor and the active 9.5M evaluator received SIGTERM; all confirmed processes
+exited and the unrelated shared-server workload was left untouched. The main
+checkpoint was saved at shutdown, and the copied 9.5M checkpoint passed its
+SHA-256 check. The 9.5M evaluation did not finish, so 9M remains the latest
+complete validation milestone. See `HARDWARE_HANDOFF_2026-07-26.md` for results
+and the current continuation plan.
+
+### Recovery commands used after the reboot
 
 First finish canonical validation of the preserved 500k snapshot. Do not resume
 the 10M run unless it satisfies the rollout gates at the end of this document.

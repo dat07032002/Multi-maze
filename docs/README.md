@@ -1,6 +1,8 @@
 # Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): simulation, policy, and physical TAG data flows
+- [IMU orientation](../tag_state_estimation/IMU_ORIENTATION.md): BNO086 serial protocol, fusion modes, and hardware validation
+- [HARDWARE_HANDOFF_2026-07-26.md](HARDWARE_HANDOFF_2026-07-26.md): consolidated completed work, remaining sysid plan, Ubuntu setup, and agent prompt
 - [TRAINING.md](TRAINING.md): dataset, GPUs, validation schedule, server runs, and operations
 - [V2_TRAINING.md](V2_TRAINING.md): adaptive 512/64/64 profile, demonstrations, and rollout gates
 - [TAG_REFERENCE.md](TAG_REFERENCE.md): exactly what was imported from the updated working TAG repository

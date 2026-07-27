@@ -30,6 +30,7 @@ setup(
             "ai_labeler = tag_state_estimation.ai_dataset_labeler:main",
             "ai_train = tag_state_estimation.train_ai_marble:main",
             "ai_detector = tag_state_estimation.ai_marble_detector_node:main",
+            "bno086_serial = tag_state_estimation.bno086_serial_node:main",
         ],
     },
 )

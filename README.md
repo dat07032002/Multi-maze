@@ -85,8 +85,9 @@ privileged expert demonstrations, and eight parallel simulator processes. A
 10k smoke test completed successfully at about twice the environment throughput
 of the single-environment v1 runs.
 
-The first 10M production attempt reached step 510,432 before a server
-reboot on 2026-07-23 interrupted both training and the 500k validation job. The
-checkpoint and replay artifacts were preserved; training was not running at the
-last status audit on 2026-07-24. See [docs/V2_TRAINING.md](docs/V2_TRAINING.md)
-for the experiment record and recovery command.
+After recovery from the first server reboot, production reached step 9,520,768.
+It was intentionally stopped on 2026-07-24 at the user's request; its final
+checkpoint, replay and logs were preserved. The latest complete validation is
+9M, while the copied 9.5M checkpoint is valid but its evaluation was interrupted
+by the stop. See [docs/HARDWARE_HANDOFF_2026-07-26.md](docs/HARDWARE_HANDOFF_2026-07-26.md)
+for the current hardware/sysid plan and Ubuntu continuation instructions.
