@@ -12,6 +12,11 @@ from typing import Any, Dict, List, Mapping, Sequence
 HERE = Path(__file__).resolve().parent
 DEFAULT_MANIFEST = HERE / "maze_splits.json"
 SPLIT_NAMES = ("smoke", "train", "validation", "test")
+# Optional splits may be absent from older manifests. The development split is a
+# deliberate subset of the training layouts. It exists so tuning decisions can be
+# ranked without reading the held-out validation split that the mastery gate
+# measures. Its absolute scores are optimistic because the policy trains on it.
+OPTIONAL_SPLIT_NAMES = ("dev",)
 
 
 @dataclass(frozen=True)
@@ -78,8 +83,23 @@ def validate_manifest(manifest: Mapping[str, Any], manifest_path: Path) -> None:
             if expected_hash and file_sha256(resolved) != expected_hash:
                 raise ValueError(f"Immutable maze hash mismatch: {resolved}")
 
+    for name in OPTIONAL_SPLIT_NAMES:
+        entries = manifest.get(name)
+        if entries is None:
+            continue
+        if not isinstance(entries, list) or not entries:
+            raise ValueError(f"Manifest split {name!r} must be a non-empty list")
+        if len(entries) != len(set(entries)):
+            raise ValueError(f"Manifest split {name!r} contains duplicates")
+        split_sets[name] = set(entries)
+        for relative in entries:
+            if not isinstance(metadata.get(relative), Mapping):
+                raise ValueError(f"Manifest metadata is missing for {relative}")
+
     if not split_sets["smoke"].issubset(split_sets["train"]):
         raise ValueError("The smoke split must be a subset of the training split")
+    if "dev" in split_sets and not split_sets["dev"].issubset(split_sets["train"]):
+        raise ValueError("The dev split must be a subset of the training split")
     held_out = ("train", "validation", "test")
     for index, first in enumerate(held_out):
         for second in held_out[index + 1 :]:
@@ -99,8 +119,11 @@ def load_split(
         validate_manifest(manifest, path)
     elif name not in manifest:
         raise KeyError(f"Unknown maze split {name!r}")
-    if name not in SPLIT_NAMES:
-        raise KeyError(f"Unknown maze split {name!r}; choose from {SPLIT_NAMES}")
+    known = SPLIT_NAMES + OPTIONAL_SPLIT_NAMES
+    if name not in known:
+        raise KeyError(f"Unknown maze split {name!r}; choose from {known}")
+    if name not in manifest:
+        raise KeyError(f"Manifest does not define the {name!r} split")
     relatives: Sequence[str] = manifest[name]
     metadata = manifest["metadata"]
     return MazeSplit(

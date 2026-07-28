@@ -5,6 +5,9 @@
 - [HARDWARE_HANDOFF_2026-07-26.md](HARDWARE_HANDOFF_2026-07-26.md): consolidated completed work, remaining sysid plan, Ubuntu setup, and agent prompt
 - [TRAINING.md](TRAINING.md): dataset, GPUs, validation schedule, server runs, and operations
 - [V2_TRAINING.md](V2_TRAINING.md): adaptive 512/64/64 profile, demonstrations, and rollout gates
+- [NOMINAL_FIRST_TRAINING.md](NOMINAL_FIRST_TRAINING.md): fixed-dynamics full-start pilot and mastery gates before domain randomization
+- [NOMINAL_DIAGNOSIS_2026-07-28.md](NOMINAL_DIAGNOSIS_2026-07-28.md): why the 500k nominal pilot fails the mastery gate, and the sharp-corner root cause
+- [NOMINAL_AB_ARMS_2026-07-28.md](NOMINAL_AB_ARMS_2026-07-28.md): bounded arm results, the hole-margin reward term, reward calibration, and rejected hypotheses
 - [TAG_REFERENCE.md](TAG_REFERENCE.md): exactly what was imported from the updated working TAG repository
 - [HARDWARE_RECORDING_2026-07-24.md](HARDWARE_RECORDING_2026-07-24.md): sanitized passive measurements and remaining calibration tests
 - [HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md](HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md): read-only live hardware/training inventory, compatibility matrix, and deployment blockers

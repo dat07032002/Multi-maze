@@ -118,6 +118,56 @@ successfully. `scripts/continue_pla_pilot_after_prereqs.sh` enforces that
 ordering, launches the bounded pilot and its 250k/500k validation, writes the
 continuation-gate result, and never starts a longer continuation.
 
+## Nominal-first decision
+
+The PLA adaptation sequence above is deferred. The current training decision
+is to first establish full-route mastery without plant domain randomization.
+`tag_sim_v2_nominal_fullstart` disables plant randomization and random starts,
+loads only the preserved 13M agent weights, and begins at step zero with fresh
+nominal replay. The failed PLA demonstration job is not a prerequisite.
+
+The first nominal run is bounded at 500k steps with canonical validation at
+250k and 500k. Domain randomization remains locked until a 192-episode
+confirmation reaches at least 90% overall completion, 80% hard-maze completion,
+95% mean maximum progress, at most 10% falls, and at least 75% completion in
+every difficulty band. See `NOMINAL_FIRST_TRAINING.md`.
+
+The active nominal pilot is:
+
+```text
+/home/tn22833/cyberrunner_logs/
+nominal_fullstart_13m_500k_20260728_134149
+```
+
+It loaded the preserved 13M agent weights without the old step counter or
+replay, confirmed all plant-randomization and random-start flags were disabled,
+and started canonical-only validation monitoring at 250k and 500k. The
+preserved `134018` attempt selected the vision-only Python environment and
+failed before configuration or validation; it contains no training result.
+
+## Nominal mastery achieved
+
+The nominal pilot completed 500k steps but failed all five mastery criteria under
+the 192-episode protocol: 79.17% completion, 16.15% falls, 86.64% mean maximum
+route completion. Seven validation layouts failed every seed, capping completion
+at 89.1% and making the gate unreachable by broad improvement.
+
+Diagnosis found the policy driving bang-bang, mean absolute action 0.88 to 0.93
+of full range with 64% to 74% of steps saturated, and every failure landing at a
+route turn in its own 95th percentile or above while hole and wall clearance
+there was normal. It also found that `clearance_cost` was computed, logged and
+then discarded, so hazard avoidance had only the terminal fall penalty to learn
+from.
+
+Adding a dense hole-only margin penalty passed the gate: 90.10% completion, 6.25%
+falls, 95.57% mean maximum route completion, 88.89% hard-maze completion, no band
+below 88.89%. No validation layout fails all three seeds any more. Completion
+passed by a single episode, so domain randomization stays locked pending a second
+confirmation at different seeds.
+
+See [NOMINAL_DIAGNOSIS_2026-07-28.md](NOMINAL_DIAGNOSIS_2026-07-28.md) and
+[NOMINAL_AB_ARMS_2026-07-28.md](NOMINAL_AB_ARMS_2026-07-28.md).
+
 ## Verification
 
 The complete local and staged-server suites pass:

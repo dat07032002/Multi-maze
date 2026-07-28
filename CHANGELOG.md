@@ -2,6 +2,79 @@
 
 ## Unreleased
 
+- Diagnosed the completed 500k nominal pilot: the 192-episode mastery gate fails
+  every criterion, seven validation layouts never succeed on any seed and cap
+  completion at 89.1%, and every one of those layouts fails at a route turn in
+  its own 95th percentile or above while hole and wall clearance there is normal.
+- Measured that the policy drives bang-bang, averaging 0.88 to 0.93 of full
+  action range with 64% to 74% of steps saturated, which cannot decelerate into a
+  near-right-angle corner.
+- Passed the 192-episode nominal mastery gate on the held-out validation split
+  with the hole-margin arm: 90.10% completion, 6.25% falls, 95.57% mean maximum
+  route completion, 88.89% hard-maze completion, and no difficulty band below
+  88.89%. Recorded through `nominal_training_gate.py`.
+- Removed the structural ceiling: no validation layout now fails all three
+  evaluation seeds, where the pilot had seven such layouts capping completion at
+  89.1%. Layout 20025, whose ball previously froze for 2,500 steps on every seed,
+  now completes on two of three.
+- Noted that gate completion passed by a single episode, 173 of 192, so a second
+  confirmation at different evaluation seeds is required before domain
+  randomization is unlocked.
+- Added a dense hole-margin reward term, `hole_clearance_penalty`, defaulting to
+  zero, built on a new hole-only `signed_hole_clearance`. The pre-existing
+  `clearance_cost` mixes walls with holes and ordinary corridor travel sits inside
+  its band, so charging it would have penalized driving down a corridor.
+- Measured the hole warning band rather than guessing it: on-route hole clearance
+  has a median of 18.4 mm and a 1st percentile of 8.0 mm, so an 8 mm band charges
+  0.94% of on-route travel where a 12 mm band would charge 15.31%.
+- Measured that the hole-margin term is the effective lever. On the dev split at
+  500k it reaches 90.63% completion, 7.81% falls and 95.01% mean maximum route
+  completion, against 81.25%, 18.75% and 89.11% for the matched no-penalty
+  control, cutting the fall rate by more than half.
+- Measured that the action-rate term reduces chatter by about 35% but does not by
+  itself improve completion or progress beyond noise.
+- Recorded that the no-penalty control raises completion while making falls worse,
+  15.63% to 18.75%, so training longer without a hazard signal trades falls for
+  progress.
+- Added an `action_rate_penalty` reward term, defaulting to zero, with a shipped
+  arm at 0.003 calibrated to about 6% of the episode return and a test guarding
+  that budget against penalties that would reward standing still.
+- Recorded that the route corners are dynamically trackable after all: at the 10
+  degree board limit the minimum turn radius is 0.21 to 3.47 mm and the stopping
+  distance 0.22 to 1.74 mm across observed speeds, so no maze dataset was
+  regenerated and the failures are a control deficiency.
+- Recorded that the corner-geometry correlation is weak at population scale, 10.3
+  against 11.4 mm over 86 failing and 426 solved training layouts, so the earlier
+  seven-layout figures were inflated by sample size.
+- Swept all 512 training layouts and recorded the 86 the policy still fails, for
+  demonstration targeting, noting that training completion of 83.20% against
+  unseen 79.17% indicates an unlearned skill rather than overfitting.
+- Allowed bounded A/B arms to run concurrently through `TAG_TRAIN_GPU`,
+  `TAG_CANONICAL_GPU` and `TAG_ROBUST_GPU`, restricting training to physical GPU 2
+  or 1, keeping physical GPU 0 unreachable, and refusing to let training share a
+  device with its own validation.
+- Added an `eval_mode` policy branch and an evaluator `--policy-mode` flag, and
+  recorded the protocol in every result. Measured that acting on the action
+  distribution mode is worse than sampling, so sampling remains the default.
+- Added a deterministic 64-layout `dev` subset of the training layouts, matched
+  to the validation split's difficulty bands, so tuning arms are ranked without
+  reading the split that decides the mastery gate.
+- Added bounded nominal A/B arms for action smoothness, gradient ratio, fall
+  penalty, and prioritized-replay sharpening, plus a launcher that refuses
+  non-nominal profiles and verifies randomization is disabled in the written
+  config.
+- Added a trajectory probe that records per-step ball position, commanded tilt,
+  progress, and clearance for one deterministic held-out rollout.
+- Allowed the validation monitor and evaluator to target the `dev` and `train`
+  splits and to select the action protocol and canonical episode count.
+
+- Added a nominal-first full-route DreamerV3 continuation profile that disables
+  plant randomization, requires agent-only checkpoint loading, and starts with
+  fresh nominal replay.
+- Added a bounded 500k nominal pilot launcher with canonical validation at 250k
+  and 500k, independent of the incomplete PLA demonstration dataset.
+- Added separate bounded-continuation and 192-episode nominal-mastery gates so
+  a single favorable validation cannot unlock domain randomization.
 - Propagated camera source timestamps through `StateEstimate`, passive logs,
   and active sysid logs so actuator timing and state latency use image time
   instead of ROS receipt time when the interface provides it.

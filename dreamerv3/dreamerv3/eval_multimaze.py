@@ -46,11 +46,11 @@ def _make_env(config, layout_path: pathlib.Path, seed: int, robust: bool):
     return embodied.BatchEnv([env], parallel=False)
 
 
-def _run_episode(agent, env) -> dict[str, np.ndarray]:
+def _run_episode(agent, env, policy_mode: str = "eval") -> dict[str, np.ndarray]:
     episodes: list[dict[str, np.ndarray]] = []
     driver = embodied.Driver(env)
     driver.on_episode(lambda episode, _: episodes.append(episode))
-    policy = lambda *args: agent.policy(*args, mode="eval")
+    policy = lambda *args: agent.policy(*args, mode=policy_mode)
     driver(policy, episodes=1)
     if len(episodes) != 1:
         raise RuntimeError(f"Expected one completed episode, got {len(episodes)}")
@@ -62,12 +62,21 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=pathlib.Path, required=True)
     parser.add_argument("--config", type=pathlib.Path, required=True)
     parser.add_argument("--manifest", type=pathlib.Path, required=True)
-    parser.add_argument("--split", choices=("validation", "test"), default="validation")
+    # "dev" is a subset of the training layouts used to rank tuning decisions
+    # without reading the validation split that the mastery gate measures.
+    # "train" sweeps every training layout to find which ones the policy has not
+    # learned, so demonstrations can target them.
+    parser.add_argument(
+        "--split", choices=("validation", "test", "dev", "train"), default="validation"
+    )
     parser.add_argument("--mode", choices=("canonical", "robust"), required=True)
     parser.add_argument("--episodes-per-maze", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=20260723)
     parser.add_argument("--trigger-step", type=int, required=True)
+    # "sample" reproduces the historical protocol, which draws each action from
+    # the actor distribution. "mode" acts on the distribution mode instead.
+    parser.add_argument("--policy-mode", choices=("sample", "mode"), default="sample")
     parser.add_argument("--output", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
@@ -88,6 +97,7 @@ def main() -> None:
     )
     split = load_split(args.split, args.manifest)
     robust = args.mode == "robust"
+    policy_mode = "eval" if args.policy_mode == "sample" else "eval_mode"
 
     prototype = _make_env(config, split.paths[0], args.seed, robust)
     step = embodied.Counter()
@@ -111,7 +121,7 @@ def main() -> None:
             )
             env = _make_env(config, layout_path, evaluation_seed, robust)
             try:
-                episode = _run_episode(agent, env)
+                episode = _run_episode(agent, env, policy_mode)
             finally:
                 env.close()
             record = episode_record(
@@ -144,6 +154,8 @@ def main() -> None:
         "episodes_per_maze": args.episodes_per_maze,
         "max_steps": args.max_steps,
         "seed": args.seed,
+        # Results from different action-selection protocols are not comparable.
+        "policy_mode": args.policy_mode,
         "duration_seconds": time.time() - started,
         **aggregates,
         "episodes": records,

@@ -58,7 +58,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0}
     dmc: {size: [64, 64], repeat: 2, camera: -1}
     loconav: {size: [64, 64], repeat: 2, camera: -1}
-    tagmaze: {randomize_plant: False, random_start: False, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_window: 50, randomization_success_threshold: 0.60}
+    tagmaze: {randomize_plant: False, random_start: False, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, action_rate_penalty: 0.0, hole_warning_m: 0.008, hole_clearance_penalty: 0.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_window: 50, randomization_success_threshold: 0.60}
 
   # Agent
   task_behavior: Greedy
@@ -154,7 +154,7 @@ tag_sim_v2:
     demo_dir: ''
     demo_limit_steps: 0
     log_keys_sum: '^log_(reward|fall_cost|success)$'
-    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength)$'
+    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|action_rate|hole_cost)$'
   env.tagmaze:
     randomize_plant: True
     random_start: True
@@ -196,6 +196,112 @@ tag_sim_v2_fullstart_finetune:
     start_curriculum: False
     randomize_plant: True
     randomization_curriculum: False
+
+# Nominal-first continuation for proving full-route task mastery before domain
+# randomization. The launcher requires agent-only loading so the new run starts
+# at step zero with a fresh replay buffer containing only nominal transitions.
+tag_sim_v2_nominal_fullstart:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+
+# Nominal continuation A/B arms. The 500k nominal pilot plateaued at 82.8%
+# canonical completion and 90.7% mean maximum route completion, short of the
+# 90%/95% mastery gate, with per-layout success churning between milestones.
+# Each arm changes exactly one thing against tag_sim_v2_nominal_fullstart so the
+# dev-split comparison attributes any difference to that change.
+
+# Arm A: double the gradient updates per environment step. The run is
+# environment-bound with eight parallel workers, so this buys optimization
+# without changing the data distribution.
+tag_sim_v2_nominal_ratio64:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+  run.train_ratio: 64
+
+# Arm B: weight falling more heavily than reaching the goal. Falls are 10.9%
+# against a 10% ceiling. This is a bounded step, not a large penalty, because
+# over-penalizing falls converts them into stalled time-limit episodes, which
+# the same evaluation already shows four of.
+tag_sim_v2_nominal_fallpenalty:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    failure_penalty: 14.0
+
+# Arm C: concentrate prioritized level replay on unsolved training layouts.
+# Failures are idiosyncratic per layout rather than explained by difficulty
+# band, so spreading a quarter of sampling mass uniformly wastes it.
+tag_sim_v2_nominal_sharp_plr:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    plr_uniform_mix: 0.10
+    plr_ema: 0.20
+
+# Arm D: charge the policy for slamming the board. Every 192-episode failure
+# landed at a route turn in its own 95th percentile or above, while the failure
+# points had 9-20 mm of hole clearance and normal wall clearance. The policy is
+# bang-bang there (mean |action| 0.90 of full range, saturated on about 70% of
+# steps, step-to-step changes of 0.5-1.2), which cannot decelerate into a
+# near-right-angle corner. A rate penalty lets it modulate instead.
+#
+# Calibration matters more than the idea here. A full route earns
+# progress_reward_scale (10) plus success_bonus (10), and the 500k policy
+# averaged 16.2 return over roughly 750 steps with a mean step-to-step action
+# change near 0.57. At 0.003 the smoothness term costs about 1.3 per episode,
+# near 6% of the return: enough to shape the control style, small enough that
+# standing still stays far worse than finishing. An order of magnitude higher
+# would exceed the entire return and simply teach the policy to stop moving.
+tag_sim_v2_nominal_smooth:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    action_rate_penalty: 0.003
+
+# Arm E: give hazard avoidance a dense signal. Until now the only hole-related
+# reward was the terminal failure_penalty, charged after the ball had already
+# fallen. The margin that decides an episode is about a centimetre, and the
+# layouts that never succeed have holes a median 9.6 mm from their sharp turns
+# against 12.1 mm for the layouts that always succeed, so the policy needs to
+# learn to steer away from a rim it can currently only discover by falling in.
+#
+# The band is hole-only on purpose. Wall contact is not a failure and normal
+# corridor travel runs within a few millimetres of a wall, so the pre-existing
+# wall-inclusive clearance_cost would have penalized ordinary driving.
+#
+# Calibration: cost per step is at most 1, and an 8 mm band covers 0.94% of
+# on-route travel, so a well-driven 750-step episode pays well under 0.2 against
+# a 20-point return, while sustained drift toward a rim costs a few points.
+tag_sim_v2_nominal_holeaware:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    hole_clearance_penalty: 0.02
+
+# Arm F: both control-side fixes together. Smoothness lets the policy modulate
+# tilt, hole awareness tells it which direction the margin matters in.
+tag_sim_v2_nominal_smooth_holeaware:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    action_rate_penalty: 0.003
+    hole_clearance_penalty: 0.02
 
 # Full-route continuation that increases dynamics variation only when each
 # environment worker demonstrates enough recent success at its current level.

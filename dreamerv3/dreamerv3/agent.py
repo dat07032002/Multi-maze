@@ -73,6 +73,16 @@ class Agent(nj.Module):
             outs = task_outs
             outs["action"] = outs["action"].sample(seed=nj.rng())
             outs["log_entropy"] = jnp.zeros(outs["action"].shape[:1])
+        elif mode == "eval_mode":
+            # Act on the distribution mode instead of a sample. Sampling injects
+            # actuator noise the deployed policy would not deliberately add, and
+            # it makes a held-out episode irreproducible in isolation because the
+            # sampling stream advances across episodes. The recurrent latent is
+            # still sampled, so this reduces action noise rather than removing
+            # all stochasticity.
+            outs = task_outs
+            outs["action"] = outs["action"].mode()
+            outs["log_entropy"] = jnp.zeros(outs["action"].shape[:1])
         elif mode == "explore":
             outs = expl_outs
             outs["log_entropy"] = outs["action"].entropy()

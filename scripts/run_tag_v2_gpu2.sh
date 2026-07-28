@@ -13,7 +13,18 @@ manifest="$repo_root/tag_mujoco/maze_splits_v2.json"
 test -f "$manifest"
 grep -q 'cyberrunner_fixed_board_512train_64val_64test_v2' "$manifest"
 
-export CUDA_VISIBLE_DEVICES="2"
+# Physical GPU 2 remains the default for production training. Bounded A/B arms
+# may be placed on another idle device so arms can run concurrently. Physical
+# GPU 0 is never used, and 3 and 4 are reserved for validation.
+train_gpu="${TAG_TRAIN_GPU:-2}"
+case "$train_gpu" in
+  1|2) ;;
+  *)
+    echo "TAG_TRAIN_GPU must be 2 (production) or 1 (bounded arm); got $train_gpu."
+    exit 8
+    ;;
+esac
+export CUDA_VISIBLE_DEVICES="$train_gpu"
 export XLA_PYTHON_CLIENT_PREALLOCATE="false"
 export MUJOCO_GL="egl"
 export PYTHONUNBUFFERED="1"
@@ -31,6 +42,31 @@ case "$training_profile" in
     ;;
   tag_sim_v2_fullstart_finetune)
     configs=(tag_sim_v2 tag_sim_v2_fullstart_finetune medium)
+    ;;
+  tag_sim_v2_nominal_fullstart)
+    configs=(tag_sim_v2 tag_sim_v2_nominal_fullstart medium)
+    if [[ "$checkpoint_mode" != "agent_only" ]]; then
+      echo "Nominal full-start training requires TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Nominal full-start training requires TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    ;;
+  tag_sim_v2_nominal_ratio64|tag_sim_v2_nominal_fallpenalty|tag_sim_v2_nominal_sharp_plr|tag_sim_v2_nominal_smooth|tag_sim_v2_nominal_holeaware|tag_sim_v2_nominal_smooth_holeaware)
+    # Bounded nominal A/B arms. Each changes one thing against
+    # tag_sim_v2_nominal_fullstart and carries the same agent-only requirement,
+    # so every arm starts from the same policy with a fresh nominal replay.
+    configs=(tag_sim_v2 "$training_profile" medium)
+    if [[ "$checkpoint_mode" != "agent_only" ]]; then
+      echo "Nominal A/B arms require TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Nominal A/B arms require TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
     ;;
   tag_sim_v2_fullstart_staged_randomization)
     configs=(tag_sim_v2 tag_sim_v2_fullstart_staged_randomization medium)
@@ -94,9 +130,9 @@ if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
 fi
 
 if command -v nvidia-smi >/dev/null 2>&1; then
-  nvidia-smi -i 2 --query-gpu=index,uuid,name --format=csv,noheader
+  nvidia-smi -i "$train_gpu" --query-gpu=index,uuid,name --format=csv,noheader
 fi
-echo "V2 profile=$training_profile checkpoint_mode=$checkpoint_mode steps=$steps envs=8 dataset=512/64/64 logdir=$logdir"
+echo "V2 profile=$training_profile checkpoint_mode=$checkpoint_mode steps=$steps envs=8 gpu=$train_gpu dataset=512/64/64 logdir=$logdir"
 
 "$python_bin" dreamerv3/dreamerv3/train.py \
   --configs "${configs[@]}" \

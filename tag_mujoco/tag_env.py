@@ -32,6 +32,7 @@ try:
         PlannerConfig,
         apply_safe_route,
         signed_ball_clearance,
+        signed_hole_clearance,
         validate_route,
     )
     from .system_config import SystemConfig
@@ -44,6 +45,7 @@ except ImportError:  # Preserve direct-script execution from this directory.
         PlannerConfig,
         apply_safe_route,
         signed_ball_clearance,
+        signed_hole_clearance,
         validate_route,
     )
     from system_config import SystemConfig
@@ -69,6 +71,23 @@ class TaskConfig:
     progress_reward_scale: float = 10.0
     success_bonus: float = 10.0
     failure_penalty: float = 5.0
+    # Penalty on how fast the commanded tilt changes between steps. The 500k
+    # nominal policy is effectively bang-bang: mean |action| about 0.90 on a
+    # +/-1 range, saturated on roughly 70% of steps, with step-to-step changes
+    # of 0.5 to 1.2. Every 192-episode failure landed at a route turn in its
+    # own 95th percentile or above, which is what slammed, unmodulated tilt
+    # cannot decelerate into. Zero keeps the historical reward exactly.
+    action_rate_penalty: float = 0.0
+    # Dense penalty for letting the ball drift toward a hole. Until now the only
+    # hazard signal was the terminal failure_penalty, charged after the ball had
+    # already fallen, which is a sparse teacher for a margin measured in
+    # millimetres. Holes sit a median 18.4 mm from the route and the 1st
+    # percentile is 8.0 mm, so an 8 mm band covers only 0.94% of on-route travel
+    # and stays silent while the policy tracks the route. A 12 mm band would
+    # cover 15.3% and would penalize ordinary driving. Zero keeps the historical
+    # reward exactly.
+    hole_warning_m: float = 0.008
+    hole_clearance_penalty: float = 0.0
     maze_manifest: str = ""
     maze_split: str = ""
     maze_sampling: str = "uniform"
@@ -108,6 +127,37 @@ def reward_components(
     elif config.reward_mode == "progress_failure_zero" and failed:
         failure_reward = -float(route_completion)
     return progress_reward, success_reward, failure_reward
+
+
+def hole_proximity_cost(config: TaskConfig, hole_clearance_m: float) -> float:
+    """Return a cost in [0, 1] that ramps up as the ball nears a hole.
+
+    Zero outside the warning band, one once the ball surface reaches the hole
+    rim. Always measured so every run reports its hole exposure, whether or not
+    it is charged for it.
+    """
+
+    band = max(config.hole_warning_m, 1e-6)
+    if not math.isfinite(hole_clearance_m):
+        return 0.0
+    return float(np.clip((band - hole_clearance_m) / band, 0.0, 1.0))
+
+
+def action_rate_cost(
+    action: np.ndarray,
+    previous_action: np.ndarray | None,
+) -> float:
+    """Return the mean absolute per-step change in the commanded tilt.
+
+    Always measured so every run reports how smoothly it drives, whether or not
+    it is charged for it. The first step of an episode has no predecessor and is
+    never charged, so a reset cannot be penalized for the tilt it inherits.
+    """
+
+    if previous_action is None:
+        return 0.0
+    delta = np.abs(np.asarray(action, dtype=np.float64) - previous_action)
+    return float(np.mean(delta))
 
 
 def _resolve_layout_paths(layout_paths: str | Sequence[str] | None) -> List[Path]:
@@ -191,6 +241,7 @@ class TagMazeTask:
         self.minimum_clearance_m = math.inf
         self.episode_return = 0.0
         self.episode_steps = 0
+        self._previous_action: np.ndarray | None = None
         self.last_info: Dict[str, Any] = {}
         self.episodes_started = 0
         self.layout_index = 0
@@ -458,10 +509,14 @@ class TagMazeTask:
         self.minimum_clearance_m = clearance
         self.episode_return = 0.0
         self.episode_steps = 0
+        # No predecessor exists for the first commanded tilt of an episode.
+        self._previous_action = None
         observation, diagnostic = self._observation(raw, clearance)
         observation["log_fall_cost"] = np.zeros(1, dtype=np.float32)
         observation["log_success"] = np.zeros(1, dtype=np.float32)
         observation["log_reward"] = np.zeros(1, dtype=np.float32)
+        observation["log_action_rate"] = np.zeros(1, dtype=np.float32)
+        observation["log_hole_cost"] = np.zeros(1, dtype=np.float32)
         observation["log_start_progress"] = np.asarray(
             [self.start_progress_fraction], dtype=np.float32
         )
@@ -563,7 +618,9 @@ class TagMazeTask:
         self, action: Iterable[float]
     ) -> Tuple[Dict[str, np.ndarray], float, bool, bool, Dict[str, Any]]:
         previous_progress = self.progress_m
-        result = self.model.step(action)
+        # Materialize before stepping the model, which may consume an iterator.
+        action_array = np.asarray(list(action), dtype=np.float64)
+        result = self.model.step(action_array)
         true_xy = np.asarray(result.info["true_ball_position"][:2], dtype=np.float64)
         true_clearance = float(signed_ball_clearance(self.layout, true_xy[None])[0])
         self.minimum_clearance_m = min(self.minimum_clearance_m, true_clearance)
@@ -580,13 +637,29 @@ class TagMazeTask:
             route_completion,
             result.reason,
         )
-        reward = progress_reward + success_reward + failure_reward
+        rate_cost = action_rate_cost(action_array, self._previous_action)
+        rate_reward = -self.task_config.action_rate_penalty * rate_cost
+        self._previous_action = action_array
+        # Charged on the true position, like every other hazard measurement, so
+        # detector noise cannot invent or hide a near miss.
+        hole_clearance = float(signed_hole_clearance(self.layout, true_xy[None])[0])
+        hole_cost = hole_proximity_cost(self.task_config, hole_clearance)
+        hole_reward = -self.task_config.hole_clearance_penalty * hole_cost
+        reward = (
+            progress_reward
+            + success_reward
+            + failure_reward
+            + rate_reward
+            + hole_reward
+        )
         fall_cost = float(failed)
         self.episode_return += float(reward)
         self.episode_steps += 1
         observation["log_fall_cost"] = np.asarray([fall_cost], dtype=np.float32)
         observation["log_success"] = np.asarray([float(succeeded)], dtype=np.float32)
         observation["log_reward"] = np.asarray([reward], dtype=np.float32)
+        observation["log_action_rate"] = np.asarray([rate_cost], dtype=np.float32)
+        observation["log_hole_cost"] = np.asarray([hole_cost], dtype=np.float32)
         info = {
             **result.info,
             **diagnostic,
@@ -661,6 +734,12 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
                 ),
                 "log_success": gym.spaces.Box(-np.inf, np.inf, (1,), dtype=np.float32),
                 "log_reward": gym.spaces.Box(-np.inf, np.inf, (1,), dtype=np.float32),
+                "log_action_rate": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_hole_cost": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
             }
         )
         self.action_space = gym.spaces.Box(-1.0, 1.0, (2,), dtype=np.float32)
@@ -671,6 +750,8 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
         observation.setdefault("log_fall_cost", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_success", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_reward", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_action_rate", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_hole_cost", np.zeros(1, dtype=np.float32))
         if _GYMNASIUM_API:
             return observation, info
         return observation

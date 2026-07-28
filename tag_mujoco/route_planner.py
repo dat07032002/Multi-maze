@@ -83,6 +83,28 @@ def signed_ball_clearance(layout: Dict[str, Any], points: np.ndarray) -> np.ndar
     return clearance
 
 
+def signed_hole_clearance(layout: Dict[str, Any], points: np.ndarray) -> np.ndarray:
+    """Return clearance between the ball surface and the nearest hole only.
+
+    Deliberately excludes walls and the board boundary. Touching a wall is not a
+    failure, it merely blocks, and normal corridor travel runs within a few
+    millimetres of one, so a wall-inclusive signal would penalize simply being
+    in a corridor. Falling into a hole is the failure this measures.
+    """
+    points = np.asarray(points, dtype=np.float64)
+    if points.shape[-1] != 2:
+        raise ValueError(f"Expected points ending in XY, received {points.shape}")
+    ball_radius = float(layout["ball_radius"])
+    holes = layout.get("holes", [])
+    if not holes:
+        return np.full(points.shape[:-1], np.inf, dtype=np.float64)
+    clearance = np.full(points.shape[:-1], np.inf, dtype=np.float64)
+    for (x, y), radius in zip(holes, layout.get("hole_radii", [])):
+        distance = np.linalg.norm(points - np.asarray((x, y)), axis=-1)
+        clearance = np.minimum(clearance, distance - float(radius) - ball_radius)
+    return clearance
+
+
 def _grid_axis(size: float, resolution: float) -> np.ndarray:
     count = max(2, int(math.floor(size / resolution)) + 1)
     return np.linspace(0.0, size, count, dtype=np.float64)

@@ -108,7 +108,11 @@ def evaluator_command(
     trigger_step: int,
     mode: str,
 ) -> list[str]:
-    episodes = 1 if mode == "canonical" else args.robust_episodes_per_maze
+    episodes = (
+        args.canonical_episodes_per_maze
+        if mode == "canonical"
+        else args.robust_episodes_per_maze
+    )
     return [
         str(args.python),
         str(args.repo_root / "dreamerv3/dreamerv3/eval_multimaze.py"),
@@ -119,7 +123,9 @@ def evaluator_command(
         "--manifest",
         str(args.manifest),
         "--split",
-        "validation",
+        args.split,
+        "--policy-mode",
+        args.policy_mode,
         "--mode",
         mode,
         "--episodes-per-maze",
@@ -250,6 +256,11 @@ def main() -> None:
     parser.add_argument("--canonical-gpu", type=int, default=3)
     parser.add_argument("--robust-gpu", type=int, default=4)
     parser.add_argument("--robust-episodes-per-maze", type=int, default=3)
+    parser.add_argument("--canonical-episodes-per-maze", type=int, default=1)
+    # "dev" is a training subset used to rank tuning arms without reading the
+    # validation split that the mastery gate measures.
+    parser.add_argument("--split", choices=("validation", "test", "dev"), default="validation")
+    parser.add_argument("--policy-mode", choices=("sample", "mode"), default="sample")
     parser.add_argument("--max-steps", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=20260723)
     parser.add_argument("--poll-seconds", type=float, default=30.0)

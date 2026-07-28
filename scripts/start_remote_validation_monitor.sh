@@ -16,6 +16,12 @@ interval="${TAG_INTERVAL:-500000}"
 robust_interval="${TAG_ROBUST_INTERVAL:-1000000}"
 end_step="${TAG_END_STEP:-10000000}"
 baseline="${TAG_BASELINE:-YES}"
+split="${TAG_SPLIT:-validation}"
+# Concurrent arms must not queue behind each other on one validation device.
+canonical_gpu="${TAG_CANONICAL_GPU:-3}"
+robust_gpu="${TAG_ROBUST_GPU:-4}"
+policy_mode="${TAG_POLICY_MODE:-sample}"
+canonical_episodes="${TAG_CANONICAL_EPISODES:-1}"
 validation_root="$run_dir/validation"
 mkdir -p "$validation_root"
 
@@ -62,6 +68,11 @@ nohup bash -c '
   robust_interval="$9"
   end_step="${10}"
   baseline="${11}"
+  split="${12}"
+  policy_mode="${13}"
+  canonical_episodes="${14}"
+  canonical_gpu="${15}"
+  robust_gpu="${16}"
   baseline_arg=()
   if [[ "$baseline" == "YES" ]]; then
     baseline_arg=(--baseline)
@@ -76,8 +87,11 @@ nohup bash -c '
     --robust-interval "$robust_interval" \
     --end-step "$end_step" \
     "${baseline_arg[@]}" \
-    --canonical-gpu 3 \
-    --robust-gpu 4 \
+    --split "$split" \
+    --policy-mode "$policy_mode" \
+    --canonical-episodes-per-maze "$canonical_episodes" \
+    --canonical-gpu "$canonical_gpu" \
+    --robust-gpu "$robust_gpu" \
     --robust-episodes-per-maze 3 \
     --max-steps 3000
   code=$?
@@ -85,6 +99,7 @@ nohup bash -c '
   exit "$code"
 ' _ "$python_bin" "$monitor" "$repo_root" "$run_dir" "$status_file" "$manifest" \
   "$start_step" "$interval" "$robust_interval" "$end_step" "$baseline" \
+  "$split" "$policy_mode" "$canonical_episodes" "$canonical_gpu" "$robust_gpu" \
   >"$launcher_log" 2>&1 </dev/null &
 pid=$!
 printf '%s\n' "$pid" >"$pid_file"
