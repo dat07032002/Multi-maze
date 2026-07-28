@@ -28,21 +28,14 @@ from .embodied.envs.tag_maze import TagMaze  # noqa: E402
 from tag_mujoco.maze_dataset import file_sha256, load_split  # noqa: E402
 from tag_mujoco.validation_metrics import (  # noqa: E402
     episode_record,
+    evaluation_env_overrides,
     summarize_records,
 )
 
 
 def _make_env(config, layout_path: pathlib.Path, seed: int, robust: bool):
     kwargs = dict(config.env.tagmaze)
-    kwargs.update(
-        maze_manifest="",
-        maze_split="",
-        maze_sampling="uniform",
-        random_start=robust,
-        randomize_plant=robust,
-        start_curriculum=False,
-        randomization_curriculum=False,
-    )
+    kwargs.update(evaluation_env_overrides("robust" if robust else "canonical"))
     env = TagMaze(
         "sim",
         layout_paths=[str(layout_path)],

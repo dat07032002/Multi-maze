@@ -285,22 +285,26 @@ class TagMazeTask:
         count = len(self.layout_paths)
         uniform = np.full(count, 1.0 / count, dtype=np.float64)
         unseen = self._maze_visits == 0
-        if np.any(unseen):
-            prioritized = unseen.astype(np.float64)
-            prioritized /= prioritized.sum()
-        else:
-            progress_frontier = 1.0 - np.abs(2.0 * self._maze_progress - 1.0)
-            success_frontier = 1.0 - np.abs(2.0 * self._maze_success - 1.0)
-            variance = np.maximum(
-                0.0,
-                self._maze_return_square - self._maze_return_mean**2,
-            )
-            dispersion = np.sqrt(variance)
-            if float(np.max(dispersion)) > 0.0:
-                dispersion /= float(np.max(dispersion))
-            learning = 0.50 * progress_frontier + 0.30 * dispersion + 0.20 * success_frontier
-            learning = np.maximum(learning, 0.05)
-            prioritized = learning / learning.sum()
+        progress_frontier = 1.0 - np.abs(2.0 * self._maze_progress - 1.0)
+        success_frontier = 1.0 - np.abs(2.0 * self._maze_success - 1.0)
+        variance = np.maximum(
+            0.0,
+            self._maze_return_square - self._maze_return_mean**2,
+        )
+        dispersion = np.sqrt(variance)
+        if float(np.max(dispersion)) > 0.0:
+            dispersion /= float(np.max(dispersion))
+        learning = (
+            0.50 * progress_frontier
+            + 0.30 * dispersion
+            + 0.20 * success_frontier
+        )
+        learning = np.maximum(learning, 0.05)
+        # Novel layouts remain highest priority, while useful outcome scores
+        # from already-seen layouts take effect immediately. Previously, every
+        # process had to visit all 512 layouts before PLR learned anything.
+        learning[unseen] = max(1.0, float(np.max(learning)))
+        prioritized = learning / learning.sum()
         ages = np.maximum(1, self.episodes_started - self._maze_last_visit)
         staleness = ages.astype(np.float64) / float(np.sum(ages))
         uniform_mix = self.task_config.plr_uniform_mix

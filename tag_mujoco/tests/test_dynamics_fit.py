@@ -22,7 +22,10 @@ class DynamicsFitTest(unittest.TestCase):
         }
         result = build_override(fit, source="synthetic.json")
         self.assertAlmostEqual(
-            result["rolling_friction_coefficient"]["value"], 0.004
+            result["rolling_resistance_coefficient"]["value"], 0.004
+        )
+        self.assertAlmostEqual(
+            result["rolling_friction_length_m"]["value"], 0.000024
         )
         self.assertAlmostEqual(
             result["linear_ball_damping_per_second"]["value"], 0.8

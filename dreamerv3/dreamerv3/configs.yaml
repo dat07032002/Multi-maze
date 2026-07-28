@@ -42,6 +42,7 @@ defaults:
     log_keys_mean: '(log_entropy)'
     log_keys_max: '^$'
     from_checkpoint: ''
+    from_checkpoint_mode: full
     demo_dir: ''
     demo_limit_steps: 0
     sync_every: 1
@@ -186,6 +187,53 @@ tag_sim_v2:
   encoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
   decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
   wrapper: {length: 3000}
+
+# Continuation profile for a mature v2 policy. It removes easier mid-route
+# starts and exposes every episode to the full plant-randomization range.
+tag_sim_v2_fullstart_finetune:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: True
+    randomization_curriculum: False
+
+# Full-route continuation that increases dynamics variation only when each
+# environment worker demonstrates enough recent success at its current level.
+tag_sim_v2_fullstart_staged_randomization:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: True
+    randomization_curriculum: True
+    randomization_initial_strength: 0.25
+    randomization_expand_step: 0.25
+    randomization_window: 15
+    randomization_success_threshold: 0.30
+
+# Bounded PLA adaptation. The launcher enforces agent-only checkpoint loading,
+# a fresh replay buffer, full-route starts, and staged plant randomization.
+tag_sim_v2_pla_adaptation:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: True
+    randomization_curriculum: True
+    randomization_initial_strength: 0.25
+    randomization_expand_step: 0.25
+    randomization_window: 15
+    randomization_success_threshold: 0.30
+
+# Matched scratch control for the PLA adaptation experiment.
+tag_sim_v2_pla_scratch:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: True
+    randomization_curriculum: True
+    randomization_initial_strength: 0.25
+    randomization_expand_step: 0.25
+    randomization_window: 15
+    randomization_success_threshold: 0.30
 
 # Real TAG hardware over the TCP bridge. This profile is kept separate from
 # `tag_sim`, which is the multi-maze MuJoCo training environment.

@@ -22,6 +22,43 @@ stamp="$(date +%Y%m%d_%H%M%S)"
 logdir="${TAG_LOGDIR:-$HOME/tag_logs/multimaze_v2_gpu2_$stamp}"
 steps="${TAG_STEPS:-10000}"
 python_bin="${TAG_PYTHON:-python}"
+training_profile="${TAG_TRAINING_PROFILE:-tag_sim_v2}"
+checkpoint_mode="${TAG_CHECKPOINT_MODE:-full}"
+
+case "$training_profile" in
+  tag_sim_v2)
+    configs=(tag_sim_v2 medium)
+    ;;
+  tag_sim_v2_fullstart_finetune)
+    configs=(tag_sim_v2 tag_sim_v2_fullstart_finetune medium)
+    ;;
+  tag_sim_v2_fullstart_staged_randomization)
+    configs=(tag_sim_v2 tag_sim_v2_fullstart_staged_randomization medium)
+    ;;
+  tag_sim_v2_pla_adaptation)
+    configs=(tag_sim_v2 tag_sim_v2_pla_adaptation medium)
+    if [[ "$checkpoint_mode" != "agent_only" ]]; then
+      echo "PLA adaptation requires TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "PLA adaptation requires TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    ;;
+  tag_sim_v2_pla_scratch)
+    configs=(tag_sim_v2 tag_sim_v2_pla_scratch medium)
+    if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "PLA scratch control refuses TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    checkpoint_mode="none"
+    ;;
+  *)
+    echo "Unsupported TAG_TRAINING_PROFILE: $training_profile"
+    exit 5
+    ;;
+esac
 
 if [[ -e "$logdir" ]] && [[ -n "$(find "$logdir" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
   echo "V2 requires a fresh, empty log directory: $logdir"
@@ -29,22 +66,40 @@ if [[ -e "$logdir" ]] && [[ -n "$(find "$logdir" -mindepth 1 -maxdepth 1 -print 
 fi
 
 mkdir -p "$logdir"
-printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"tag_sim_v2","dataset_id":"cyberrunner_fixed_board_512train_64val_64test_v2","checkpoint_compatible_with_v1":false}\n' \
-  >"$logdir/policy_contract.json"
+assumptions_sha256="$(sha256sum "$repo_root/tag_mujoco/assumed_dynamics.json" | awk '{print $1}')"
+printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"%s","dataset_id":"cyberrunner_fixed_board_512train_64val_64test_v2","checkpoint_compatible_with_v1":false,"checkpoint_load_mode":"%s","assumed_dynamics_sha256":"%s"}\n' \
+  "$training_profile" "$checkpoint_mode" "$assumptions_sha256" >"$logdir/policy_contract.json"
 
 extra_args=()
 if [[ -n "${TAG_DEMO_DIR:-}" ]]; then
   test -d "$TAG_DEMO_DIR"
   extra_args+=(--run.demo_dir "$TAG_DEMO_DIR")
 fi
+if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
+  test -f "$TAG_FROM_CHECKPOINT"
+  checkpoint_contract="$(dirname "$TAG_FROM_CHECKPOINT")/policy_contract.json"
+  if [[ ! -f "$checkpoint_contract" ]]; then
+    echo "Refusing checkpoint without v2 policy metadata: $TAG_FROM_CHECKPOINT"
+    exit 6
+  fi
+  if ! grep -q '"policy_contract_version":"tag_hardware_policy_v1"' "$checkpoint_contract" ||
+     ! grep -q '"dataset_id":"cyberrunner_fixed_board_512train_64val_64test_v2"' "$checkpoint_contract"; then
+    echo "Refusing checkpoint without matching v2 policy and dataset metadata: $TAG_FROM_CHECKPOINT"
+    exit 6
+  fi
+  extra_args+=(
+    --run.from_checkpoint "$TAG_FROM_CHECKPOINT"
+    --run.from_checkpoint_mode "$checkpoint_mode"
+  )
+fi
 
 if command -v nvidia-smi >/dev/null 2>&1; then
   nvidia-smi -i 2 --query-gpu=index,uuid,name --format=csv,noheader
 fi
-echo "V2 steps=$steps envs=8 dataset=512/64/64 logdir=$logdir"
+echo "V2 profile=$training_profile checkpoint_mode=$checkpoint_mode steps=$steps envs=8 dataset=512/64/64 logdir=$logdir"
 
 "$python_bin" dreamerv3/dreamerv3/train.py \
-  --configs tag_sim_v2 medium \
+  --configs "${configs[@]}" \
   --logdir "$logdir" \
   --run.script train \
   --run.steps "$steps" \

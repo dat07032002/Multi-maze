@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "active": true,
+  "status": "assumed",
+  "purpose": "Conservative 12 mm steel-marble contact priors for an untreated FDM-printed PLA maze, used until quality-gated tests on the actual print replace them.",
+  "surface": {
+    "material": "PLA",
+    "manufacturing_process": "FDM",
+    "finish": "untreated top skin",
+    "status": "assumed",
+    "known_unmodeled_effects": [
+      "directional friction from top-skin extrusion lines",
+      "centimeter-scale friction variation from seams and surface texture",
+      "session drift from dust, wear, temperature, and polishing"
+    ]
+  },
+  "ball_radius_m": 0.006,
+  "parameters": {
+    "floor_sliding_friction": {
+      "value": 0.38,
+      "range": [0.15, 0.7],
+      "unit": "dimensionless",
+      "status": "assumed"
+    },
+    "wall_sliding_friction": {
+      "value": 0.4,
+      "range": [0.15, 0.75],
+      "unit": "dimensionless",
+      "status": "assumed"
+    },
+    "ball_sliding_friction": {
+      "value": 0.25,
+      "range": [0.1, 0.6],
+      "unit": "dimensionless",
+      "status": "assumed"
+    },
+    "torsional_friction_length_m": {
+      "value": 0.00025,
+      "range": [0.00003, 0.0015],
+      "unit": "m",
+      "status": "assumed"
+    },
+    "rolling_resistance_coefficient": {
+      "value": 0.004,
+      "range": [0.0005, 0.03],
+      "unit": "dimensionless",
+      "status": "assumed"
+    },
+    "rolling_friction_length_m": {
+      "value": 0.000024,
+      "range": [0.000003, 0.00018],
+      "unit": "m",
+      "status": "assumed",
+      "derivation": "dimensionless rolling resistance multiplied by the 0.006 m ball radius"
+    },
+    "linear_ball_damping_per_second": {
+      "value": 0.22,
+      "range": [0.0, 0.8],
+      "unit": "1/s",
+      "status": "assumed"
+    },
+    "wall_restitution": {
+      "value": 0.35,
+      "range": [0.05, 0.7],
+      "unit": "dimensionless",
+      "status": "assumed"
+    }
+  },
+  "modeling_notes": [
+    "MuJoCo torsional and rolling friction parameters have units of length.",
+    "The simulation enables condim=6 so torsional and rolling friction are active.",
+    "Ranges are deliberately broad and are training distributions, not claimed measurements.",
+    "The current simulator samples a spatially uniform surface per episode; directional texture, local rough patches, and wear drift remain documented model gaps.",
+    "A quality-gated identified_dynamics.json overrides fitted rolling, damping, and restitution values."
+  ]
+}

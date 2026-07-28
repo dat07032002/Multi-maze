@@ -7,8 +7,20 @@ if [[ "${TAG_TRAINING_APPROVED:-NO}" != "YES" ]]; then
 fi
 
 repo_root="${1:?Pass the absolute staged repository path as argument 1.}"
-python_bin="$repo_root/.venv/bin/python"
-launcher="$repo_root/scripts/run_tag_dreamerv3_gpu2.sh"
+python_bin="${TAG_PYTHON:-$repo_root/.venv/bin/python}"
+training_variant="${TAG_TRAINING_VARIANT:-v1}"
+case "$training_variant" in
+  v1)
+    launcher="$repo_root/scripts/run_tag_dreamerv3_gpu2.sh"
+    ;;
+  v2)
+    launcher="$repo_root/scripts/run_tag_v2_gpu2.sh"
+    ;;
+  *)
+    echo "Unsupported TAG_TRAINING_VARIANT: $training_variant"
+    exit 4
+    ;;
+esac
 run_id="${TAG_RUN_ID:-multimaze_gpu2_$(date +%Y%m%d_%H%M%S)}"
 launcher_log="$repo_root/${run_id}.log"
 pid_file="$repo_root/${run_id}.pid"

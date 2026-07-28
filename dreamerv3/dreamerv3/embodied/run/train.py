@@ -35,6 +35,18 @@ def _load_demonstrations(replay, directory, limit_steps=0):
     return loaded
 
 
+def _checkpoint_load_keys(mode):
+    """Select state restored from an external checkpoint."""
+
+    if mode == "full":
+        return None
+    if mode == "agent_only":
+        return ["agent"]
+    raise ValueError(
+        f"Unknown checkpoint load mode {mode!r}; expected 'full' or 'agent_only'."
+    )
+
+
 def train(agent, env, replay, logger, args):
 
     logdir = embodied.Path(args.logdir)
@@ -141,7 +153,12 @@ def train(agent, env, replay, logger, args):
     checkpoint.agent = agent
     checkpoint.replay = replay
     if args.from_checkpoint:
-        checkpoint.load(args.from_checkpoint)
+        load_keys = _checkpoint_load_keys(args.from_checkpoint_mode)
+        checkpoint.load(args.from_checkpoint, keys=load_keys)
+        if load_keys == ["agent"]:
+            print(
+                "Loaded agent weights only; step counter and replay remain fresh."
+            )
     checkpoint.load_or_save()
     # should_save(step)  # Register that we jused saved.
 

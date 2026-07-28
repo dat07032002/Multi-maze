@@ -2,7 +2,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tag_mujoco.validation_monitor import latest_metric_step, milestones
+from tag_mujoco.validation_monitor import (
+    latest_metric_step,
+    milestones,
+    requires_new_checkpoint,
+)
 
 
 class ValidationMonitorTests(unittest.TestCase):
@@ -20,6 +24,11 @@ class ValidationMonitorTests(unittest.TestCase):
             milestones(500_000, 500_000, 1_500_000, True),
             [0, 500_000, 1_000_000, 1_500_000],
         )
+
+    def test_only_intermediate_milestones_require_a_new_checkpoint(self):
+        self.assertFalse(requires_new_checkpoint(0, 1_500_000))
+        self.assertTrue(requires_new_checkpoint(500_000, 1_500_000))
+        self.assertFalse(requires_new_checkpoint(1_500_000, 1_500_000))
 
 
 if __name__ == "__main__":

@@ -230,6 +230,12 @@ def milestones(start: int, interval: int, end: int, baseline: bool) -> list[int]
     return values
 
 
+def requires_new_checkpoint(trigger_step: int, end_step: int) -> bool:
+    """Intermediate milestones need a post-trigger write; endpoints do not."""
+
+    return trigger_step not in {0, end_step}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, required=True)
@@ -247,6 +253,7 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=20260723)
     parser.add_argument("--poll-seconds", type=float, default=30.0)
+    parser.add_argument("--final-checkpoint-grace-seconds", type=float, default=120.0)
     parser.add_argument("--gpu-memory-limit-mib", type=int, default=5000)
     parser.add_argument("--gpu-utilization-limit", type=int, default=10)
     args = parser.parse_args()
@@ -287,14 +294,19 @@ def main() -> None:
 
         snapshot = milestone_dir / "checkpoint.ckpt"
         if not snapshot.exists():
-            # The baseline safely snapshots the current checkpoint. For later
-            # milestones, require a checkpoint write after threshold detection
-            # so that a pre-threshold agent is never evaluated by mistake.
-            previous_signature = (
-                None if trigger_step == 0 else checkpoint_signature(checkpoint)
-            )
+            # Intermediate milestones require a checkpoint written after their
+            # threshold. At the final milestone, allow the stable final save:
+            # training may exit without producing one more signature change.
+            need_new = requires_new_checkpoint(trigger_step, args.end_step)
+            if trigger_step == args.end_step and trigger_step > 0:
+                print(
+                    "Final milestone reached; allowing time for the final checkpoint save.",
+                    flush=True,
+                )
+                time.sleep(args.final_checkpoint_grace_seconds)
+            previous_signature = checkpoint_signature(checkpoint) if need_new else None
             print(
-                f"Milestone {trigger_step} reached; waiting for next stable checkpoint.",
+                f"Milestone {trigger_step} reached; waiting for stable checkpoint.",
                 flush=True,
             )
             wait_for_stable_snapshot(

@@ -14,6 +14,7 @@ class ParameterRegistryTest(unittest.TestCase):
         unresolved = unresolved_parameters(registry)
         self.assertNotIn("actuator.total_delay", unresolved)
         self.assertIn("actuator.local_stiction_command", unresolved)
+        self.assertIn("ball.rolling_resistance_coefficient", unresolved)
         self.assertEqual(
             registry["parameters"]["board.width"]["status"], "design"
         )

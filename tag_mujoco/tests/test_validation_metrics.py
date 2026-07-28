@@ -2,10 +2,26 @@ import unittest
 
 import numpy as np
 
-from tag_mujoco.validation_metrics import episode_record, summarize_records
+from tag_mujoco.validation_metrics import (
+    episode_record,
+    evaluation_env_overrides,
+    summarize_records,
+)
 
 
 class ValidationMetricsTests(unittest.TestCase):
+    def test_robust_evaluation_randomizes_plant_but_keeps_full_start(self):
+        canonical = evaluation_env_overrides("canonical")
+        robust = evaluation_env_overrides("robust")
+        self.assertFalse(canonical["random_start"])
+        self.assertFalse(canonical["randomize_plant"])
+        self.assertFalse(robust["random_start"])
+        self.assertTrue(robust["randomize_plant"])
+
+    def test_unknown_evaluation_mode_is_rejected(self):
+        with self.assertRaises(ValueError):
+            evaluation_env_overrides("easy")
+
     def test_episode_and_aggregate_metrics(self):
         episode = {
             "reward": np.asarray([0.0, 0.2, 9.8], dtype=np.float32),

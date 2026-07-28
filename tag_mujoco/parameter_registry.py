@@ -40,6 +40,11 @@ def unresolved_parameters(registry: Dict[str, Any]) -> Dict[str, Any]:
     return {
         name: entry
         for name, entry in registry["parameters"].items()
-        if entry["status"] in {"extracted_unverified", "inferred", "datasheet"}
+        if entry["status"] in {
+            "assumed",
+            "extracted_unverified",
+            "inferred",
+            "datasheet",
+        }
     }
 

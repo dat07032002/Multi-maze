@@ -12,29 +12,66 @@ import numpy as np
 
 
 HERE = Path(__file__).resolve().parent
+ASSUMED_DYNAMICS_PATH = HERE / "assumed_dynamics.json"
 IDENTIFIED_DYNAMICS_PATH = HERE / "identified_dynamics.json"
 
 
-def _load_identified_dynamics() -> Dict[str, Any]:
-    if not IDENTIFIED_DYNAMICS_PATH.exists():
+def _load_active_json(path: Path) -> Dict[str, Any]:
+    if not path.exists():
         return {}
-    result = json.loads(IDENTIFIED_DYNAMICS_PATH.read_text(encoding="utf-8"))
+    result = json.loads(path.read_text(encoding="utf-8"))
     return result if result.get("active", False) else {}
 
 
-IDENTIFIED_DYNAMICS = _load_identified_dynamics()
-_identified_rolling = float(
-    IDENTIFIED_DYNAMICS.get("rolling_friction_coefficient", {}).get("value", 0.002)
+ASSUMED_DYNAMICS = _load_active_json(ASSUMED_DYNAMICS_PATH)
+IDENTIFIED_DYNAMICS = _load_active_json(IDENTIFIED_DYNAMICS_PATH)
+_assumed_parameters = ASSUMED_DYNAMICS.get("parameters", {})
+_ball_radius_m = float(ASSUMED_DYNAMICS.get("ball_radius_m", 0.006))
+
+
+def _parameter(name: str, default: float) -> Dict[str, Any]:
+    identified = IDENTIFIED_DYNAMICS.get(name, {})
+    if identified.get("value") is not None and identified.get("applied", True):
+        return identified
+    return _assumed_parameters.get(name, {"value": default, "range": [default, default]})
+
+
+def _value(name: str, default: float) -> float:
+    return float(_parameter(name, default)["value"])
+
+
+def _range(name: str, default: Tuple[float, float]) -> Tuple[float, float]:
+    values = _parameter(name, default[0]).get("range", default)
+    if values is None:
+        return default
+    low, high = (float(value) for value in values)
+    if low < 0.0 or high < low:
+        raise ValueError(f"Invalid dynamics range for {name}: {values}")
+    return low, high
+
+
+_floor_sliding = _value("floor_sliding_friction", 0.38)
+_wall_sliding = _value("wall_sliding_friction", 0.40)
+_ball_sliding = _value("ball_sliding_friction", 0.25)
+_torsional_length = _value("torsional_friction_length_m", 0.00025)
+_rolling_length = _value("rolling_friction_length_m", 0.000024)
+if "rolling_friction_length_m" not in IDENTIFIED_DYNAMICS:
+    legacy_rolling = IDENTIFIED_DYNAMICS.get("rolling_friction_coefficient", {})
+    if legacy_rolling.get("value") is not None:
+        # Older fits stored a dimensionless rolling-resistance coefficient.
+        _rolling_length = float(legacy_rolling["value"]) * _ball_radius_m
+_linear_damping = _value("linear_ball_damping_per_second", 0.22)
+_wall_restitution = _value("wall_restitution", 0.35)
+
+_FLOOR_SLIDING_RANGE = _range("floor_sliding_friction", (0.15, 0.70))
+_WALL_SLIDING_RANGE = _range("wall_sliding_friction", (0.15, 0.75))
+_BALL_SLIDING_RANGE = _range("ball_sliding_friction", (0.10, 0.60))
+_TORSIONAL_LENGTH_RANGE = _range(
+    "torsional_friction_length_m", (0.00003, 0.0015)
 )
-_identified_damping = float(
-    IDENTIFIED_DYNAMICS.get("linear_ball_damping_per_second", {}).get("value", 0.0)
-)
-_identified_restitution = IDENTIFIED_DYNAMICS.get("wall_restitution", {}).get(
-    "value"
-)
-_identified_restitution = (
-    0.0 if _identified_restitution is None else float(_identified_restitution)
-)
+_ROLLING_LENGTH_RANGE = _range("rolling_friction_length_m", (0.000003, 0.00018))
+_LINEAR_DAMPING_RANGE = _range("linear_ball_damping_per_second", (0.0, 0.8))
+_WALL_RESTITUTION_RANGE = _range("wall_restitution", (0.05, 0.70))
 DEFAULT_CAMERA_CALIBRATION = (
     HERE.parent
     / "tag_state_estimation"
@@ -252,11 +289,23 @@ class PhysicsConfig:
     """Nominal MuJoCo values. These remain priors until hardware is measured."""
 
     ball_mass_kg: float = 0.011
-    floor_friction: Tuple[float, float, float] = (0.30, 0.015, _identified_rolling)
-    wall_friction: Tuple[float, float, float] = (0.35, 0.020, 0.003)
-    ball_friction: Tuple[float, float, float] = (0.22, 0.012, _identified_rolling)
-    linear_ball_damping_per_second: float = _identified_damping
-    wall_restitution: float = _identified_restitution
+    floor_friction: Tuple[float, float, float] = (
+        _floor_sliding,
+        _torsional_length,
+        _rolling_length,
+    )
+    wall_friction: Tuple[float, float, float] = (
+        _wall_sliding,
+        _torsional_length,
+        _rolling_length,
+    )
+    ball_friction: Tuple[float, float, float] = (
+        _ball_sliding,
+        _torsional_length,
+        _rolling_length,
+    )
+    linear_ball_damping_per_second: float = _linear_damping
+    wall_restitution: float = _wall_restitution
     actuator_kp: float = 90.0
     actuator_kv: float = 8.0
 
@@ -270,26 +319,54 @@ class PhysicsConfig:
         def factor(low: float, high: float) -> float:
             return 1.0 + strength * (float(rng.uniform(low, high)) - 1.0)
 
-        def scale(values: Tuple[float, float, float], low: float, high: float):
-            multiplier = factor(low, high)
-            return tuple(value * multiplier for value in values)
+        def sample(
+            nominal: float,
+            bounds: Tuple[float, float],
+            *,
+            logarithmic: bool = False,
+        ) -> float:
+            low, high = bounds
+            if logarithmic:
+                drawn = float(np.exp(rng.uniform(np.log(low), np.log(high))))
+            else:
+                drawn = float(rng.uniform(low, high))
+            return nominal + strength * (drawn - nominal)
 
+        torsional = sample(
+            self.floor_friction[1],
+            _TORSIONAL_LENGTH_RANGE,
+            logarithmic=True,
+        )
+        rolling = sample(
+            self.floor_friction[2],
+            _ROLLING_LENGTH_RANGE,
+            logarithmic=True,
+        )
         return replace(
             self,
             ball_mass_kg=float(self.ball_mass_kg * factor(0.92, 1.08)),
-            floor_friction=scale(self.floor_friction, 0.55, 1.55),  # type: ignore[arg-type]
-            wall_friction=scale(self.wall_friction, 0.65, 1.40),  # type: ignore[arg-type]
-            ball_friction=scale(self.ball_friction, 0.55, 1.55),  # type: ignore[arg-type]
-            linear_ball_damping_per_second=float(
-                self.linear_ball_damping_per_second * factor(0.60, 1.40)
+            floor_friction=(
+                sample(self.floor_friction[0], _FLOOR_SLIDING_RANGE),
+                torsional,
+                rolling,
             ),
-            wall_restitution=float(
-                np.clip(
-                    self.wall_restitution
-                    + strength * rng.uniform(-0.12, 0.12),
-                    0.0,
-                    0.95,
-                )
+            wall_friction=(
+                sample(self.wall_friction[0], _WALL_SLIDING_RANGE),
+                torsional,
+                rolling,
+            ),
+            ball_friction=(
+                sample(self.ball_friction[0], _BALL_SLIDING_RANGE),
+                torsional,
+                rolling,
+            ),
+            linear_ball_damping_per_second=sample(
+                self.linear_ball_damping_per_second,
+                _LINEAR_DAMPING_RANGE,
+            ),
+            wall_restitution=sample(
+                self.wall_restitution,
+                _WALL_RESTITUTION_RANGE,
             ),
             actuator_kp=float(self.actuator_kp * factor(0.75, 1.25)),
             actuator_kv=float(self.actuator_kv * factor(0.75, 1.25)),

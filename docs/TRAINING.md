@@ -1,5 +1,19 @@
 # Training and validation
 
+## Current result
+
+The best preserved checkpoint is the staged-randomization 13M model at
+`multimaze_v2_stagedrand_13m_gpu2_20260727_235843`. Under the previous dynamics
+distribution it achieved 59.38% canonical completion with 32.81% falls and
+75.70% mean maximum route completion. Corrected robust completion was 29.17%
+with 38.02% falls.
+
+The simulator now uses broad untreated-FDM-PLA contact priors. The frozen 13M
+checkpoint is being re-evaluated under those priors before training. A guarded
+agent-only 500k adaptation and a matched scratch control are documented in
+`PROJECT_PROGRESS_2026-07-28.md`. No new long training run should bypass those
+evaluation gates.
+
 ## Learning task
 
 Training does not proceed maze by maze. The active v2 profile samples from 512
@@ -90,10 +104,11 @@ The launchers require approval and expose only physical GPU 2:
 
 ```bash
 export TAG_TRAINING_APPROVED=YES
-export TAG_STEPS=10000000
+export TAG_TRAINING_PROFILE=tag_sim_v2_fullstart_finetune
+export TAG_FROM_CHECKPOINT=/absolute/path/to/v2/checkpoint.ckpt
+export TAG_STEPS=12500000
 export TAG_DEMO_DIR=/absolute/path/to/expert_demos_v2
-bash scripts/run_tag_sim_v2_gpu2.sh \
-  --run.from_checkpoint /absolute/path/to/v2/checkpoint.ckpt
+bash scripts/run_tag_v2_gpu2.sh
 ```
 
 Start validation only after the production run directory exists:

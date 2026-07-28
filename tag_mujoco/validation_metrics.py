@@ -8,6 +8,25 @@ from typing import Any, Iterable, Mapping
 import numpy as np
 
 
+def evaluation_env_overrides(mode: str) -> dict[str, bool | str]:
+    """Return comparable environment settings for held-out evaluation."""
+
+    if mode not in {"canonical", "robust"}:
+        raise ValueError(f"Unsupported evaluation mode: {mode}")
+    robust = mode == "robust"
+    return {
+        "maze_manifest": "",
+        "maze_split": "",
+        "maze_sampling": "uniform",
+        # Both protocols measure the full task. Robustness only changes the
+        # plant, not the amount of route the policy is required to solve.
+        "random_start": False,
+        "randomize_plant": robust,
+        "start_curriculum": False,
+        "randomization_curriculum": False,
+    }
+
+
 def _mean(values: Iterable[float]) -> float | None:
     finite = [float(value) for value in values if np.isfinite(value)]
     return float(np.mean(finite)) if finite else None

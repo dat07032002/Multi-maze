@@ -102,6 +102,27 @@ class EnvironmentTest(unittest.TestCase):
         self.assertTrue(np.all(probabilities > 0.0))
         self.assertGreater(probabilities[3], float(np.median(probabilities)))
 
+    def test_plr_uses_seen_learning_scores_before_full_coverage(self):
+        task = TagMazeTask(
+            task_config=TaskConfig(
+                maze_manifest=str(DEFAULT_MANIFEST),
+                maze_split="train",
+                maze_sampling="plr",
+                plr_uniform_mix=0.20,
+                plr_staleness_mix=0.10,
+            )
+        )
+        task._maze_visits[:2] = 1
+        task._maze_progress[0] = 0.5
+        task._maze_success[0] = 0.5
+        task._maze_progress[1] = 1.0
+        task._maze_success[1] = 1.0
+        task._maze_last_visit[:2] = 1
+        task.episodes_started = 1
+        probabilities = task.sampling_probabilities()
+        self.assertGreater(probabilities[0], probabilities[1])
+        self.assertGreater(probabilities[2], probabilities[0])
+
     def test_success_threshold_expands_start_and_randomization_curricula(self):
         task = TagMazeTask(
             task_config=TaskConfig(
@@ -136,6 +157,39 @@ class EnvironmentTest(unittest.TestCase):
         full_physics = nominal_physics.randomized(np.random.default_rng(3), 1.0)
         self.assertNotEqual(full_actuator, nominal_actuator)
         self.assertNotEqual(full_physics, nominal_physics)
+
+    def test_assumed_ball_dynamics_are_active_and_randomized(self):
+        nominal = PhysicsConfig()
+        self.assertAlmostEqual(nominal.floor_friction[0], 0.38)
+        self.assertAlmostEqual(nominal.floor_friction[1], 0.00025)
+        self.assertAlmostEqual(nominal.floor_friction[2], 0.000024)
+        self.assertAlmostEqual(nominal.linear_ball_damping_per_second, 0.22)
+        self.assertAlmostEqual(nominal.wall_restitution, 0.35)
+        self.assertGreater(nominal.floor_friction[2], 0.0)
+        self.assertGreater(nominal.linear_ball_damping_per_second, 0.0)
+        self.assertGreater(nominal.wall_restitution, 0.0)
+        samples = [
+            nominal.randomized(np.random.default_rng(seed), 1.0)
+            for seed in range(10)
+        ]
+        self.assertGreater(
+            max(item.linear_ball_damping_per_second for item in samples)
+            - min(item.linear_ball_damping_per_second for item in samples),
+            0.1,
+        )
+        self.assertGreater(
+            max(item.floor_friction[2] for item in samples)
+            / min(item.floor_friction[2] for item in samples),
+            5.0,
+        )
+
+    def test_simulator_uses_six_dimensional_ball_contacts(self):
+        task = TagMazeTask(seed=4)
+        task.reset(seed=4)
+        xml = task.model.sim.xml
+        self.assertIn('class="floor">', xml)
+        self.assertIn('<geom condim="6" friction=', xml)
+        self.assertIn('name="ball_geom" type="sphere" condim="6"', xml)
 
     def test_diverse_generation_profile_is_deterministic_and_varied(self):
         first = _generation_kwargs(12345, "diverse_v2")
@@ -172,7 +226,9 @@ class EnvironmentTest(unittest.TestCase):
             RouteExpertController(),
             layout_index=0,
             seed=10,
-            max_steps=100,
+            # The untreated-PLA nominal prior loses speed faster than the old
+            # rigid-surface prior, so retain enough time for a valid success.
+            max_steps=150,
         )
         self.assertEqual(info["termination_reason"], "goal_reached")
         self.assertTrue(bool(episode["is_last"][-1]))

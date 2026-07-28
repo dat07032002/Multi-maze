@@ -4,6 +4,81 @@ V2 is a fresh, checkpoint-breaking training profile. It keeps the deployed
 `tag_hardware_policy_v1` observation/action contract but does not reuse the v1
 checkpoint or replay.
 
+## PLA adaptation update (2026-07-28)
+
+The maze will be FDM printed from PLA. Broad explicit PLA contact priors,
+weights-only checkpoint loading, matched adaptation/scratch profiles, baseline
+evaluation automation, fresh demonstration generation and an executable
+continuation gate are now implemented. See `PROJECT_PROGRESS_2026-07-28.md`
+for the current checkpoint, assumptions, active server jobs and decision
+criteria. This section supersedes the earlier 12M continuation proposal below.
+
+## 12M inspection and full-start fine-tuning plan (2026-07-27)
+
+The actuator-80 continuation completed at step 12,000,472:
+
+```text
+/home/tn22833/cyberrunner_logs/
+multimaze_v2_actuator80_prod12m_gpu2_20260727_171243
+```
+
+Training averaged about 214 FPS at the end and saved a 492 MB checkpoint. The
+final aggregate model, actor and critic metrics were finite. Seven isolated
+mixed-precision model-gradient overflows were reported and skipped by the
+optimizer; there was no persistent non-finite model state.
+
+Canonical held-out performance improved but plateaued:
+
+| Trigger step | Completion | Falls | Mean max route completion |
+| ---: | ---: | ---: | ---: |
+| 10.0M | 29.69% | 60.94% | 52.88% |
+| 10.5M | 42.19% | 50.00% | 63.89% |
+| 11.0M | 42.19% | 51.56% | 61.98% |
+| 11.5M | 50.00% | 43.75% | 65.66% |
+| 12.0M | 51.56% | 43.75% | 67.17% |
+
+At 12M, completion was 63.64% on easy, 47.62% on medium and 42.86%
+on hard validation layouts. Twenty-three of the 64 validation layouts were
+never solved at any checkpoint from 10M through 12M. Training episodes that
+started at route progress 0.0-0.1 succeeded only 30.0%, compared with 84.8%
+for starts at 0.7-1.0. This makes full-start behavior, rather than raw
+throughput, the next optimization target.
+
+The old robust protocol also enabled random mid-route starts. Its higher score
+was therefore not comparable with canonical evaluation. Robust evaluation now
+keeps a full start and randomizes only plant dynamics. Historical robust scores
+from before this correction must be labeled as legacy and must not be used for
+checkpoint selection.
+
+The implementation changes for the next continuation are:
+
+- PLR begins using outcome scores for seen layouts immediately instead of
+  waiting for each environment process to visit all 512 layouts.
+- `tag_sim_v2_fullstart_finetune` disables random mid-route starts and exposes
+  every episode to full plant randomization.
+- The final validation milestone accepts the stable final checkpoint after a
+  grace period, preventing a monitor hang when training has already exited.
+- `run_tag_v2_gpu2.sh` accepts a checked `TAG_TRAINING_PROFILE` and
+  `TAG_FROM_CHECKPOINT`, while retaining the approval and contract guards.
+
+Do not start the continuation until the corrected 12M robust evaluation is
+complete. The proposed first experiment is a bounded 500k continuation, not an
+unreviewed multi-million-step run:
+
+```bash
+export TAG_TRAINING_APPROVED=YES
+export TAG_TRAINING_PROFILE=tag_sim_v2_fullstart_finetune
+export TAG_FROM_CHECKPOINT=/home/tn22833/cyberrunner_logs/\
+multimaze_v2_actuator80_prod12m_gpu2_20260727_171243/checkpoint.ckpt
+export TAG_STEPS=12500000
+export TAG_LOGDIR="$HOME/cyberrunner_logs/multimaze_v2_fullstart_12p5m_gpu2_TIMESTAMP"
+bash scripts/run_tag_v2_gpu2.sh
+```
+
+Evaluate canonical and corrected robust performance at 12.5M. Continue only if
+canonical completion or fall rate improves without a material hard-band
+regression.
+
 ## What changes
 
 - deterministic 512/64/64 train/validation/test split;

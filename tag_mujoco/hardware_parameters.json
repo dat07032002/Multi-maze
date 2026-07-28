@@ -5,6 +5,7 @@
       "design",
       "datasheet",
       "extracted_unverified",
+      "assumed",
       "inferred",
       "measured"
     ],
@@ -188,6 +189,48 @@
       "unit": "command",
       "status": "inferred",
       "source": "bounded prior from gradual sweeps and repeated steps on 2026-07-27; positive motor 2 and negative motor 1 were directionally ambiguous at 40 and clear at 80"
+    },
+    "ball.floor_sliding_friction": {
+      "value": 0.38,
+      "range": [0.15, 0.7],
+      "unit": "dimensionless",
+      "status": "assumed",
+      "source": "broad untreated FDM PLA versus steel-marble prior in assumed_dynamics.json; pending physical inclined-plane or trajectory fit on the actual print"
+    },
+    "ball.torsional_friction_length": {
+      "value": 0.00025,
+      "range": [0.00003, 0.0015],
+      "unit": "m",
+      "status": "assumed",
+      "source": "broad untreated FDM PLA MuJoCo 6D-contact prior in assumed_dynamics.json; pending physical spin-decay fit"
+    },
+    "ball.rolling_resistance_coefficient": {
+      "value": 0.004,
+      "range": [0.0005, 0.03],
+      "unit": "dimensionless",
+      "status": "assumed",
+      "source": "log-scale untreated FDM PLA and hard-ball rolling prior; converted to MuJoCo rolling-friction length using the measured 0.006 m radius"
+    },
+    "ball.rolling_friction_length": {
+      "value": 0.000024,
+      "range": [0.000003, 0.00018],
+      "unit": "m",
+      "status": "assumed",
+      "source": "rolling resistance coefficient multiplied by the measured 0.006 m ball radius"
+    },
+    "ball.linear_damping": {
+      "value": 0.22,
+      "range": [0.0, 0.8],
+      "unit": "1/s",
+      "status": "assumed",
+      "source": "broad effective velocity-damping prior for an untreated FDM PLA surface; pending quality-gated free-roll fit"
+    },
+    "ball.wall_restitution": {
+      "value": 0.35,
+      "range": [0.05, 0.7],
+      "unit": "dimensionless",
+      "status": "assumed",
+      "source": "broad low-speed steel-marble versus FDM PLA wall prior in assumed_dynamics.json; pending controlled wall-impact fit"
     },
     "planner.safety_margin": {
       "value": 0.0015,

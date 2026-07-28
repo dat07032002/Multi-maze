@@ -270,10 +270,10 @@ def build_mjcf(layout: Dict[str, Any], model_params: Dict[str, Any] | None = Non
   </visual>
   <default>
     <default class="floor">
-      <geom friction="{_fmt(floor_friction)}" solref="0.004 1" solimp="0.95 0.99 0.001" density="650"/>
+      <geom condim="6" friction="{_fmt(floor_friction)}" solref="0.004 1" solimp="0.95 0.99 0.001" density="650"/>
     </default>
     <default class="wall">
-      <geom friction="{_fmt(wall_friction)}" solref="0.003 {wall_damping_ratio:.9g}" solimp="0.95 0.99 0.001" density="700"/>
+      <geom condim="6" friction="{_fmt(wall_friction)}" solref="0.003 {wall_damping_ratio:.9g}" solimp="0.95 0.99 0.001" density="700"/>
     </default>
   </default>
   <worldbody>
@@ -296,7 +296,7 @@ def build_mjcf(layout: Dict[str, Any], model_params: Dict[str, Any] | None = Non
     </body>
     <body name="ball" pos="{start_local[0]:.9g} {start_local[1]:.9g} {ball_radius + 0.001:.9g}">
       <freejoint name="ball_free"/>
-      <geom name="ball_geom" type="sphere" size="{ball_radius:.9g}" mass="{ball_mass:.9g}" rgba="0.10 0.24 0.92 1" friction="{_fmt(ball_friction)}" solref="0.0025 1" solimp="0.97 0.995 0.001"/>
+      <geom name="ball_geom" type="sphere" condim="6" size="{ball_radius:.9g}" mass="{ball_mass:.9g}" rgba="0.10 0.24 0.92 1" friction="{_fmt(ball_friction)}" solref="0.0025 1" solimp="0.97 0.995 0.001"/>
     </body>
   </worldbody>
   <actuator>
