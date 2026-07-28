@@ -114,7 +114,9 @@ PLA demonstrations:
 ```
 
 The 500k pilot is intentionally not launched until both phases finish
-successfully.
+successfully. `scripts/continue_pla_pilot_after_prereqs.sh` enforces that
+ordering, launches the bounded pilot and its 250k/500k validation, writes the
+continuation-gate result, and never starts a longer continuation.
 
 ## Verification
 
