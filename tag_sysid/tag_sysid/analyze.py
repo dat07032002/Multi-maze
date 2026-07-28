@@ -1,4 +1,4 @@
-"""Analyze a session produced by :mod:`tag_sysid.recorder`."""
+"""Analyze passive recorder sessions and guarded active sysid sessions."""
 
 from __future__ import annotations
 
@@ -24,6 +24,15 @@ def _numbers(rows: list[dict[str, str]], key: str) -> np.ndarray:
     return np.asarray([float(row[key]) for row in rows], dtype=np.float64)
 
 
+def _complete_numbers(
+    rows: list[dict[str, str]], key: str
+) -> np.ndarray | None:
+    values = [row.get(key, "") for row in rows]
+    if not values or any(value in ("", None) for value in values):
+        return None
+    return np.asarray([float(value) for value in values], dtype=np.float64)
+
+
 def _range(values: np.ndarray) -> dict[str, float | None]:
     finite = values[np.isfinite(values)]
     if not finite.size:
@@ -40,10 +49,15 @@ def analyze_session(session_dir: Path) -> dict[str, Any]:
     session_dir = session_dir.resolve()
     camera = _rows(session_dir / "camera.csv")
     states = _rows(session_dir / "states.csv")
+    active_session = False
+    if not states:
+        states = _rows(session_dir / "board_angles.csv")
+        active_session = bool(states)
     commands = _rows(session_dir / "commands.csv")
     result: dict[str, Any] = {
         "schema_version": 1,
         "session": str(session_dir),
+        "session_kind": "active" if active_session else "passive",
         "timing": {
             "camera": timing_summary(int(row["monotonic_ns"]) for row in camera),
             "state": timing_summary(int(row["monotonic_ns"]) for row in states),
@@ -71,6 +85,15 @@ def analyze_session(session_dir: Path) -> dict[str, Any]:
             else None
         )
     if states:
+        source_ages = _complete_numbers(states, "source_age_ns")
+        if source_ages is not None:
+            source_ages_ms = source_ages / 1.0e6
+            result["state_source_age_ms"] = {
+                "samples": int(source_ages_ms.size),
+                "median": float(np.median(source_ages_ms)),
+                "p95": float(np.percentile(source_ages_ms, 95)),
+                "maximum": float(np.max(source_ages_ms)),
+            }
         visible = _numbers(states, "ball_visible") > 0.5
         result["ball_detection"] = {
             "samples": len(states),
@@ -89,18 +112,47 @@ def analyze_session(session_dir: Path) -> dict[str, Any]:
             )
         }
     if commands:
+        command_keys = (
+            ("command_1", "command_2")
+            if active_session
+            else ("vel_1", "vel_2", "target_pos_1", "target_pos_2")
+        )
         result["observed_command_ranges"] = {
             key: _range(_numbers(commands, key))
-            for key in ("vel_1", "vel_2", "target_pos_1", "target_pos_2")
+            for key in command_keys
         }
     if states and commands:
+        command_1_key = "command_1" if active_session else "vel_1"
+        command_2_key = "command_2" if active_session else "vel_2"
+        command_times = _complete_numbers(commands, "ros_time_ns")
+        state_times = _complete_numbers(states, "source_time_ns")
+        source_timestamp_fit = command_times is not None and state_times is not None
+        if not source_timestamp_fit:
+            command_times = _numbers(commands, "monotonic_ns")
+            state_times = _numbers(states, "monotonic_ns")
         fit = fit_command_to_angle(
-            _numbers(commands, "monotonic_ns").astype(np.int64),
-            np.column_stack((_numbers(commands, "vel_1"), _numbers(commands, "vel_2"))),
-            _numbers(states, "monotonic_ns").astype(np.int64),
+            command_times.astype(np.int64),
+            np.column_stack(
+                (
+                    _numbers(commands, command_1_key),
+                    _numbers(commands, command_2_key),
+                )
+            ),
+            state_times.astype(np.int64),
             np.column_stack((_numbers(states, "alpha_rad"), _numbers(states, "beta_rad"))),
         )
-        result["passive_command_angle_fit"] = fit
+        fit_key = (
+            "active_command_angle_fit"
+            if active_session
+            else "passive_command_angle_fit"
+        )
+        result[fit_key] = fit
+        if fit is not None:
+            fit["timestamp_basis"] = (
+                "command_ros_time_to_state_source_time"
+                if source_timestamp_fit
+                else "recorder_monotonic_receipt_time"
+            )
     result["interpretation"] = {
         "usable_now": [
             "camera, estimator, and command rates and jitter",

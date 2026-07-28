@@ -87,6 +87,8 @@ class KF:
         self.R = np.diag([self.sigma_m ** 2, self.sigma_m ** 2])
 
         self.xm, self.Pm = self.initialize()
+        self.last_finite_xm = self.xm.copy()
+        self.last_finite_Pm = self.Pm.copy()
 
     def initialize(
         self,
@@ -140,11 +142,24 @@ class KF:
                 The covariance of the posterior estimate Pm(k). The order of
                 states is given by x = [xb, yb, xb_dot, yb_dot].
         """
+        if not (
+            np.all(np.isfinite(self.xm)) and np.all(np.isfinite(self.Pm))
+        ):
+            self.xm = self.last_finite_xm.copy()
+            self.Pm = self.last_finite_Pm.copy()
+
         # prior update
         xp, Pp = self.prior_update(self.xm, self.Pm, inputs)
 
         # measurement update
         self.xm, self.Pm = self.measurement_update(xp, Pp, measurement)
+
+        if np.all(np.isfinite(self.xm)) and np.all(np.isfinite(self.Pm)):
+            self.last_finite_xm = self.xm.copy()
+            self.last_finite_Pm = self.Pm.copy()
+        else:
+            self.xm = self.last_finite_xm.copy()
+            self.Pm = self.last_finite_Pm.copy()
 
         return self.xm, self.Pm
 
@@ -161,8 +176,7 @@ class KF:
         measurement: np.ndarray,
     ):
 
-        if np.any(np.isnan(measurement)):
-            # raise Exception("There is a measurement that is NaN.")
+        if not np.all(np.isfinite(measurement)):
             return xp, Pp
 
         # Kalman gain
@@ -230,6 +244,8 @@ class KFBias:
         self.R = np.diag([self.sigma_m ** 2, self.sigma_m ** 2])
 
         self.xm, self.Pm = self.initialize()
+        self.last_finite_xm = self.xm.copy()
+        self.last_finite_Pm = self.Pm.copy()
 
     def initialize(
         self,
@@ -286,11 +302,24 @@ class KFBias:
                 The covariance of the posterior estimate Pm(k). The order of
                 states is given by x = [xb, yb, xb_dot, yb_dot].
         """
+        if not (
+            np.all(np.isfinite(self.xm)) and np.all(np.isfinite(self.Pm))
+        ):
+            self.xm = self.last_finite_xm.copy()
+            self.Pm = self.last_finite_Pm.copy()
+
         # prior update
         xp, Pp = self.prior_update(self.xm, self.Pm, inputs)
 
         # measurement update
         self.xm, self.Pm = self.measurement_update(xp, Pp, measurement)
+
+        if np.all(np.isfinite(self.xm)) and np.all(np.isfinite(self.Pm)):
+            self.last_finite_xm = self.xm.copy()
+            self.last_finite_Pm = self.Pm.copy()
+        else:
+            self.xm = self.last_finite_xm.copy()
+            self.Pm = self.last_finite_Pm.copy()
 
         return self.xm, self.Pm
 
@@ -307,8 +336,7 @@ class KFBias:
         measurement: np.ndarray,
     ):
 
-        if np.any(np.isnan(measurement)):
-            # raise Exception("There is a measurement that is NaN.")
+        if not np.all(np.isfinite(measurement)):
             return xp, Pp
 
         # Kalman gain

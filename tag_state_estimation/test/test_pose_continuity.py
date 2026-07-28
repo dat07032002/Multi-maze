@@ -29,6 +29,7 @@ class PoseContinuityGateTest(unittest.TestCase):
         gate = PoseContinuityGate(max_abs_deg=20)
         result = gate.update((math.radians(45), 0.0))
         self.assertFalse(result.accepted)
+        self.assertEqual(result.reason, "absolute_limit")
         self.assertTrue(all(math.isnan(value) for value in result.angles))
 
     def test_holds_only_a_bounded_number_of_bad_frames(self):
@@ -38,6 +39,7 @@ class PoseContinuityGateTest(unittest.TestCase):
         bad_2 = gate.update((math.radians(34), 0.0))
         bad_3 = gate.update((math.radians(34), 0.0))
         self.assertTrue(valid.accepted)
+        self.assertEqual(bad_1.reason, "absolute_limit")
         self.assertEqual(bad_1.angles, valid.angles)
         self.assertEqual(bad_2.angles, valid.angles)
         self.assertTrue(all(math.isnan(value) for value in bad_3.angles))
@@ -49,7 +51,39 @@ class PoseContinuityGateTest(unittest.TestCase):
         recovered = gate.update((math.radians(10.5), 0.0))
         self.assertTrue(valid.accepted)
         self.assertTrue(recovered.accepted)
+        self.assertEqual(recovered.reason, "accepted")
         self.assertEqual(recovered.consecutive_rejections, 0)
+
+    def test_reports_non_finite_and_step_rejections(self):
+        gate = PoseContinuityGate(max_step_deg=3)
+        non_finite = gate.update((math.nan, 0.0))
+        self.assertEqual(non_finite.reason, "non_finite")
+        gate.update((0.0, 0.0))
+        step = gate.update((math.radians(4), 0.0))
+        self.assertEqual(step.reason, "step_limit")
+
+    def test_reacquires_a_stable_pose_after_stale_reference(self):
+        gate = PoseContinuityGate(max_step_deg=3, reacquire_frames=5)
+        gate.update((0.0, 0.0))
+        new_pose = (math.radians(5), math.radians(-1))
+        results = [gate.update(new_pose) for _ in range(5)]
+        self.assertTrue(all(not result.accepted for result in results[:4]))
+        self.assertTrue(results[4].accepted)
+        self.assertEqual(results[4].reason, "reacquired")
+        self.assertEqual(results[4].angles, new_pose)
+
+    def test_does_not_reacquire_inconsistent_candidates(self):
+        gate = PoseContinuityGate(max_step_deg=3, reacquire_frames=3)
+        gate.update((0.0, 0.0))
+        candidates = [
+            (math.radians(5), 0.0),
+            (math.radians(10), 0.0),
+            (math.radians(5), 0.0),
+            (math.radians(10), 0.0),
+        ]
+        results = [gate.update(candidate) for candidate in candidates]
+        self.assertTrue(all(not result.accepted for result in results))
+        self.assertEqual(gate.last_valid, (0.0, 0.0))
 
 
 if __name__ == "__main__":

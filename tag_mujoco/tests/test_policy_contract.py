@@ -76,6 +76,49 @@ class TagPolicyContractTest(unittest.TestCase):
         self.assertEqual(profile["prehome_wait_seconds"], 0.5)
         self.assertEqual(profile["home_positions"], (500.0, 500.0))
 
+    def test_measured_actuator_map_is_direction_dependent_and_coupled(self):
+        config = ActuatorConfig(
+            total_delay_seconds=0.0,
+            response_time_constant_seconds=0.001,
+        )
+
+        def settle(action):
+            actuator = HiwonderActuatorModel(config)
+            for _ in range(100):
+                actuator.submit_action(action)
+                actuator.step(0.01)
+            return actuator.board_target_angles
+
+        axis2_positive = settle((0.0, -0.2))
+        axis2_negative = settle((0.0, 0.2))
+        self.assertLess(abs(axis2_positive[0]), math.radians(0.1))
+        # The command-80 fit predicts about +0.19/+0.14 degrees at command
+        # -36. Preserve the measured sign and coupling without retaining the
+        # substantially larger gain from the superseded command-26.67 fit.
+        self.assertGreater(axis2_negative[0], math.radians(0.1))
+        self.assertGreater(axis2_negative[1], math.radians(0.1))
+
+    def test_axis2_positive_stiction_rejects_local_small_command(self):
+        actuator = HiwonderActuatorModel(
+            ActuatorConfig(
+                total_delay_seconds=0.0,
+                response_time_constant_seconds=0.001,
+            )
+        )
+        # action -0.1 becomes command +18, below the measured +40 threshold.
+        for _ in range(100):
+            actuator.submit_action((0.0, -0.1))
+            actuator.step(0.01)
+        np.testing.assert_allclose(actuator.board_target_angles, (0.0, 0.0))
+
+    def test_privileged_inverse_respects_directional_map(self):
+        config = ActuatorConfig()
+        actuator = HiwonderActuatorModel(config)
+        target = np.radians((0.4, -0.2))
+        action = actuator.action_for_board_target(target)
+        self.assertTrue(np.all(np.isfinite(action)))
+        self.assertTrue(np.all(np.abs(action) <= 1.0))
+
 
 if __name__ == "__main__":
     unittest.main()

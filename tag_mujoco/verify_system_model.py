@@ -79,16 +79,20 @@ def main() -> None:
     after_settle = actuator.board_target_angles
     results["actuator"] = {
         "no_instantaneous_response": bool(np.max(np.abs(before_delay)) < 1e-8),
-        "positive_x_negative_y_mapping": bool(
-            after_settle[0] > math.radians(9.0)
-            and after_settle[1] < -math.radians(9.0)
+        "measured_directional_mapping": bool(
+            # The command-80 fit has strong measured cross-axis cancellation
+            # for this simultaneous diagonal command. Verify its direction
+            # above a 0.1-degree noise floor without retaining the magnitude
+            # of the superseded command-26.67 map.
+            after_settle[0] < -math.radians(0.1)
+            and after_settle[1] > math.radians(0.1)
         ),
         "settled_angles_deg": np.degrees(after_settle),
         "servo_positions": actuator.commanded_servo_positions,
     }
     results["actuator"]["passed"] = bool(
         results["actuator"]["no_instantaneous_response"]
-        and results["actuator"]["positive_x_negative_y_mapping"]
+        and results["actuator"]["measured_directional_mapping"]
     )
 
     model = TagSystemModel(layout, config)

@@ -26,8 +26,8 @@
     "ball.radius": {
       "value": 0.006,
       "unit": "m",
-      "status": "extracted_unverified",
-      "source": "hardware reference project"
+      "status": "measured",
+      "source": "user-confirmed physical value on 2026-07-27"
     },
     "camera.calibration": {
       "value": "tag_state_estimation/calib/calib_results_tag.txt",
@@ -130,20 +130,20 @@
     "maze.wall_thickness": {
       "value": 0.0022,
       "unit": "m",
-      "status": "inferred",
-      "source": "current printable-maze design value; pending measurement and print validation"
+      "status": "measured",
+      "source": "user-confirmed physical value on 2026-07-27"
     },
     "maze.wall_height": {
       "value": 0.012,
       "unit": "m",
-      "status": "inferred",
-      "source": "current printable-maze design value; pending measurement and print validation"
+      "status": "measured",
+      "source": "user-confirmed physical value on 2026-07-27"
     },
     "maze.hole_radius": {
       "value": 0.0075,
       "unit": "m",
-      "status": "extracted_unverified",
-      "source": "working TAG custom maze layout"
+      "status": "measured",
+      "source": "user-confirmed physical value on 2026-07-27"
     },
     "insert.mounting_interface": {
       "value": null,
@@ -158,18 +158,36 @@
       "source": "user-confirmed fit in the Sterling swappable-board platform on 2026-07-23"
     },
     "actuator.total_delay": {
-      "value": 0.045,
-      "range": [0.02, 0.1],
+      "value": 0.033,
+      "range": [0.015, 0.07],
       "unit": "s",
-      "status": "inferred",
-      "source": "simulation prior pending synchronized hardware measurements"
+      "status": "measured",
+      "source": "median pure-delay fit from source-timestamped repeated +/-80 step runs on 2026-07-27"
     },
     "actuator.response_time_constant": {
-      "value": 0.075,
-      "range": [0.04, 0.14],
+      "value": 0.086,
+      "range": [0.045, 0.13],
       "unit": "s",
+      "status": "measured",
+      "source": "median first-order 10-to-90 percent fit from source-timestamped repeated +/-80 step runs on 2026-07-27"
+    },
+    "actuator.local_positive_angle_map": {
+      "value": [[0.0000795005, -0.0000953463], [-0.000155138, -0.0000453984]],
+      "unit": "rad_per_command",
+      "status": "measured",
+      "source": "rows alpha/beta, columns motor 1/2; median local response at +80 across three repetitions on 2026-07-27"
+    },
+    "actuator.local_negative_angle_map": {
+      "value": [[-0.0000596913, -0.0000911717], [-0.0000590775, -0.0000681776]],
+      "unit": "rad_per_command",
+      "status": "measured",
+      "source": "rows alpha/beta, columns motor 1/2; median local response at -80 across three repetitions on 2026-07-27"
+    },
+    "actuator.local_stiction_command": {
+      "value": {"positive": [10.0, 40.0], "negative": [40.0, 10.0]},
+      "unit": "command",
       "status": "inferred",
-      "source": "simulation prior pending synchronized hardware measurements"
+      "source": "bounded prior from gradual sweeps and repeated steps on 2026-07-27; positive motor 2 and negative motor 1 were directionally ambiguous at 40 and clear at 80"
     },
     "planner.safety_margin": {
       "value": 0.0015,

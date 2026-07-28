@@ -12,7 +12,8 @@ class ParameterRegistryTest(unittest.TestCase):
     def test_registry_is_valid_and_preserves_uncertainty(self):
         registry = load_parameter_registry()
         unresolved = unresolved_parameters(registry)
-        self.assertIn("actuator.total_delay", unresolved)
+        self.assertNotIn("actuator.total_delay", unresolved)
+        self.assertIn("actuator.local_stiction_command", unresolved)
         self.assertEqual(
             registry["parameters"]["board.width"]["status"], "design"
         )
@@ -20,4 +21,3 @@ class ParameterRegistryTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -29,6 +29,7 @@ class EstimationPipeline:
         ai_max_reacquire_jump_px=25.0,
         ai_occlusion_grace_frames=90,
         ai_reacquire_confirm_frames=3,
+        ai_fusion_weight=0.5,
         ai_max_prediction_std_m=0.03,
     ):
 
@@ -50,6 +51,7 @@ class EstimationPipeline:
             ai_max_reacquire_jump_px=ai_max_reacquire_jump_px,
             ai_occlusion_grace_frames=ai_occlusion_grace_frames,
             ai_reacquire_confirm_frames=ai_reacquire_confirm_frames,
+            ai_fusion_weight=ai_fusion_weight,
         )
         if estimator == "FiniteDiff":
             self.estimator = FiniteDiff(fps, FiniteDiff_mean_steps)
@@ -62,6 +64,14 @@ class EstimationPipeline:
         self.show_image = show_image
         self.ai_max_prediction_std_m = float(ai_max_prediction_std_m)
         self.ball_source = self.measurements.ball_source
+        self._last_finite_inputs = np.zeros(2, dtype=float)
+
+    def _safe_estimator_inputs(self, inputs):
+        """Keep a transient invalid plate pose from poisoning the Kalman state."""
+        candidate = np.asarray(inputs, dtype=float)
+        if candidate.shape == (2,) and np.all(np.isfinite(candidate)):
+            self._last_finite_inputs = candidate.copy()
+        return self._last_finite_inputs.copy()
 
     def estimate(self, frame, return_ball_subimg=False):
         """
@@ -83,7 +93,9 @@ class EstimationPipeline:
         xb, yb, _ = self.measurements.get_ball_position_in_maze()
         if return_ball_subimg:
             ball_subimg = self.measurements.get_ball_subimg()
-        inputs = self.measurements.get_plate_pose()  # alpha, beta
+        inputs = self._safe_estimator_inputs(
+            self.measurements.get_plate_pose()
+        )  # alpha, beta
         tmeas = time.time() - t0
         t0 = time.time()
         x_hat, P = self.estimator.estimate(

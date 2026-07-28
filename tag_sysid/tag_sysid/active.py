@@ -28,6 +28,9 @@ from .protocols import HARD_COMMAND_LIMIT, Phase, build_protocol, validate_proto
 ARM_TOKEN = "START_ACTIVE_SYSID"
 STATE_FIELDS = (
     "monotonic_ns",
+    "ros_time_ns",
+    "source_time_ns",
+    "source_age_ns",
     "elapsed_seconds",
     "phase_index",
     "phase_name",
@@ -46,6 +49,7 @@ STATE_FIELDS = (
 
 COMMAND_FIELDS = (
     "monotonic_ns",
+    "ros_time_ns",
     "elapsed_seconds",
     "phase_index",
     "phase_name",
@@ -151,6 +155,14 @@ class ActiveSysId(Node):
         self.latest_state = message
         self.state_count += 1
         now_ns = time.monotonic_ns()
+        ros_time_ns = int(self.get_clock().now().nanoseconds)
+        header = getattr(message, "header", None)
+        stamp = getattr(header, "stamp", None)
+        source_time_ns = (
+            int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
+            if stamp is not None
+            else 0
+        )
         self.latest_state_ns = now_ns
         self.baseline_alpha_samples.append(float(message.alpha))
         self.baseline_beta_samples.append(float(message.beta))
@@ -219,6 +231,11 @@ class ActiveSysId(Node):
         self.state_writer.writerow(
             {
                 "monotonic_ns": now_ns,
+                "ros_time_ns": ros_time_ns,
+                "source_time_ns": source_time_ns if source_time_ns else "",
+                "source_age_ns": (
+                    ros_time_ns - source_time_ns if source_time_ns else ""
+                ),
                 "elapsed_seconds": f"{self._elapsed(now_ns):.9f}",
                 "phase_index": self.current_phase_index,
                 "phase_name": phase.name,
@@ -255,6 +272,12 @@ class ActiveSysId(Node):
             )
         )
 
+    def validate_additional_preflight(self) -> None:
+        """Allow specialized runners to add checks before arming output."""
+
+    def validate_additional_runtime(self) -> None:
+        """Allow specialized runners to stop between command publications."""
+
     def preflight(self) -> None:
         deadline = time.monotonic() + self.args.state_timeout
         while self.latest_state is None and time.monotonic() < deadline:
@@ -286,6 +309,7 @@ class ActiveSysId(Node):
             f"beta={math.degrees(self.baseline_beta_rad):.2f} deg; "
             f"maximum excursion={self.args.max_angle_excursion_deg:.2f} deg"
         )
+        self.validate_additional_preflight()
         if not self._driver_subscriber_present():
             raise RuntimeError(
                 "expected driver node "
@@ -337,6 +361,9 @@ class ActiveSysId(Node):
                     f"state stream is stale ({state_age:.3f}s); stopping output"
                 )
         message = self.command_type()
+        published_ros_ns = int(self.get_clock().now().nanoseconds)
+        if hasattr(message, "header"):
+            message.header.stamp = self.get_clock().now().to_msg()
         message.vel_1 = float(phase.command_1)
         message.vel_2 = float(phase.command_2)
         self.publisher.publish(message)
@@ -345,6 +372,7 @@ class ActiveSysId(Node):
         self.command_writer.writerow(
             {
                 "monotonic_ns": now_ns,
+                "ros_time_ns": published_ros_ns,
                 "elapsed_seconds": f"{self._elapsed(now_ns):.9f}",
                 "phase_index": self.current_phase_index,
                 "phase_name": phase.name,
@@ -373,6 +401,7 @@ class ActiveSysId(Node):
                     self._publish(phase)
                     next_publish = now + 0.1
                 rclpy.spin_once(self, timeout_sec=0.01)
+                self.validate_additional_runtime()
         self.return_home()
         self._write_metadata("complete")
 

@@ -135,6 +135,14 @@ def build_mjcf(layout: Dict[str, Any], model_params: Dict[str, Any] | None = Non
     floor_friction = tuple(model_params.get("floor_friction", (0.30, 0.015, 0.002)))
     wall_friction = tuple(model_params.get("wall_friction", (0.35, 0.020, 0.003)))
     ball_friction = tuple(model_params.get("ball_friction", (0.22, 0.012, 0.002)))
+    wall_restitution = float(model_params.get("wall_restitution", 0.0))
+    if wall_restitution <= 0.0:
+        wall_damping_ratio = 1.0
+    else:
+        log_restitution = math.log(max(1.0e-6, min(0.999, wall_restitution)))
+        wall_damping_ratio = -log_restitution / math.sqrt(
+            math.pi**2 + log_restitution**2
+        )
     actuator_kp = float(model_params.get("actuator_kp", 90.0))
     actuator_kv = float(model_params.get("actuator_kv", 8.0))
     start_x, start_y = map(float, layout["waypoints"][0])
@@ -265,7 +273,7 @@ def build_mjcf(layout: Dict[str, Any], model_params: Dict[str, Any] | None = Non
       <geom friction="{_fmt(floor_friction)}" solref="0.004 1" solimp="0.95 0.99 0.001" density="650"/>
     </default>
     <default class="wall">
-      <geom friction="{_fmt(wall_friction)}" solref="0.003 1" solimp="0.95 0.99 0.001" density="700"/>
+      <geom friction="{_fmt(wall_friction)}" solref="0.003 {wall_damping_ratio:.9g}" solimp="0.95 0.99 0.001" density="700"/>
     </default>
   </default>
   <worldbody>

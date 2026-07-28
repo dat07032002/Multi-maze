@@ -47,6 +47,7 @@ class PlanarPoseTest(unittest.TestCase):
             self.estimator._rotation_distance(expected_rotation, rotation), 1e-3
         )
         np.testing.assert_allclose(translation.ravel(), expected_tvec, atol=1e-3)
+        self.assertLess(self.estimator.last_pnp_rmse["maze"], 1e-3)
 
     def test_continuous_frames_stay_on_same_pose_branch(self):
         poses = []

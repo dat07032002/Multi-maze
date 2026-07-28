@@ -39,6 +39,7 @@ class HybridBallTracker:
         self.missing_frames = 0
         self.pending_ai_position = None
         self.pending_ai_frames = 0
+        self.cross_validated_track = False
 
     @staticmethod
     def _distance(first, second):
@@ -49,12 +50,19 @@ class HybridBallTracker:
         self.missing_frames = 0
         self.pending_ai_position = None
         self.pending_ai_frames = 0
+        self.cross_validated_track = False
+
+    def _clear_pending(self):
+        self.pending_ai_position = None
+        self.pending_ai_frames = 0
 
     def _accept(self, position, source, disagreement=np.nan):
         self.last_position = np.asarray(position, dtype=np.float32).copy()
         self.missing_frames = 0
         self.pending_ai_position = None
         self.pending_ai_frames = 0
+        if source.startswith("fused"):
+            self.cross_validated_track = True
         return HybridBallResult(
             self.last_position.copy(), source, float(disagreement), 0
         )
@@ -109,17 +117,16 @@ class HybridBallTracker:
                     return confirmed if confirmed is not None else self._missing()
                 return self._accept(fused, "fused", disagreement)
 
-            # AI is authoritative when the detectors disagree. A nearby AI
-            # candidate may continue tracking immediately; a distant one must
-            # pass the same multi-frame confirmation as any AI reacquisition.
-            if self.last_position is not None:
+            # Static blue maze features can fool either detector. Disagreement
+            # must never establish a track or move one to a distant candidate.
+            # AI may only bridge a disagreement close to an actively tracked
+            # position; reacquisition requires both detectors to agree.
+            if self.last_position is not None and self.missing_frames == 0:
                 ai_jump = self._distance(ai_position, self.last_position)
                 if ai_jump <= self.max_reacquire_jump_px:
                     return self._accept(ai_position, "ai_disagreement", disagreement)
-            confirmed = self._confirm_reacquisition(
-                ai_position, "ai_reacquired_confirmed"
-            )
-            return confirmed if confirmed is not None else self._missing()
+            self._clear_pending()
+            return self._missing()
 
         if hsv_valid:
             # Blue board markers can satisfy the HSV filter. Never let an
@@ -128,19 +135,16 @@ class HybridBallTracker:
 
         if ai_valid:
             ai_position = np.asarray(ai_position, dtype=np.float32)
-            if self.last_position is None or self.missing_frames > 0:
-                confirmed = self._confirm_reacquisition(
-                    ai_position, "ai_reacquired_confirmed"
-                )
-                return confirmed if confirmed is not None else self._missing()
+            # The heatmap detector always has a strongest cell, including on
+            # an empty board.  AI-only detections therefore must not create or
+            # reacquire a track.  They may bridge a short HSV miss only after
+            # a track has already been cross-validated by both detectors.
+            if self.last_position is None:
+                self._clear_pending()
+                return self._missing()
             jump = self._distance(ai_position, self.last_position)
-            if jump <= self.max_reacquire_jump_px:
+            if self.cross_validated_track and jump <= self.max_reacquire_jump_px:
                 return self._accept(ai_position, "ai_reacquired")
-
-            confirmed = self._confirm_reacquisition(
-                ai_position, "ai_reacquired_confirmed"
-            )
-            if confirmed is not None:
-                return confirmed
+            self._clear_pending()
 
         return self._missing()

@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "method": "phase-tail median relative to preceding home; source timestamps",
+  "sessions": [
+    {
+      "session": "/home/dat/tag_sysid_logs/active/step_20260727T214804Z",
+      "axis": 1,
+      "minimum_timed_response_deg": 0.05,
+      "directions": {
+        "positive": {
+          "command": 40.0,
+          "repetitions": 3,
+          "median_change_rad": [
+            0.0024808940872170643,
+            -0.005866661438047996
+          ],
+          "local_rad_per_command": [
+            6.202235218042661e-05,
+            -0.0001466665359511999
+          ],
+          "timing": {
+            "alpha_rad": {
+              "t10_seconds": 0.004770517349243164,
+              "t90_seconds": 0.014097213745117188
+            },
+            "beta_rad": {
+              "t10_seconds": 0.03860819339752197,
+              "t90_seconds": 0.10511541366577148
+            }
+          }
+        },
+        "negative": {
+          "command": -40.0,
+          "repetitions": 3,
+          "median_change_rad": [
+            0.0049901199499659404,
+            -0.009709782790473744
+          ],
+          "local_rad_per_command": [
+            -0.00012475299874914852,
+            0.00024274456976184359
+          ],
+          "timing": {
+            "alpha_rad": {
+              "t10_seconds": 0.02948904037475586,
+              "t90_seconds": 0.19577479362487793
+            },
+            "beta_rad": {
+              "t10_seconds": 0.0309600830078125,
+              "t90_seconds": 0.19577479362487793
+            }
+          }
+        }
+      },
+      "raw_sha256": {
+        "commands.csv": "2b16080879bebd2c3a23776b2f6a230906ee57f3bf884b96f1db17844fa3d3ca",
+        "board_angles.csv": "2c4f510db2846cb883083865784426a9ae8d9b5b648a4ab769e953bb36065ccb"
+      }
+    },
+    {
+      "session": "/home/dat/tag_sysid_logs/active/step_20260727T214850Z",
+      "axis": 2,
+      "minimum_timed_response_deg": 0.05,
+      "directions": {
+        "positive": {
+          "command": 40.0,
+          "repetitions": 3,
+          "median_change_rad": [
+            0.006508402929770438,
+            -0.008155308326082765
+          ],
+          "local_rad_per_command": [
+            0.00016271007324426094,
+            -0.0002038827081520691
+          ],
+          "timing": {
+            "alpha_rad": {
+              "t10_seconds": 0.021054387092590332,
+              "t90_seconds": 0.20009660720825195
+            },
+            "beta_rad": {
+              "t10_seconds": 0.016159653663635254,
+              "t90_seconds": 0.22995615005493164
+            }
+          }
+        },
+        "negative": {
+          "command": -40.0,
+          "repetitions": 3,
+          "median_change_rad": [
+            0.007693100387731258,
+            0.007857513592873663
+          ],
+          "local_rad_per_command": [
+            -0.00019232750969328145,
+            -0.0001964378398218416
+          ],
+          "timing": {
+            "alpha_rad": {
+              "t10_seconds": 0.08174633979797363,
+              "t90_seconds": 0.1575908660888672
+            },
+            "beta_rad": {
+              "t10_seconds": 0.05586135387420654,
+              "t90_seconds": 0.23115324974060059
+            }
+          }
+        }
+      },
+      "raw_sha256": {
+        "commands.csv": "d98f8ccbc29d14d1ff3e4302cc7cfbbe022f53d3ac647f892f59205d54112a17",
+        "board_angles.csv": "c9451ab7c28a3c3ff31c14a61a332adf4c2a5a5de5b170a58186a45160da139b"
+      }
+    }
+  ]
+}

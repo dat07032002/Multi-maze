@@ -40,6 +40,8 @@ CAMERA_FIELDS = (
 STATE_FIELDS = (
     "ros_time_ns",
     "monotonic_ns",
+    "source_time_ns",
+    "source_age_ns",
     "x_b_m",
     "y_b_m",
     "x_b_dot_mps",
@@ -219,11 +221,20 @@ class SysIdRecorder(Node):
 
     def on_state(self, msg) -> None:
         ros_ns, monotonic_ns = self._times()
+        header = getattr(msg, "header", None)
+        stamp = getattr(header, "stamp", None)
+        source_ns = (
+            int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
+            if stamp is not None
+            else 0
+        )
         visible = math.isfinite(float(msg.x_b)) and math.isfinite(float(msg.y_b))
         self.state_sink.write(
             {
                 "ros_time_ns": ros_ns,
                 "monotonic_ns": monotonic_ns,
+                "source_time_ns": source_ns if source_ns else "",
+                "source_age_ns": ros_ns - source_ns if source_ns else "",
                 "x_b_m": float(msg.x_b),
                 "y_b_m": float(msg.y_b),
                 "x_b_dot_mps": float(msg.x_b_dot),
@@ -275,7 +286,6 @@ class SysIdRecorder(Node):
     def stop_after_limit(self) -> None:
         self.get_logger().info("Configured recording duration reached; stopping.")
         self.finish()
-        rclpy.shutdown()
 
     def _metadata(self, completed: bool) -> dict[str, Any]:
         return {
@@ -312,8 +322,8 @@ class SysIdRecorder(Node):
             },
             "limitations": [
                 (
-                    "StateEstimate and HiwonderVel do not contain source "
-                    "timestamps; receipt times are recorded on this ROS host."
+                    "Legacy interface profiles may not provide state source "
+                    "timestamps; blank source fields fall back to receipt time."
                 ),
                 (
                     "Commanded servo targets are derived from configuration "
@@ -349,7 +359,8 @@ def main(args=None) -> None:
     rclpy.init(args=args)
     node = SysIdRecorder()
     try:
-        rclpy.spin(node)
+        while rclpy.ok() and not node.finished:
+            rclpy.spin_once(node, timeout_sec=0.2)
     except KeyboardInterrupt:
         pass
     finally:

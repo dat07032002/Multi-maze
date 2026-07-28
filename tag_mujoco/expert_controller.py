@@ -77,10 +77,18 @@ class RouteExpertController:
             + self.config.velocity_gain * (desired_velocity - velocity)
         )
 
-        # TAG action 1 drives +X; the first tilt joint has the opposite board-Y
-        # sign in the active MuJoCo/Hiwonder linkage convention.
-        raw_action = np.asarray(
+        # Convert the desired board tilt through the measured, direction-
+        # dependent motor map.  The former fixed axis swap assumed a symmetric
+        # diagonal linkage and is invalid for the physical 2026-07-27 fit.
+        desired_board_action = np.asarray(
             (-board_control[1], board_control[0]), dtype=np.float64
+        )
+        desired_board_target = (
+            desired_board_action
+            * task.model.active_actuator_config.board_angle_limit_rad
+        )
+        raw_action = task.model.actuator.action_for_board_target(
+            desired_board_target
         )
         raw_action = np.clip(
             raw_action, -self.config.action_limit, self.config.action_limit

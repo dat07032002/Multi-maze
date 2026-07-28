@@ -30,6 +30,7 @@ class Measurements:
         ai_max_reacquire_jump_px=25.0,
         ai_occlusion_grace_frames=90,
         ai_reacquire_confirm_frames=3,
+        ai_fusion_weight=0.5,
     ):
         self.acceleration_backend = acceleration_backend
         self.detector = Detector(
@@ -66,6 +67,7 @@ class Measurements:
             max_reacquire_jump_px=ai_max_reacquire_jump_px,
             occlusion_grace_frames=ai_occlusion_grace_frames,
             far_reacquire_confirm_frames=ai_reacquire_confirm_frames,
+            ai_fusion_weight=ai_fusion_weight,
         )
         self.ball_source = "hsv" if self.ai_mode == "off" else "initializing"
         self.ai_confidence = np.nan
@@ -121,15 +123,6 @@ class Measurements:
         if get_ball_subimg:
             frame_copy = frame.copy()
 
-        corners_img_coords, hsv_ball_img_coords = self.detector.process_frame(frame)
-        hsv_measured = (
-            hsv_ball_img_coords
-            if self.detector.last_ball_detection_found
-            else None
-        )
-        ball_img_coords = hsv_ball_img_coords
-        self.detection_disagreement_px = np.nan
-
         run_ai = self.ai_detector is not None and (
             self.ai_mode == "hybrid"
             or self.ai_frame_count % self.ai_check_every_n_frames == 0
@@ -148,6 +141,33 @@ class Measurements:
                     [ai_detection.y_px, ai_detection.x_px], dtype=np.float32
                 )
         self.ai_frame_count += 1
+
+        # A full-board HSV search can prefer a large, static blue maze feature
+        # over the smaller marble.  During hybrid reacquisition, use the AI
+        # result only to center the normal 80x80 HSV crop.  The proposal still
+        # has to pass the independent HSV detector and the agreement/temporal
+        # gates below before it can become a published measurement.
+        if (
+            self.ai_mode == "hybrid"
+            and ai_position is not None
+            and (
+                not self.detector.is_ball_found
+                or self.hybrid_tracker.missing_frames
+                >= self.detector.BALL_MISS_THRESHOLD
+            )
+        ):
+            self.detector.reset_ball_tracking()
+            self.detector.ball_pos = ai_position.copy()
+            self.detector.is_ball_found = True
+
+        corners_img_coords, hsv_ball_img_coords = self.detector.process_frame(frame)
+        hsv_measured = (
+            hsv_ball_img_coords
+            if self.detector.last_ball_detection_found
+            else None
+        )
+        ball_img_coords = hsv_ball_img_coords
+        self.detection_disagreement_px = np.nan
 
         if self.ai_mode == "hybrid":
             result = self.hybrid_tracker.update(hsv_measured, ai_position)

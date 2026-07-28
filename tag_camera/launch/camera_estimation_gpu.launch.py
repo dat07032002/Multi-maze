@@ -16,6 +16,8 @@ def generate_launch_description():
     estimator_executable = LaunchConfiguration("estimator_executable")
     ai_mode = LaunchConfiguration("ai_mode")
     ai_model_path = LaunchConfiguration("ai_model_path")
+    pose_zero_alpha_deg = LaunchConfiguration("pose_zero_alpha_deg")
+    pose_zero_beta_deg = LaunchConfiguration("pose_zero_beta_deg")
 
     return LaunchDescription(
         [
@@ -24,13 +26,25 @@ def generate_launch_description():
             DeclareLaunchArgument("gpu_device_id", default_value="0"),
             DeclareLaunchArgument("require_gpu", default_value="false"),
             DeclareLaunchArgument("camera_fps", default_value="60.0"),
-            DeclareLaunchArgument("camera_width", default_value="1280"),
-            DeclareLaunchArgument("camera_height", default_value="720"),
+            DeclareLaunchArgument("camera_width", default_value="1920"),
+            DeclareLaunchArgument("camera_height", default_value="1200"),
             DeclareLaunchArgument("output_width", default_value="640"),
-            DeclareLaunchArgument("output_height", default_value="360"),
-            DeclareLaunchArgument("border_y", default_value="20"),
-            DeclareLaunchArgument("pipeline_fps", default_value="55.0"),
+            DeclareLaunchArgument("output_height", default_value="400"),
+            DeclareLaunchArgument("border_y", default_value="0"),
+            DeclareLaunchArgument("capture_backend", default_value="gstreamer"),
+            DeclareLaunchArgument("pipeline_fps", default_value="60.0"),
+            DeclareLaunchArgument("velocity_window_sec", default_value="0.25"),
+            DeclareLaunchArgument("velocity_min_samples", default_value="6"),
+            DeclareLaunchArgument(
+                "velocity_deadband_mps", default_value="0.002"
+            ),
             DeclareLaunchArgument("process_every_n", default_value="1"),
+            DeclareLaunchArgument("pose_zero_alpha_deg", default_value="-0.10"),
+            DeclareLaunchArgument("pose_zero_beta_deg", default_value="2.30"),
+            DeclareLaunchArgument(
+                "pose_max_reprojection_rmse_px", default_value="5.0"
+            ),
+            DeclareLaunchArgument("pose_reacquire_frames", default_value="5"),
             DeclareLaunchArgument(
                 "estimator_executable", default_value="estimator_sub"
             ),
@@ -52,6 +66,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "ai_check_every_n_frames", default_value="3"
             ),
+            DeclareLaunchArgument("ai_fusion_weight", default_value="0.5"),
             DeclareLaunchArgument("orientation_mode", default_value="camera"),
             DeclareLaunchArgument("imu_topic", default_value="/tag_imu/data"),
             DeclareLaunchArgument("imu_timeout_sec", default_value="0.10"),
@@ -91,6 +106,9 @@ def generate_launch_description():
                 parameters=[
                     {
                         "device": device,
+                        "capture_backend": LaunchConfiguration(
+                            "capture_backend"
+                        ),
                         "fps": ParameterValue(
                             LaunchConfiguration("camera_fps"), value_type=float
                         ),
@@ -140,7 +158,27 @@ def generate_launch_description():
                                     LaunchConfiguration("process_every_n"),
                                     value_type=int,
                                 ),
-                                "ai_mode": ai_mode,
+                                "velocity_window_sec": ParameterValue(
+                                    LaunchConfiguration("velocity_window_sec"),
+                                    value_type=float,
+                                ),
+                                "velocity_min_samples": ParameterValue(
+                                    LaunchConfiguration("velocity_min_samples"),
+                                    value_type=int,
+                                ),
+                                "velocity_deadband_mps": ParameterValue(
+                                    LaunchConfiguration(
+                                        "velocity_deadband_mps"
+                                    ),
+                                    value_type=float,
+                                ),
+                                # YAML 1.1 treats the unquoted value "off" as
+                                # a boolean. Force the launch argument to stay
+                                # a string for the estimator's off/shadow/hybrid
+                                # mode selector.
+                                "ai_mode": ParameterValue(
+                                    ai_mode, value_type=str
+                                ),
                                 "ai_model_path": ai_model_path,
                                 "ai_backend": LaunchConfiguration(
                                     "ai_backend"
@@ -157,8 +195,30 @@ def generate_launch_description():
                                     ),
                                     value_type=int,
                                 ),
+                                "ai_fusion_weight": ParameterValue(
+                                    LaunchConfiguration("ai_fusion_weight"),
+                                    value_type=float,
+                                ),
                                 "orientation_mode": LaunchConfiguration(
                                     "orientation_mode"
+                                ),
+                                "pose_zero_alpha_deg": ParameterValue(
+                                    pose_zero_alpha_deg, value_type=float
+                                ),
+                                "pose_zero_beta_deg": ParameterValue(
+                                    pose_zero_beta_deg, value_type=float
+                                ),
+                                "pose_max_reprojection_rmse_px": ParameterValue(
+                                    LaunchConfiguration(
+                                        "pose_max_reprojection_rmse_px"
+                                    ),
+                                    value_type=float,
+                                ),
+                                "pose_reacquire_frames": ParameterValue(
+                                    LaunchConfiguration(
+                                        "pose_reacquire_frames"
+                                    ),
+                                    value_type=int,
                                 ),
                                 "imu_topic": LaunchConfiguration("imu_topic"),
                                 "imu_timeout_sec": ParameterValue(

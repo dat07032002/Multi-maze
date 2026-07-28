@@ -25,6 +25,9 @@ from tag_state_estimation.core.orientation_fusion import (
     CameraImuOrientationFusion,
     board_xy_angles,
 )
+from tag_state_estimation.core.velocity_estimation import (
+    PositionVelocityEstimator,
+)
 from tag_interfaces.msg import StateEstimate, StateEstimateSub
 
 
@@ -32,7 +35,7 @@ class ImageSubscriber(Node):
     def __init__(self, skip=1):
         super().__init__("tag_state_estimation")
         self.declare_parameter("process_every_n", skip)
-        self.declare_parameter("pipeline_fps", 55.0)
+        self.declare_parameter("pipeline_fps", 60.0)
         self.declare_parameter("print_measurements", False)
         self.declare_parameter("show_image", False)
         self.declare_parameter("use_gpu", False)
@@ -51,6 +54,8 @@ class ImageSubscriber(Node):
         self.declare_parameter("pose_max_abs_deg", 20.0)
         self.declare_parameter("pose_max_step_deg", 3.0)
         self.declare_parameter("pose_reject_hold_frames", 2)
+        self.declare_parameter("pose_reacquire_frames", 5)
+        self.declare_parameter("pose_max_reprojection_rmse_px", 5.0)
         self.declare_parameter("pose_zero_alpha_deg", 0.0)
         self.declare_parameter("pose_zero_beta_deg", 0.0)
         self.declare_parameter("orientation_mode", "camera")
@@ -74,7 +79,11 @@ class ImageSubscriber(Node):
         self.declare_parameter("ai_max_reacquire_jump_px", 25.0)
         self.declare_parameter("ai_occlusion_grace_frames", 90)
         self.declare_parameter("ai_reacquire_confirm_frames", 3)
+        self.declare_parameter("ai_fusion_weight", 0.5)
         self.declare_parameter("ai_max_prediction_std_m", 0.03)
+        self.declare_parameter("velocity_window_sec", 0.25)
+        self.declare_parameter("velocity_min_samples", 6)
+        self.declare_parameter("velocity_deadband_mps", 0.002)
 
         self.skip = max(1, int(self.get_parameter("process_every_n").value))
         self.pipeline_fps = float(self.get_parameter("pipeline_fps").value)
@@ -99,6 +108,9 @@ class ImageSubscriber(Node):
             hold_frames=int(
                 self.get_parameter("pose_reject_hold_frames").value
             ),
+            reacquire_frames=int(
+                self.get_parameter("pose_reacquire_frames").value
+            ),
         )
         self.camera_pose_gate = PoseContinuityGate(**pose_gate_args)
         self.pose_gate = PoseContinuityGate(**pose_gate_args)
@@ -108,6 +120,11 @@ class ImageSubscriber(Node):
         self.pose_zero_beta_deg = float(
             self.get_parameter("pose_zero_beta_deg").value
         )
+        self.pose_max_reprojection_rmse_px = float(
+            self.get_parameter("pose_max_reprojection_rmse_px").value
+        )
+        if self.pose_max_reprojection_rmse_px <= 0.0:
+            raise ValueError("pose_max_reprojection_rmse_px must be positive")
         self.pose_rejection_active = False
         self.orientation_mode = str(
             self.get_parameter("orientation_mode").value
@@ -187,6 +204,12 @@ class ImageSubscriber(Node):
         self.orientation_disagreement_publisher = self.create_publisher(
             Float32, "tag_state_estimation/orientation_disagreement_deg", 10
         )
+        self.pose_reprojection_publisher = self.create_publisher(
+            Float32, "tag_state_estimation/pose_reprojection_rmse_px", 10
+        )
+        self.state_latency_publisher = self.create_publisher(
+            Float32, "tag_state_estimation/source_to_state_latency_ms", 10
+        )
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
         self.tf_broadcaster = TransformBroadcaster(self)
 
@@ -228,6 +251,9 @@ class ImageSubscriber(Node):
             ai_reacquire_confirm_frames=int(
                 self.get_parameter("ai_reacquire_confirm_frames").value
             ),
+            ai_fusion_weight=float(
+                self.get_parameter("ai_fusion_weight").value
+            ),
             ai_max_prediction_std_m=float(
                 self.get_parameter("ai_max_prediction_std_m").value
             ),
@@ -244,6 +270,15 @@ class ImageSubscriber(Node):
         self.outside_candidate_active = False
         self.outside_candidate_count = 0
         self.outside_warning_frames = 5
+        self.velocity_estimator = PositionVelocityEstimator(
+            window_seconds=float(
+                self.get_parameter("velocity_window_sec").value
+            ),
+            min_samples=int(self.get_parameter("velocity_min_samples").value),
+            stationary_deadband_mps=float(
+                self.get_parameter("velocity_deadband_mps").value
+            ),
+        )
 
         self.count = 0
         # self.prev_a = self.prev_b = 0.0
@@ -331,6 +366,21 @@ class ImageSubscriber(Node):
             alpha_zero_deg=self.pose_zero_alpha_deg,
             beta_zero_deg=self.pose_zero_beta_deg,
         )
+        pnp_rmse = self.estimation_pipeline.measurements.plate_pose.last_pnp_rmse
+        fixed_rmse = float(pnp_rmse.get("camera", np.inf))
+        moving_rmse = float(pnp_rmse.get("maze", np.inf))
+        pose_reprojection_rmse = max(fixed_rmse, moving_rmse)
+        if (
+            not np.isfinite(pose_reprojection_rmse)
+            or pose_reprojection_rmse > self.pose_max_reprojection_rmse_px
+        ):
+            self.get_logger().warn(
+                "Rejecting plate pose with excessive reprojection error: "
+                f"fixed={fixed_rmse:.3f}px, moving={moving_rmse:.3f}px, "
+                f"limit={self.pose_max_reprojection_rmse_px:.3f}px",
+                throttle_duration_sec=1.0,
+            )
+            camera_angles = (np.nan, np.nan)
         camera_pose_result = self.camera_pose_gate.update(camera_angles)
         camera_rotation = None
         if camera_pose_result.accepted:
@@ -359,6 +409,28 @@ class ImageSubscriber(Node):
         ball_source = self.estimation_pipeline.ball_source
         if not camera_pose_result.accepted:
             detector = self.estimation_pipeline.measurements.detector
+            raw_beta_deg = np.degrees(camera_pose_result.candidate[0])
+            raw_alpha_deg = -np.degrees(camera_pose_result.candidate[1])
+            fixed_corners = (
+                np.round(detector.fixed_corners, 1).tolist()
+                if detector.fixed_corners is not None
+                else None
+            )
+            moving_corners = (
+                np.round(detector.corners, 1).tolist()
+                if detector.corners is not None
+                else None
+            )
+            self.get_logger().warn(
+                "Plate pose rejected: "
+                f"reason={camera_pose_result.reason}, "
+                f"raw_alpha_deg={raw_alpha_deg:.3f}, "
+                f"raw_beta_deg={raw_beta_deg:.3f}, "
+                f"consecutive={camera_pose_result.consecutive_rejections}, "
+                f"fixed_corners={fixed_corners}, "
+                f"moving_corners={moving_corners}",
+                throttle_duration_sec=1.0,
+            )
             detector.corners = None
             detector.corners_missing = True
             xb = np.nan
@@ -367,12 +439,7 @@ class ImageSubscriber(Node):
             x_hat[3] = np.nan
             subimg = np.zeros_like(subimg)
             ball_source = "lost_pose"
-            if not self.pose_rejection_active:
-                self.get_logger().warn(
-                    "Rejecting discontinuous plate-pose solution and "
-                    "resetting corner tracking."
-                )
-                self.pose_rejection_active = True
+            self.pose_rejection_active = True
         elif self.pose_rejection_active:
             self.get_logger().info("Plate-pose tracking recovered.")
             self.pose_rejection_active = False
@@ -423,6 +490,25 @@ class ImageSubscriber(Node):
             self.outside_candidate_active = False
             self.outside_candidate_count = 0
 
+        source_time_ns = (
+            int(data.header.stamp.sec) * 1_000_000_000
+            + int(data.header.stamp.nanosec)
+        )
+        if source_time_ns <= 0:
+            source_time_ns = int(self.get_clock().now().nanoseconds)
+        velocity_source_is_measured = (
+            ball_source == "hsv"
+            or ball_source.startswith("fused")
+            or ball_source.startswith("ai")
+        )
+        velocity_position = (
+            (xb, yb) if velocity_source_is_measured else (np.nan, np.nan)
+        )
+        x_hat[2], x_hat[3] = self.velocity_estimator.update(
+            velocity_position,
+            source_time_ns / 1.0e9,
+        )
+
         source_message = String()
         source_message.data = ball_source
         self.ball_source_publisher.publish(source_message)
@@ -435,6 +521,14 @@ class ImageSubscriber(Node):
         disagreement_message = Float32()
         disagreement_message.data = float(orientation_result.disagreement_deg)
         self.orientation_disagreement_publisher.publish(disagreement_message)
+        reprojection_message = Float32()
+        reprojection_message.data = float(pose_reprojection_rmse)
+        self.pose_reprojection_publisher.publish(reprojection_message)
+        latency_message = Float32()
+        latency_message.data = float(
+            (self.get_clock().now().nanoseconds - source_time_ns) / 1.0e6
+        )
+        self.state_latency_publisher.publish(latency_message)
         for publisher, value in (
             (
                 self.ai_confidence_publisher,
@@ -455,6 +549,7 @@ class ImageSubscriber(Node):
             publisher.publish(diagnostic)
         if self.count % self.skip == 0:
             msg = StateEstimateSub()
+            msg.state.header = data.header
             msg.state.x_b = xb
             msg.state.y_b = yb
             msg.state.x_b_dot = x_hat[2]
@@ -462,9 +557,11 @@ class ImageSubscriber(Node):
             msg.state.alpha = -angles[1]
             msg.state.beta = angles[0]
             msg.subimg = self.br.cv2_to_imgmsg(subimg)
+            msg.subimg.header = data.header
             self.publisher_.publish(msg)
 
             state_msg = StateEstimate()
+            state_msg.header = msg.state.header
             state_msg.x_b = msg.state.x_b
             state_msg.y_b = msg.state.y_b
             state_msg.x_b_dot = msg.state.x_b_dot
@@ -536,5 +633,17 @@ class ImageSubscriber(Node):
 def main(args=None):
     rclpy.init(args=args)
     image_subscriber = ImageSubscriber()
-    rclpy.spin(image_subscriber)
-    rclpy.shutdown()
+    try:
+        rclpy.spin(image_subscriber)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            image_subscriber.destroy_node()
+        except KeyboardInterrupt:
+            pass
+        if rclpy.ok():
+            try:
+                rclpy.shutdown()
+            except KeyboardInterrupt:
+                pass

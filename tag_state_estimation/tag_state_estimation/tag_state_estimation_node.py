@@ -21,7 +21,7 @@ class ImageSubscriber(Node):
         # Parameters
         self.declare_parameter("process_every_n", 1)   # 1 = every frame, 2 = every other frame
         self.declare_parameter("debug_timing", True)
-        self.declare_parameter("pipeline_fps", 55.0)
+        self.declare_parameter("pipeline_fps", 60.0)
         self.declare_parameter("show_image", False)
         self.declare_parameter("print_measurements", False)
         self.declare_parameter("use_gpu", False)
@@ -113,6 +113,7 @@ class ImageSubscriber(Node):
         t_estimate = time.monotonic()
 
         msg = StateEstimate()
+        msg.header = data.header
         msg.x_b = float(x_hat[0])
         msg.y_b = float(x_hat[1])
         msg.x_b_dot = float(x_hat[2])

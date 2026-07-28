@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- Propagated camera source timestamps through `StateEstimate`, passive logs,
+  and active sysid logs so actuator timing and state latency use image time
+  instead of ROS receipt time when the interface provides it.
+- Reworked the calibrated camera path for `1920 x 1200` capture and `640 x 400`
+  output, with a low-latency GStreamer backend and an OpenCV fallback.
+- Replaced frame-to-frame marble velocity differences with a timestamp-aware
+  sliding linear fit, including loss resets and a configurable stationary
+  deadband.
+- Strengthened plate-pose validation with per-branch PnP reprojection error,
+  explicit rejection diagnostics, and multi-frame recovery after a pose jump.
+- Hardened hybrid marble tracking so AI-only proposals cannot initialize or
+  reacquire a track; added cross-validated fusion, failure-window capture, and
+  an offline presence/center labeler for hard-negative collection.
+- Documented the camera-only vision reliability plan, dataset split rules, and
+  acceptance gates required before another active hardware test.
+- Completed guarded axis-2 and repeated command-80 actuator measurements with
+  source-timestamped timing, raw-artifact hashes, and direction-dependent 2x2
+  local command-to-angle maps.
+- Updated the simulator and privileged route expert to use the measured
+  directional actuator maps, local stiction priors, 33 ms total delay, and an
+  86 ms response time constant while retaining domain randomization for
+  unmeasured backlash, saturation, and stalls.
+- Added approval-gated marble pulse and breakaway protocols with visibility,
+  start-speed, board-boundary, speed, dropout, and confirmed-displacement
+  interlocks.
+- Added passive real-trajectory dynamics fitting and a quality-gated simulator
+  override for tilt response, linear damping, rolling resistance, and wall
+  restitution.
+- Marked the user-confirmed ball radius and maze wall/hole dimensions as
+  measured in the hardware parameter registry.
+- Added compatibility with both common Python HID APIs and made camera,
+  estimator, and recorder shutdown paths tolerate operator interrupts cleanly.
 - Added a bounded plate-pose continuity gate that resets corner tracking after
   impossible PnP branches and fails non-finite after two held frames.
 - Added a mixed sysid profile for the clean filtered estimator with the working

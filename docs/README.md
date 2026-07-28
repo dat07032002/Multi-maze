@@ -13,6 +13,14 @@
 - [`tag_state_estimation/AI_MARBLE_DETECTOR.md`](../tag_state_estimation/AI_MARBLE_DETECTOR.md): learned detector modes, diagnostics, limitations, and safe validation
 - [training_snapshot_2026-07-24.json](training_snapshot_2026-07-24.json): machine-readable status of the stopped hardware-connected DreamerV3 run
 - [SYSID_AXIS_2026-07-24.md](SYSID_AXIS_2026-07-24.md): accepted guarded +/-20 hardware axis/sign response and remaining identification work
+- [SYSID_AXIS2_2026-07-27.md](SYSID_AXIS2_2026-07-27.md): guarded axis-2 gradual sweep, hardware compatibility findings, and limitations
+- [SYSID_ACTUATOR_2026-07-27.md](SYSID_ACTUATOR_2026-07-27.md): initial source-timestamped command-26.67 actuator fit, later superseded by the command-80 fit
+- [SYSID_ACTUATOR_STEP80_2026-07-27.md](SYSID_ACTUATOR_STEP80_2026-07-27.md): accepted direction-dependent command-80 actuator map and timing now used by the simulator
+- [sysid_actuator_2026-07-27.json](sysid_actuator_2026-07-27.json): machine-readable initial actuator fit and raw-file hashes
+- [sysid_actuator_step40_2026-07-27.json](sysid_actuator_step40_2026-07-27.json): machine-readable intermediate command-40 response
+- [sysid_actuator_step80_2026-07-27.json](sysid_actuator_step80_2026-07-27.json): machine-readable accepted command-80 actuator fit and raw-file hashes
+- [REAL_TRAJECTORY_RETRAINING.md](REAL_TRAJECTORY_RETRAINING.md): passive real-data recording, dynamics fitting, and quality-gated simulator refinement
+- [VISION_RELIABILITY_PLAN_2026-07-27.md](VISION_RELIABILITY_PLAN_2026-07-27.md): evidence, model/data plan, and camera-only acceptance gates for robust marble tracking
 - [sysid_axis_2026-07-24.json](sysid_axis_2026-07-24.json): machine-readable low-amplitude actuator response, timing, repeatability, and raw-file hashes
 - [SYSID_STEP_2026-07-24.md](SYSID_STEP_2026-07-24.md): accepted +/-10 step-response results, nonlinear comparison, and rejected stick-slip event
 - [sysid_step_2026-07-24.json](sysid_step_2026-07-24.json): machine-readable step magnitudes, timing, confidence, safety, and raw-file hashes

@@ -82,11 +82,19 @@ class HiwonderHID:
 
         for entry in candidates:
             try:
-                if entry["path"] is None:
-                    self.dev = hid.Device(vid=self.vid, pid=self.pid)
+                if hasattr(hid, "Device"):
+                    if entry["path"] is None:
+                        self.dev = hid.Device(vid=self.vid, pid=self.pid)
+                    else:
+                        self.dev = hid.Device(path=entry["path"])
+                    self.dev.nonblocking = True
                 else:
-                    self.dev = hid.Device(path=entry["path"])
-                self.dev.nonblocking = True
+                    self.dev = hid.device()
+                    if entry["path"] is None:
+                        self.dev.open(self.vid, self.pid)
+                    else:
+                        self.dev.open_path(entry["path"])
+                    self.dev.set_nonblocking(1)
                 self._use_65 = None
                 self.path = entry["display_path"]
                 return True
@@ -609,7 +617,8 @@ def main(args=None):
     finally:
         node.hid.close()
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

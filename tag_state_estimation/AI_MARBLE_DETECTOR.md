@@ -24,11 +24,14 @@ PyTorch is needed only for training; robot inference uses OpenCV.
   the AI model is not loaded.
 - `shadow` runs AI periodically while HSV remains authoritative. Use this for
   hardware validation.
-- `hybrid` runs AI every frame. AI is authoritative when the detectors
-  disagree, while nearby agreement is fused.
+- `hybrid` runs AI every frame. Nearby agreement is fused. AI may bridge a
+  short HSV miss only after both detectors have already established the track.
 
-Hybrid rejects HSV-only candidates, requires three spatially consistent frames
-after any loss, and sends NaN as the measurement during a gap. The Kalman
+Hybrid rejects HSV-only candidates and cannot initialize or reacquire from an
+AI-only proposal.  This is required because a heatmap without an explicit
+background class still has a strongest cell on an empty board.  Reacquisition
+requires three spatially consistent frames where HSV and AI agree, and sends
+NaN as the measurement during a gap. The Kalman
 prediction is published only during the bounded 90-frame grace period and only
 while position uncertainty is at most `0.03 m`.
 
@@ -40,7 +43,7 @@ Diagnostics:
 - `/tag_state_estimation/ai_inference_ms`
 
 Possible sources include `hsv`, `hsv_hold`, `fused`, `ai_disagreement`,
-`ai_reacquired`, `fused_reacquired_confirmed`, `ai_reacquired_confirmed`,
+`ai_reacquired`, `fused_reacquired_confirmed`,
 `kalman_occlusion`, `lost`, `lost_uncertain`, `lost_outside`, and `lost_pose`.
 
 ## Safe operation

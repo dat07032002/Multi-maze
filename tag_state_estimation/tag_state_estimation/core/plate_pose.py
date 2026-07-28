@@ -12,9 +12,9 @@ c_name = ["blue", "green", "red", "yellow"]
 class PlatePoseEstimator:
 
     # constants
-    L_EXT_INT_X = 0.317
-    L_EXT_INT_Y = 0.274
-    C2C_X = 0.269  # moving-marker center spacing along x
+    L_EXT_INT_X = 0.305
+    L_EXT_INT_Y = 0.290
+    C2C_X = 0.267  # measured moving-marker center spacing along x
     C2C_Y = 0.237  # moving-marker center spacing along y
     H_BORDERS = 0.026  # marker plane height above the marble surface
 
@@ -25,7 +25,11 @@ class PlatePoseEstimator:
     MODEL_POINTS_FIXED_CORNERS = np.array(
         [
             (-r, 0.05, 0),  # Corner 1
+            # Fixed outer markers measure 313 x 190 mm centre-to-centre.
+            # The x span is L_EXT_INT_X + 2*r = 0.313 m.
             (L_EXT_INT_X + r, 0.05, 0),  # Corner 2
+            # The fixed outer markers were measured at 190 mm centre-to-centre
+            # vertically: 0.290 m frame span minus the two 0.050 m insets.
             (L_EXT_INT_X + r, L_EXT_INT_Y - 0.05, 0),  # Corner 3
             (-r, L_EXT_INT_Y - 0.05, 0),  # Corner 4
         ],
@@ -69,6 +73,7 @@ class PlatePoseEstimator:
         self.img_points_corners_undist = None
         self.img_points_fixed_corners_undist = None
         self._previous_pnp_poses = {}
+        self.last_pnp_rmse = {}
 
     @staticmethod
     def _rotation_distance(rotation_a, rotation_b):
@@ -157,6 +162,9 @@ class PlatePoseEstimator:
             selected = min(eligible, key=continuity_cost)
 
         self._previous_pnp_poses[pose_key] = (selected[3], selected[2])
+        if not hasattr(self, "last_pnp_rmse"):
+            self.last_pnp_rmse = {}
+        self.last_pnp_rmse[pose_key] = float(selected[0])
         return selected[1], selected[2], selected[3]
 
     def estimate_anglesXY(self, corners_undist):  # (x,y)

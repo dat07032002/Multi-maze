@@ -45,6 +45,9 @@ class TagMazeSim:
         )
         self.ball_qpos_adr = int(self.model.jnt_qposadr[self.ball_joint_id])
         self.ball_qvel_adr = int(self.model.jnt_dofadr[self.ball_joint_id])
+        self.linear_ball_damping_per_second = float(
+            self.model_params.get("linear_ball_damping_per_second", 0.0)
+        )
         self.tilt_x_qpos_adr = int(self.model.jnt_qposadr[self.tilt_x_joint_id])
         self.tilt_y_qpos_adr = int(self.model.jnt_qposadr[self.tilt_y_joint_id])
         self.reset()
@@ -101,6 +104,19 @@ class TagMazeSim:
 
     def step(self, steps: int = 1) -> None:
         for _ in range(steps):
+            self.data.xfrc_applied[self.ball_body_id, :] = 0.0
+            if self.linear_ball_damping_per_second > 0.0:
+                rotation = self.data.xmat[self.board_body_id].reshape(3, 3)
+                velocity_world = self.data.qvel[
+                    self.ball_qvel_adr : self.ball_qvel_adr + 3
+                ]
+                velocity_board = rotation.T @ velocity_world
+                velocity_board[2] = 0.0
+                mass = float(self.model.body_mass[self.ball_body_id])
+                damping_force = rotation @ (
+                    -mass * self.linear_ball_damping_per_second * velocity_board
+                )
+                self.data.xfrc_applied[self.ball_body_id, :3] = damping_force
             mujoco.mj_step(self.model, self.data)
 
     def ball_world_position(self) -> np.ndarray:

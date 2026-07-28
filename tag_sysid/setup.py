@@ -22,7 +22,10 @@ setup(
         "console_scripts": [
             "record = tag_sysid.recorder:main",
             "analyze = tag_sysid.analyze:main",
+            "identify-actuator = tag_sysid.identify_actuator:main",
+            "fit-dynamics = tag_sysid.fit_dynamics:main",
             "active = tag_sysid.active:main",
+            "marble = tag_sysid.marble:main",
         ],
     },
 )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -11,6 +12,29 @@ import numpy as np
 
 
 HERE = Path(__file__).resolve().parent
+IDENTIFIED_DYNAMICS_PATH = HERE / "identified_dynamics.json"
+
+
+def _load_identified_dynamics() -> Dict[str, Any]:
+    if not IDENTIFIED_DYNAMICS_PATH.exists():
+        return {}
+    result = json.loads(IDENTIFIED_DYNAMICS_PATH.read_text(encoding="utf-8"))
+    return result if result.get("active", False) else {}
+
+
+IDENTIFIED_DYNAMICS = _load_identified_dynamics()
+_identified_rolling = float(
+    IDENTIFIED_DYNAMICS.get("rolling_friction_coefficient", {}).get("value", 0.002)
+)
+_identified_damping = float(
+    IDENTIFIED_DYNAMICS.get("linear_ball_damping_per_second", {}).get("value", 0.0)
+)
+_identified_restitution = IDENTIFIED_DYNAMICS.get("wall_restitution", {}).get(
+    "value"
+)
+_identified_restitution = (
+    0.0 if _identified_restitution is None else float(_identified_restitution)
+)
 DEFAULT_CAMERA_CALIBRATION = (
     HERE.parent
     / "tag_state_estimation"
@@ -71,7 +95,7 @@ class OcamCalibration:
 
 @dataclass(frozen=True)
 class ActuatorConfig:
-    """Active Hiwonder software behavior plus an explicit linkage prior."""
+    """Active Hiwonder behavior plus the measured local linkage response."""
 
     home_positions: Tuple[float, float] = (500.0, 500.0)
     servo_limits: Tuple[Tuple[float, float], Tuple[float, float]] = (
@@ -92,8 +116,12 @@ class ActuatorConfig:
     reset_prehome_move_seconds: float = 0.060
     reset_prehome_wait_seconds: float = 0.5
     reset_home_move_seconds: float = 0.600
-    total_delay_seconds: float = 0.045
-    response_time_constant_seconds: float = 0.075
+    # Source-timestamped +/-80 step runs on 2026-07-27 reached 90% of the
+    # dominant response in about 0.23 s.  The median first-order fit separates
+    # that into approximately one 30 Hz driver tick of pure delay and an 86 ms
+    # response time constant.
+    total_delay_seconds: float = 0.033
+    response_time_constant_seconds: float = 0.086
     board_angle_limit_rad: float = math.radians(10.0)
     # Inferred only: +/-270 servo units spans the +/-10 degree policy range.
     servo_units_per_rad: Tuple[float, float] = (
@@ -105,6 +133,24 @@ class ActuatorConfig:
         (1.0, 0.0),
         (0.0, 1.0),
     )
+    # Rows are measured board [alpha, beta], columns are Hiwonder commands
+    # [motor 1, motor 2].  Separate matrices retain the large direction
+    # asymmetry and cross-axis coupling observed in the repeated unloaded step
+    # runs.  These are local slopes near |command|=80, where both directions
+    # cleared the observed preload/backlash region.
+    board_rad_per_command_positive: Tuple[Tuple[float, float], Tuple[float, float]] = (
+        (0.00007950, -0.00009535),
+        (-0.00015514, -0.00004540),
+    )
+    board_rad_per_command_negative: Tuple[Tuple[float, float], Tuple[float, float]] = (
+        (-0.00005969, -0.00009117),
+        (-0.00005908, -0.00006818),
+    )
+    # Positive axis 2 and negative axis 1 did not produce an unambiguous
+    # directional response until |command|=80.  Thresholds remain conservative
+    # priors because the mechanism has preload and path-dependent hysteresis.
+    stiction_command_positive: Tuple[float, float] = (10.0, 40.0)
+    stiction_command_negative: Tuple[float, float] = (40.0, 10.0)
 
     def randomized(
         self, rng: np.random.Generator, strength: float = 1.0
@@ -123,11 +169,17 @@ class ActuatorConfig:
             value / factor for value, factor in zip(self.servo_units_per_rad, gain_factor)
         )
         cross = strength * rng.uniform(-0.08, 0.08, size=2)
+        positive_map = np.asarray(self.board_rad_per_command_positive) * blend(
+            rng.uniform(0.65, 1.35, size=(1, 2)), np.ones((1, 2))
+        )
+        negative_map = np.asarray(self.board_rad_per_command_negative) * blend(
+            rng.uniform(0.65, 1.35, size=(1, 2)), np.ones((1, 2))
+        )
         return replace(
             self,
             servo_units_per_rad=units_per_rad,  # type: ignore[arg-type]
             total_delay_seconds=float(
-                blend(rng.uniform(0.020, 0.100), self.total_delay_seconds)
+                blend(rng.uniform(0.010, 0.070), self.total_delay_seconds)
             ),
             response_time_constant_seconds=float(
                 blend(
@@ -140,6 +192,26 @@ class ActuatorConfig:
                 * rng.uniform(-math.radians(0.8), math.radians(0.8), size=2)
             ),  # type: ignore[arg-type]
             cross_axis_coupling=((1.0, float(cross[0])), (float(cross[1]), 1.0)),
+            board_rad_per_command_positive=tuple(
+                tuple(float(value) for value in row) for row in positive_map
+            ),  # type: ignore[arg-type]
+            board_rad_per_command_negative=tuple(
+                tuple(float(value) for value in row) for row in negative_map
+            ),  # type: ignore[arg-type]
+            stiction_command_positive=tuple(
+                float(value)
+                for value in blend(
+                    rng.uniform((5.0, 27.0), (18.0, 55.0)),
+                    self.stiction_command_positive,
+                )
+            ),  # type: ignore[arg-type]
+            stiction_command_negative=tuple(
+                float(value)
+                for value in blend(
+                    rng.uniform((5.0, 5.0), (18.0, 22.0)),
+                    self.stiction_command_negative,
+                )
+            ),  # type: ignore[arg-type]
         )
 
 
@@ -180,9 +252,11 @@ class PhysicsConfig:
     """Nominal MuJoCo values. These remain priors until hardware is measured."""
 
     ball_mass_kg: float = 0.011
-    floor_friction: Tuple[float, float, float] = (0.30, 0.015, 0.002)
+    floor_friction: Tuple[float, float, float] = (0.30, 0.015, _identified_rolling)
     wall_friction: Tuple[float, float, float] = (0.35, 0.020, 0.003)
-    ball_friction: Tuple[float, float, float] = (0.22, 0.012, 0.002)
+    ball_friction: Tuple[float, float, float] = (0.22, 0.012, _identified_rolling)
+    linear_ball_damping_per_second: float = _identified_damping
+    wall_restitution: float = _identified_restitution
     actuator_kp: float = 90.0
     actuator_kv: float = 8.0
 
@@ -206,6 +280,17 @@ class PhysicsConfig:
             floor_friction=scale(self.floor_friction, 0.55, 1.55),  # type: ignore[arg-type]
             wall_friction=scale(self.wall_friction, 0.65, 1.40),  # type: ignore[arg-type]
             ball_friction=scale(self.ball_friction, 0.55, 1.55),  # type: ignore[arg-type]
+            linear_ball_damping_per_second=float(
+                self.linear_ball_damping_per_second * factor(0.60, 1.40)
+            ),
+            wall_restitution=float(
+                np.clip(
+                    self.wall_restitution
+                    + strength * rng.uniform(-0.12, 0.12),
+                    0.0,
+                    0.95,
+                )
+            ),
             actuator_kp=float(self.actuator_kp * factor(0.75, 1.25)),
             actuator_kv=float(self.actuator_kv * factor(0.75, 1.25)),
         )

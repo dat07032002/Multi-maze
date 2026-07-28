@@ -72,12 +72,28 @@ def detect_gaussian(mask, j, q, th, show_sub, use_contour=True):
                 c = (np.asarray(mask.shape) - 1.0) / 2.0
                 blob_found = False
             else:
-                contour = max(contours, key=cv.contourArea)
-                M = cv.moments(contour)
-                if M["m00"] != 0:
-                    cx = M["m10"] / M["m00"]
-                    cy = M["m01"] / M["m00"]
-                    c = np.array([cy, cx])
+                # Corner crops are centred on the selected marker (initially from
+                # markers.csv, then from the previous frame).  Prefer the valid
+                # contour nearest that prediction instead of the largest contour:
+                # a nearby blue object can otherwise steal the detection even
+                # though the marker remains visible near the crop centre.
+                crop_center = (np.asarray(mask.shape, dtype=float) - 1.0) / 2.0
+                candidates = []
+                for contour in contours:
+                    moments = cv.moments(contour)
+                    if moments["m00"] == 0:
+                        continue
+                    centroid = np.array(
+                        [
+                            moments["m01"] / moments["m00"],
+                            moments["m10"] / moments["m00"],
+                        ]
+                    )
+                    distance = np.linalg.norm(centroid - crop_center)
+                    candidates.append((distance, centroid))
+
+                if candidates:
+                    _, c = min(candidates, key=lambda candidate: candidate[0])
                     blob_found = True
                 else:
                     c = (np.asarray(mask.shape) - 1.0) / 2.0

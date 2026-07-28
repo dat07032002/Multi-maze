@@ -1,8 +1,11 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 
 from tag_sysid.analysis import fit_command_to_angle, timing_summary
+from tag_sysid.analyze import analyze_session
 
 
 class AnalysisTest(unittest.TestCase):
@@ -27,6 +30,28 @@ class AnalysisTest(unittest.TestCase):
         self.assertLessEqual(abs(fit["lag_seconds"] - 0.06), 0.02)
         self.assertAlmostEqual(fit["lag_resolution_seconds"], 0.02, places=3)
         np.testing.assert_allclose(fit["angle_rad_per_command"], mapping, atol=1e-8)
+
+    def test_analyzes_active_csv_schema(self):
+        with TemporaryDirectory() as directory:
+            session = Path(directory)
+            (session / "commands.csv").write_text(
+                "monotonic_ns,command_1,command_2\n"
+                "0,0,0\n20000000,0,5\n40000000,0,10\n",
+                encoding="utf-8",
+            )
+            (session / "board_angles.csv").write_text(
+                "monotonic_ns,x_b_m,y_b_m,x_b_dot_mps,y_b_dot_mps,"
+                "alpha_rad,beta_rad,ball_visible\n"
+                "0,nan,nan,nan,nan,0.01,0.00,0\n"
+                "20000000,nan,nan,nan,nan,0.01,-0.01,0\n"
+                "40000000,nan,nan,nan,nan,0.01,-0.02,0\n",
+                encoding="utf-8",
+            )
+            result = analyze_session(session)
+
+        self.assertEqual(result["session_kind"], "active")
+        self.assertIn("command_2", result["observed_command_ranges"])
+        self.assertIn("active_command_angle_fit", result)
 
 
 if __name__ == "__main__":

@@ -50,6 +50,16 @@ overhead. Stop with Ctrl-C if no duration is specified.
 
 ```bash
 ros2 run tag_sysid analyze ~/tag_sysid_logs/normal_policy_01
+
+# Direction-dependent gain and source-timestamped step timing from one
+# single-axis repeated-step session per motor.
+ros2 run tag_sysid identify-actuator \
+  ~/tag_sysid_logs/active/step_axis1 \
+  ~/tag_sysid_logs/active/step_axis2
+
+# Fit effective tilt response, damping, rolling resistance, and impacts from a
+# completed passive real-trajectory session.
+ros2 run tag_sysid fit-dynamics ~/tag_sysid_logs/physical_fixed_policy_01
 ```
 
 The analyzer writes `summary.json` with topic rates and jitter, camera header
@@ -164,3 +174,22 @@ the Hiwonder driver's one-second timeout to return home.
 The order is mandatory: dry run, axis/sign at 40, review, then any larger test.
 Code readiness does not authorize motor motion; the operator must approve each
 active run on the Ubuntu machine.
+
+## Marble-installed protocols
+
+The separate `marble` runner provides dry-run plans for one-axis pulse and
+breakaway trials. It adds finite marble-state, stationary-start, board-boundary,
+speed, dropout, and rolling-median displacement checks to every actuator safety
+interlock above. Inspect a plan without initializing ROS or publishing:
+
+```bash
+ros2 run tag_sysid marble --mode pulse --axis 1 --direction 1
+ros2 run tag_sysid marble --mode breakaway --axis 2 --direction -1
+```
+
+Execution is intentionally approval-gated and uses mode-specific arm tokens.
+Do not run a marble-installed protocol merely because its dry run succeeds.
+Verify the estimator, place the stationary marble in a clear region, keep an
+operator at the emergency stop, stop all policy/TCP command publishers, and
+review the exact plan and amplitude first. Higher-range modes require the
+separate high-range token and a successful lower-range trial.

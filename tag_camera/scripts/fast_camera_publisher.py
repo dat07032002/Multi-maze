@@ -17,12 +17,13 @@ class FastCameraPublisher(Node):
 
         self.declare_parameter("device", "/dev/v4l/by-id/usb-e-con_systems_See3CAM_24CUG_0F2D140416020900-video-index0")
         self.declare_parameter("fps", 60.0)
-        self.declare_parameter("width", 1280)
-        self.declare_parameter("height", 720)
+        self.declare_parameter("width", 1920)
+        self.declare_parameter("height", 1200)
         self.declare_parameter("output_width", 640)
-        self.declare_parameter("output_height", 360)
-        self.declare_parameter("border_y", 20)
+        self.declare_parameter("output_height", 400)
+        self.declare_parameter("border_y", 0)
         self.declare_parameter("fourcc", "MJPG")
+        self.declare_parameter("capture_backend", "gstreamer")
         self.declare_parameter("exposure", -1)  # -1 = auto, >0 = manual (100µs units, e.g. 150 = 15ms)
 
         # Locked color controls (tuned via camera_tuner_live.py) applied with
@@ -50,6 +51,9 @@ class FastCameraPublisher(Node):
         self.output_height = int(self.get_parameter("output_height").value)
         self.border_y = int(self.get_parameter("border_y").value)
         self.fourcc = str(self.get_parameter("fourcc").value)
+        self.capture_backend = str(
+            self.get_parameter("capture_backend").value
+        ).lower()
         self.exposure = int(self.get_parameter("exposure").value)
 
         self.bridge = CvBridge()
@@ -69,16 +73,38 @@ class FastCameraPublisher(Node):
             image_qos
         )
 
-        self.cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
+        if self.capture_backend == "gstreamer":
+            pipeline = (
+                f"v4l2src device={self.device} io-mode=mmap ! "
+                f"image/jpeg,width={self.width},height={self.height},"
+                f"framerate={round(self.fps)}/1 ! "
+                "jpegdec ! videoscale ! videoconvert ! "
+                f"video/x-raw,format=BGR,width={self.output_width},"
+                f"height={self.output_height} ! "
+                "appsink drop=true max-buffers=1 sync=false"
+            )
+            self.cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+            self.capture_outputs_resized = True
+        elif self.capture_backend == "opencv":
+            self.cap = cv2.VideoCapture(self.device, cv2.CAP_V4L2)
+            self.capture_outputs_resized = False
+        else:
+            raise ValueError("capture_backend must be gstreamer or opencv")
 
         if not self.cap.isOpened():
-            raise RuntimeError(f"Could not open camera device: {self.device}")
+            raise RuntimeError(
+                f"Could not open camera device {self.device} with "
+                f"{self.capture_backend} backend"
+            )
 
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.fourcc))
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if not self.capture_outputs_resized:
+            self.cap.set(
+                cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.fourcc)
+            )
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            self.cap.set(cv2.CAP_PROP_FPS, self.fps)
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         if self.exposure > 0:
             self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # 1 = manual in V4L2
@@ -88,6 +114,7 @@ class FastCameraPublisher(Node):
             self.get_logger().info("Exposure: auto")
 
         self.get_logger().info(f"Camera opened: {self.device}")
+        self.get_logger().info(f"Capture backend: {self.capture_backend}")
         self.get_logger().info(f"Requested FOURCC: {self.fourcc}")
         self.get_logger().info(f"Actual width: {self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)}")
         self.get_logger().info(f"Actual height: {self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
@@ -141,14 +168,15 @@ class FastCameraPublisher(Node):
                 self.get_logger().warn("Failed to read camera frame")
                 continue
 
-            # Resize 1280x720 -> 640x360
-            frame = cv2.resize(
-                frame,
-                (self.output_width, self.output_height),
-                interpolation=cv2.INTER_AREA
-            )
+            if not self.capture_outputs_resized:
+                # Match the 1920x1200 calibration with a uniform 3:1 resize.
+                frame = cv2.resize(
+                    frame,
+                    (self.output_width, self.output_height),
+                    interpolation=cv2.INTER_AREA
+                )
 
-            # Add top/bottom border: 640x360 -> 640x400
+            # Optional legacy padding; zero for the calibrated 4:3 path.
             if self.border_y > 0:
                 frame = cv2.copyMakeBorder(
                     frame,
@@ -179,8 +207,12 @@ class FastCameraPublisher(Node):
 
     def cleanup(self):
         if self.cap is not None:
-            self.cap.release()
-            self.cap = None
+            try:
+                self.cap.release()
+            except KeyboardInterrupt:
+                pass
+            finally:
+                self.cap = None
 
 
 def main(args=None):
@@ -200,7 +232,10 @@ def main(args=None):
     finally:
         if node is not None:
             node.cleanup()
-            node.destroy_node()
+            try:
+                node.destroy_node()
+            except KeyboardInterrupt:
+                pass
 
         # Prevent "rcl_shutdown already called" crash
         try:

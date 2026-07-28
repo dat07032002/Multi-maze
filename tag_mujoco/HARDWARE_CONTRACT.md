@@ -52,8 +52,13 @@ repository defaults. The driver updates at 30 Hz and advances each target by at
 most 20 servo units per tick. It sends a 30 ms move command, returns home after
 a one-second command timeout, and uses a two-stage reset through position 700.
 
-The mapping from servo position to physical board angle remains unmeasured and
-must be randomized in simulation until hardware calibration is available.
+The local mapping from command to board angle was measured with the marble
+removed on 2026-07-27.  It is direction-dependent and cross-coupled; motor 2 in
+the positive direction remained inside stiction/pose noise through command +40.
+The simulator uses separate positive and negative 2x2 local maps and randomizes
+their gains, delay, response time, and stiction.  Full-range saturation,
+backlash width, and rare stalls remain unmeasured and must not be treated as
+calibrated facts.
 
 ## Camera and loss recovery
 

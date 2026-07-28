@@ -81,12 +81,19 @@ class HiwonderActuatorModel:
             self._driver_tick()
 
         servo_offset = self._commanded_position - self._home
-        raw_angle = (
-            servo_offset
-            / np.asarray(self.config.servo_units_per_rad)
-            * np.asarray(self.config.linkage_angle_sign)
+        effective_command = servo_offset / np.asarray(self.config.command_scale)
+        positive = np.maximum(effective_command, 0.0)
+        negative = np.minimum(effective_command, 0.0)
+        positive[
+            positive <= np.asarray(self.config.stiction_command_positive)
+        ] = 0.0
+        negative[
+            -negative <= np.asarray(self.config.stiction_command_negative)
+        ] = 0.0
+        coupled = (
+            np.asarray(self.config.board_rad_per_command_positive) @ positive
+            + np.asarray(self.config.board_rad_per_command_negative) @ negative
         )
-        coupled = np.asarray(self.config.cross_axis_coupling) @ raw_angle
         coupled += np.asarray(self.config.zero_angle_offset_rad)
         response = 1.0 - math.exp(
             -float(dt) / max(1e-6, self.config.response_time_constant_seconds)
@@ -109,6 +116,56 @@ class HiwonderActuatorModel:
             "home_positions": tuple(self.config.home_positions),
             "home_move_seconds": self.config.reset_home_move_seconds,
         }
+
+    def action_for_board_target(self, board_target: Iterable[float]) -> np.ndarray:
+        """Return the least-error action under the directional local maps.
+
+        This inverse is intended for privileged simulation controllers and
+        diagnostics.  A deployed policy still emits actions directly and does
+        not receive actuator calibration as an observation.
+        """
+
+        target = np.asarray(tuple(board_target), dtype=np.float64)
+        if target.shape != (2,):
+            raise ValueError(f"Expected two board angles, received {target.shape}")
+        target -= np.asarray(self.config.zero_angle_offset_rad)
+        positive_map = np.asarray(self.config.board_rad_per_command_positive)
+        negative_map = np.asarray(self.config.board_rad_per_command_negative)
+        candidates = []
+        for signs in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+            mapping = np.column_stack(
+                [
+                    (positive_map if sign > 0 else negative_map)[:, index]
+                    for index, sign in enumerate(signs)
+                ]
+            )
+            command = np.linalg.lstsq(mapping, target, rcond=None)[0]
+            if any(command[index] * sign < -1e-9 for index, sign in enumerate(signs)):
+                continue
+            limits = np.asarray(self.config.policy_command_limit)
+            command = np.clip(command, -limits, limits)
+            # Thresholds are axis-specific, so select them independently.
+            thresholds = np.asarray(
+                [
+                    (
+                        self.config.stiction_command_positive[index]
+                        if sign > 0
+                        else self.config.stiction_command_negative[index]
+                    )
+                    for index, sign in enumerate(signs)
+                ]
+            )
+            effective = command.copy()
+            effective[np.abs(effective) <= thresholds] = 0.0
+            error = float(np.linalg.norm(mapping @ effective - target))
+            candidates.append((error, command))
+        if not candidates:
+            return np.zeros(2, dtype=np.float64)
+        command = min(candidates, key=lambda item: item[0])[1]
+        return command / (
+            np.asarray(self.config.policy_command_limit)
+            * np.asarray(self.config.policy_command_sign)
+        )
 
     @property
     def commanded_servo_positions(self) -> np.ndarray:
