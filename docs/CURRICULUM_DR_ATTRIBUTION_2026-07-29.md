@@ -152,6 +152,12 @@ of every replay file. With the corrected length-aware importer, the source
 selection supplies 25,000 valid transitions from 34 files with zero rejected
 files.
 
+Numerical success did not earn policy promotion. On the paired 64-maze
+canonical gate, completion and falls remained 0.890625 and 0.093750, but mean
+maximum route completion fell from 0.952050 to 0.937121. The -0.014928 change
+fails the -0.01 progress tolerance. The planned 10k continuation therefore
+remains blocked and DR stays disabled.
+
 ### Gate 1: prove that optimization works
 
 Run a maximum 2k-step nominal smoke from the source champion:

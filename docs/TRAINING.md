@@ -44,7 +44,12 @@ The first authorized clean smoke completed at step 2,752 with status 0. Model,
 actor, and critic losses and gradient norms stayed finite, optimizer counters
 advanced, and the acting-parameter digest changed. The corrected importer
 selected 34 source chunks, loaded 25,000 valid transitions, and rejected none.
-Domain randomization remains locked pending the 10k nominal continuation gate.
+
+The fixed 64-maze post-smoke canonical gate kept completion at 0.890625 and
+falls at 0.093750, but mean maximum route completion decreased from 0.952050
+to 0.937121 (delta -0.014928). This exceeds the allowed -0.01 progress change,
+so the checkpoint was not promoted and the 10k nominal continuation was not
+launched. Domain randomization remains locked.
 
 ## Current result
 
