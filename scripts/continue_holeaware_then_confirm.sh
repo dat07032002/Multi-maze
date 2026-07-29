@@ -100,9 +100,10 @@ test -f "$run_dir/checkpoint.ckpt"
 # The confirmation script detects that this is a new checkpoint and therefore
 # requires it to pass both the original and new seed protocols. A dual pass
 # unlocks only the already-bounded fixed DR-0.10 stage.
+export TAG_RUN_ID="${TAG_DR_RUN_ID:-holeaware_dr010_250k_$(date +%Y%m%d_%H%M%S)}"
+unset TAG_LOGDIR
 bash "$repo_root/scripts/confirm_nominal_then_start_dr010.sh" \
   "$run_dir/checkpoint.ckpt" \
   "$run_dir" \
   "$prior_confirmation" \
   "$confirmation_root"
-
