@@ -20,6 +20,8 @@ class PlannerConfig:
     route_spacing_m: float = 0.012
     clearance_cost_weight: float = 0.35
     clearance_cost_scale_m: float = 0.008
+    corner_rounding_radius_m: float = 0.006
+    corner_rounding_samples: int = 5
 
 
 @dataclass(frozen=True)
@@ -242,6 +244,90 @@ def resample_polyline(points: Sequence[Sequence[float]], spacing_m: float) -> np
     return np.asarray(result, dtype=np.float64)
 
 
+def rounded_polyline(
+    points: Sequence[Sequence[float]],
+    radius_m: float = 0.006,
+    samples_per_corner: int = 5,
+) -> np.ndarray:
+    """Replace sharp polyline corners with sampled quadratic Bézier turns."""
+
+    points_array = np.asarray(points, dtype=np.float64)
+    if points_array.ndim != 2 or points_array.shape[1] != 2 or len(points_array) < 3:
+        return points_array
+    radius_m = max(0.0, float(radius_m))
+    samples_per_corner = max(2, int(samples_per_corner))
+    if radius_m <= 1e-9:
+        return points_array
+
+    result = [points_array[0]]
+    for previous, corner, following in zip(
+        points_array[:-2], points_array[1:-1], points_array[2:]
+    ):
+        incoming = corner - previous
+        outgoing = following - corner
+        incoming_length = float(np.linalg.norm(incoming))
+        outgoing_length = float(np.linalg.norm(outgoing))
+        if incoming_length <= 1e-9 or outgoing_length <= 1e-9:
+            continue
+        incoming_unit = incoming / incoming_length
+        outgoing_unit = outgoing / outgoing_length
+        # Straight sections do not need rounding; U-turns are not produced by
+        # the route planner and are safer left untouched if they appear.
+        turn_strength = 1.0 - abs(float(np.dot(incoming_unit, outgoing_unit)))
+        setback = min(radius_m, 0.45 * incoming_length, 0.45 * outgoing_length)
+        if turn_strength <= 1e-3 or setback <= 1e-6:
+            result.append(corner)
+            continue
+        entry = corner - incoming_unit * setback
+        exit = corner + outgoing_unit * setback
+        if float(np.linalg.norm(result[-1] - entry)) > 1e-9:
+            result.append(entry)
+        for index in range(1, samples_per_corner):
+            t = index / samples_per_corner
+            curve = (1 - t) ** 2 * entry + 2 * (1 - t) * t * corner + t**2 * exit
+            if float(np.linalg.norm(result[-1] - curve)) > 1e-9:
+                result.append(curve)
+        if float(np.linalg.norm(result[-1] - exit)) > 1e-9:
+            result.append(exit)
+    if float(np.linalg.norm(result[-1] - points_array[-1])) > 1e-9:
+        result.append(points_array[-1])
+    return np.asarray(result, dtype=np.float64)
+
+
+def smooth_safe_route(
+    layout: Dict[str, Any],
+    points: Sequence[Sequence[float]],
+    config: PlannerConfig = PlannerConfig(),
+) -> np.ndarray:
+    """Round corners when doing so preserves finite-ball route clearance."""
+
+    base = np.asarray(points, dtype=np.float64)
+    if (
+        len(base) < 3
+        or config.corner_rounding_radius_m <= 0.0
+        or config.corner_rounding_samples <= 1
+    ):
+        return base
+    rounded = rounded_polyline(
+        base,
+        radius_m=config.corner_rounding_radius_m,
+        samples_per_corner=config.corner_rounding_samples,
+    )
+    if validate_route(layout, rounded, config).passed:
+        return rounded
+    # Fall back to progressively smaller turns before giving up. Safety matters
+    # more than smoothing; the validator is the gate.
+    for scale in (0.75, 0.50, 0.25):
+        candidate = rounded_polyline(
+            base,
+            radius_m=config.corner_rounding_radius_m * scale,
+            samples_per_corner=config.corner_rounding_samples,
+        )
+        if validate_route(layout, candidate, config).passed:
+            return candidate
+    return base
+
+
 def plan_safe_route(
     layout: Dict[str, Any],
     config: PlannerConfig = PlannerConfig(),
@@ -273,9 +359,9 @@ def plan_safe_route(
         and validate_route(layout, seeded_route, config).passed
     ):
         smoothed_seed = _smooth_path(layout, seeded_route, config)
-        route = resample_polyline(smoothed_seed, config.route_spacing_m)
-        if validate_route(layout, route, config).passed:
-            return route
+        rounded_seed = smooth_safe_route(layout, smoothed_seed, config)
+        if validate_route(layout, rounded_seed, config).passed:
+            return rounded_seed
 
     xs = _grid_axis(float(layout["board_width"]), config.grid_resolution_m)
     ys = _grid_axis(float(layout["board_height"]), config.grid_resolution_m)
@@ -358,7 +444,8 @@ def plan_safe_route(
     grid_path[0] = start_array
     grid_path[-1] = goal_array
     smoothed = _smooth_path(layout, _compress_grid_path(grid_path), config)
-    route = resample_polyline(smoothed, config.route_spacing_m)
+    rounded = smooth_safe_route(layout, smoothed, config)
+    route = rounded
     validation = validate_route(layout, route, config)
     if not validation.passed:
         raise RuntimeError(
@@ -409,5 +496,8 @@ def apply_safe_route(
         "safety_margin_m": config.safety_margin_m,
         "route_spacing_m": config.route_spacing_m,
         "clearance_cost_weight": config.clearance_cost_weight,
+        "clearance_cost_scale_m": config.clearance_cost_scale_m,
+        "corner_rounding_radius_m": config.corner_rounding_radius_m,
+        "corner_rounding_samples": config.corner_rounding_samples,
     }
     return updated, validate_route(updated, route, config)

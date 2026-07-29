@@ -15,7 +15,9 @@
     "safety_margin_m": 0.0015,
     "route_spacing_m": 0.012,
     "clearance_cost_weight": 0.35,
-    "clearance_cost_scale_m": 0.008
+    "clearance_cost_scale_m": 0.008,
+    "corner_rounding_radius_m": 0.006,
+    "corner_rounding_samples": 5
   },
   "smoke": [
     "dodge_maze_seed_40000.json",
@@ -24,93 +26,93 @@
   "train": [
     "dodge_maze_seed_40000.json",
     "dodge_maze_seed_40002.json",
-    "dodge_maze_seed_40009.json",
-    "dodge_maze_seed_40010.json"
+    "dodge_maze_seed_40004.json",
+    "dodge_maze_seed_40005.json"
   ],
   "dev": [
     "dodge_maze_seed_40000.json",
     "dodge_maze_seed_40002.json",
-    "dodge_maze_seed_40009.json",
-    "dodge_maze_seed_40010.json"
+    "dodge_maze_seed_40004.json",
+    "dodge_maze_seed_40005.json"
   ],
   "validation": [
-    "dodge_maze_seed_40015.json"
+    "dodge_maze_seed_40007.json"
   ],
   "test": [
-    "dodge_maze_seed_40017.json"
+    "dodge_maze_seed_40009.json"
   ],
   "metadata": {
     "dodge_maze_seed_40000.json": {
       "seed": 40000,
-      "difficulty_score": 0.5445095596066106,
+      "difficulty_score": 0.5444553940456699,
       "difficulty_band": "dodge",
       "curriculum_stage": "easy_dodge_holes",
       "dodge_hole_count": 2,
       "original_route_min_clearance_m": -0.01305703240982613,
-      "safe_route_min_clearance_m": 0.0026537743132891943,
-      "safe_route_min_hole_clearance_m": 0.002813943828233091,
-      "route_length_m": 0.31414353024705133,
-      "sha256": "e6a02dd44d3f3004f9ef514b018a535a26e1335b07100b82dfdbcfaa367308c9"
+      "safe_route_min_clearance_m": 0.0026543056009344593,
+      "safe_route_min_hole_clearance_m": 0.020280462013236807,
+      "route_length_m": 0.3140857536487146,
+      "sha256": "0e8da913ca5f1ee861a994cdb96ef9fb07a03dcd65616eb547c13212d049e095"
     },
     "dodge_maze_seed_40002.json": {
       "seed": 40002,
-      "difficulty_score": 0.6360052297596062,
+      "difficulty_score": 0.6375089934568411,
       "difficulty_band": "dodge",
       "curriculum_stage": "easy_dodge_holes",
       "dodge_hole_count": 2,
       "original_route_min_clearance_m": -0.013384440281948838,
-      "safe_route_min_clearance_m": 0.0017322165457010572,
-      "safe_route_min_hole_clearance_m": 0.0017322165457010572,
-      "route_length_m": 0.41173891174357996,
-      "sha256": "7008edbc3bc1bbd391a6057b4302252168e4022d97b67d66dedd9a816a718cbe"
+      "safe_route_min_clearance_m": 0.0017311804105450464,
+      "safe_route_min_hole_clearance_m": 0.022395150237985557,
+      "route_length_m": 0.4133429263539639,
+      "sha256": "8685f2ad28778089720707e56e36f25308f9689ad9cce8480918b3a32d397277"
+    },
+    "dodge_maze_seed_40004.json": {
+      "seed": 40004,
+      "difficulty_score": 0.5804498794646983,
+      "difficulty_band": "dodge",
+      "curriculum_stage": "easy_dodge_holes",
+      "dodge_hole_count": 2,
+      "original_route_min_clearance_m": -0.01340465764614464,
+      "safe_route_min_clearance_m": 0.0015447890307105604,
+      "safe_route_min_hole_clearance_m": 0.0016339914782552128,
+      "route_length_m": 0.3524798714290115,
+      "sha256": "06175b468a09245771e1af84df84fad0e3dde56a3209b25f31e87f79b3688564"
+    },
+    "dodge_maze_seed_40005.json": {
+      "seed": 40005,
+      "difficulty_score": 0.6605964822007799,
+      "difficulty_band": "dodge",
+      "curriculum_stage": "easy_dodge_holes",
+      "dodge_hole_count": 2,
+      "original_route_min_clearance_m": -0.013425735111015623,
+      "safe_route_min_clearance_m": 0.0018507989307906484,
+      "safe_route_min_hole_clearance_m": 0.00237793265026434,
+      "route_length_m": 0.4379695810141652,
+      "sha256": "2a8b77de3b61d7bf1e122a81250040a7c3b4fd665f0ee2bd9af1cd43c020f175"
+    },
+    "dodge_maze_seed_40007.json": {
+      "seed": 40007,
+      "difficulty_score": 0.5883378364817157,
+      "difficulty_band": "dodge",
+      "curriculum_stage": "easy_dodge_holes",
+      "dodge_hole_count": 2,
+      "original_route_min_clearance_m": -0.012954224011472575,
+      "safe_route_min_clearance_m": 0.0018265869304698746,
+      "safe_route_min_hole_clearance_m": 0.002337252129888572,
+      "route_length_m": 0.3608936922471634,
+      "sha256": "6ce532891b27beafd84b4a9b3dbda189d9054c27bfd0e43e194947f7fe299fe8"
     },
     "dodge_maze_seed_40009.json": {
       "seed": 40009,
-      "difficulty_score": 0.5491201677895046,
+      "difficulty_score": 0.5493518168936643,
       "difficulty_band": "dodge",
       "curriculum_stage": "easy_dodge_holes",
       "dodge_hole_count": 2,
       "original_route_min_clearance_m": -0.013062649897186087,
-      "safe_route_min_clearance_m": 0.0018659091786249523,
-      "safe_route_min_hole_clearance_m": 0.002771391341048193,
-      "route_length_m": 0.3190615123088049,
-      "sha256": "4f343ab37873d42f6eaef3b03b222b120a4d08d392765278d2b59345d1d7c48b"
-    },
-    "dodge_maze_seed_40010.json": {
-      "seed": 40010,
-      "difficulty_score": 0.6015875611870953,
-      "difficulty_band": "dodge",
-      "curriculum_stage": "easy_dodge_holes",
-      "dodge_hole_count": 2,
-      "original_route_min_clearance_m": -0.013112235363900023,
-      "safe_route_min_clearance_m": 0.0017849764541499995,
-      "safe_route_min_hole_clearance_m": 0.0021195889052069428,
-      "route_length_m": 0.37502673193290176,
-      "sha256": "7a8d6320ce28ba4985194b763aba0a4aaca0a143d119d19394337b7ac19a887d"
-    },
-    "dodge_maze_seed_40015.json": {
-      "seed": 40015,
-      "difficulty_score": 0.5539460681383213,
-      "difficulty_band": "dodge",
-      "curriculum_stage": "easy_dodge_holes",
-      "dodge_hole_count": 2,
-      "original_route_min_clearance_m": -0.01330354625645379,
-      "safe_route_min_clearance_m": 0.002573062249853094,
-      "safe_route_min_hole_clearance_m": 0.0040754028230685895,
-      "route_length_m": 0.32420913934754275,
-      "sha256": "d39e27cb940845dc8532f8e83e9744dccf900ac83a9043b218ac5867229f4c4b"
-    },
-    "dodge_maze_seed_40017.json": {
-      "seed": 40017,
-      "difficulty_score": 0.7092619806400705,
-      "difficulty_band": "dodge",
-      "curriculum_stage": "easy_dodge_holes",
-      "dodge_hole_count": 2,
-      "original_route_min_clearance_m": -0.013258142895675494,
-      "safe_route_min_clearance_m": 0.001997958041150598,
-      "safe_route_min_hole_clearance_m": 0.0020092136421443786,
-      "route_length_m": 0.48987944601607525,
-      "sha256": "23bab566e358ddf252c2f7c8b875ad7ae6e68a59e66641748dbd5adf93537644"
+      "safe_route_min_clearance_m": 0.0018670518367036888,
+      "safe_route_min_hole_clearance_m": 0.0027184552159082703,
+      "route_length_m": 0.31930860468657524,
+      "sha256": "b793afe2d53a578ad77f64fe18f2af82f7478ba2e53c0e1da2357a8b15018ff5"
     }
   },
   "entries": [
@@ -133,7 +135,9 @@
         "safety_margin_m": 0.0015,
         "route_spacing_m": 0.012,
         "clearance_cost_weight": 0.35,
-        "clearance_cost_scale_m": 0.008
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
       },
       "dodge_hole_cells": [
         [
@@ -156,17 +160,17 @@
         ]
       ],
       "original_route_min_clearance_m": -0.01305703240982613,
-      "safe_route_min_clearance_m": 0.0026537743132891943,
-      "safe_route_min_hole_clearance_m": 0.002813943828233091,
+      "safe_route_min_clearance_m": 0.0026543056009344593,
+      "safe_route_min_hole_clearance_m": 0.020280462013236807,
       "original_route_length_m": 0.41302272706184606,
-      "safe_route_length_m": 0.31414353024705133,
-      "safe_route_extra_m": -0.09887919681479473,
+      "safe_route_length_m": 0.3140857536487146,
+      "safe_route_extra_m": -0.09893697341313146,
       "route_validation": {
         "passed": true,
-        "minimum_clearance_m": 0.0026537743132891943,
+        "minimum_clearance_m": 0.0026543056009344593,
         "required_margin_m": 0.0015,
-        "sampled_points": 643,
-        "route_length_m": 0.31414353024705133
+        "sampled_points": 642,
+        "route_length_m": 0.3140857536487146
       }
     },
     {
@@ -193,7 +197,9 @@
         "safety_margin_m": 0.0015,
         "route_spacing_m": 0.012,
         "clearance_cost_weight": 0.35,
-        "clearance_cost_scale_m": 0.008
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
       },
       "dodge_hole_cells": [
         [
@@ -216,17 +222,17 @@
         ]
       ],
       "original_route_min_clearance_m": -0.013384440281948838,
-      "safe_route_min_clearance_m": 0.0017322165457010572,
-      "safe_route_min_hole_clearance_m": 0.0017322165457010572,
+      "safe_route_min_clearance_m": 0.0017311804105450464,
+      "safe_route_min_hole_clearance_m": 0.022395150237985557,
       "original_route_length_m": 0.4897370261568971,
-      "safe_route_length_m": 0.41173891174357996,
-      "safe_route_extra_m": -0.07799811441331717,
+      "safe_route_length_m": 0.4133429263539639,
+      "safe_route_extra_m": -0.07639409980293321,
       "route_validation": {
         "passed": true,
-        "minimum_clearance_m": 0.0017322165457010572,
+        "minimum_clearance_m": 0.0017311804105450464,
         "required_margin_m": 0.0015,
-        "sampled_points": 845,
-        "route_length_m": 0.41173891174357996
+        "sampled_points": 860,
+        "route_length_m": 0.4133429263539639
       }
     },
     {
@@ -236,13 +242,117 @@
     },
     {
       "seed": 40004,
-      "accepted": false,
-      "error": "Planner produced an unsafe route: minimum=0.000883 m, required=0.001500 m"
+      "accepted": true,
+      "layout": "tag_mujoco/generated_dodge_mazes/dodge_maze_seed_40004.json",
+      "preview": "artifacts/dodge_maze_previews/dodge_maze_seed_40004_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.1,
+        "branch_holes": 6,
+        "dodge_holes": 2,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "dodge_hole_cells": [
+        [
+          1,
+          4
+        ],
+        [
+          6,
+          2
+        ]
+      ],
+      "dodge_holes": [
+        [
+          0.054946428679574694,
+          0.171754007620188
+        ],
+        [
+          0.24045992532960284,
+          0.09551690348557698
+        ]
+      ],
+      "original_route_min_clearance_m": -0.01340465764614464,
+      "safe_route_min_clearance_m": 0.0015447890307105604,
+      "safe_route_min_hole_clearance_m": 0.0016339914782552128,
+      "original_route_length_m": 0.412230555521911,
+      "safe_route_length_m": 0.3524798714290115,
+      "safe_route_extra_m": -0.05975068409289952,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.0015447890307105604,
+        "required_margin_m": 0.0015,
+        "sampled_points": 721,
+        "route_length_m": 0.3524798714290115
+      }
     },
     {
       "seed": 40005,
-      "accepted": false,
-      "error": "Planner produced an unsafe route: minimum=0.000990 m, required=0.001500 m"
+      "accepted": true,
+      "layout": "tag_mujoco/generated_dodge_mazes/dodge_maze_seed_40005.json",
+      "preview": "artifacts/dodge_maze_previews/dodge_maze_seed_40005_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.1,
+        "branch_holes": 6,
+        "dodge_holes": 2,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "dodge_hole_cells": [
+        [
+          2,
+          5
+        ],
+        [
+          5,
+          1
+        ]
+      ],
+      "dodge_holes": [
+        [
+          0.09223975960776652,
+          0.2106130048100726
+        ],
+        [
+          0.20275550151014582,
+          0.05747615456122532
+        ]
+      ],
+      "original_route_min_clearance_m": -0.013425735111015623,
+      "safe_route_min_clearance_m": 0.0018507989307906484,
+      "safe_route_min_hole_clearance_m": 0.00237793265026434,
+      "original_route_length_m": 0.48827686580885155,
+      "safe_route_length_m": 0.4379695810141652,
+      "safe_route_extra_m": -0.050307284794686324,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.0018507989307906484,
+        "required_margin_m": 0.0015,
+        "sampled_points": 906,
+        "route_length_m": 0.4379695810141652
+      }
     },
     {
       "seed": 40006,
@@ -251,8 +361,60 @@
     },
     {
       "seed": 40007,
-      "accepted": false,
-      "error": "Planner produced an unsafe route: minimum=0.001422 m, required=0.001500 m"
+      "accepted": true,
+      "layout": "tag_mujoco/generated_dodge_mazes/dodge_maze_seed_40007.json",
+      "preview": "artifacts/dodge_maze_previews/dodge_maze_seed_40007_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.1,
+        "branch_holes": 6,
+        "dodge_holes": 2,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "dodge_hole_cells": [
+        [
+          2,
+          5
+        ],
+        [
+          4,
+          0
+        ]
+      ],
+      "dodge_holes": [
+        [
+          0.0932529426636172,
+          0.2103846628803524
+        ],
+        [
+          0.16733351754192477,
+          0.019689713585804125
+        ]
+      ],
+      "original_route_min_clearance_m": -0.012954224011472575,
+      "safe_route_min_clearance_m": 0.0018265869304698746,
+      "safe_route_min_hole_clearance_m": 0.002337252129888572,
+      "original_route_length_m": 0.412589213783658,
+      "safe_route_length_m": 0.3608936922471634,
+      "safe_route_extra_m": -0.05169552153649459,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.0018265869304698746,
+        "required_margin_m": 0.0015,
+        "sampled_points": 741,
+        "route_length_m": 0.3608936922471634
+      }
     },
     {
       "seed": 40008,
@@ -278,7 +440,9 @@
         "safety_margin_m": 0.0015,
         "route_spacing_m": 0.012,
         "clearance_cost_weight": 0.35,
-        "clearance_cost_scale_m": 0.008
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
       },
       "dodge_hole_cells": [
         [
@@ -301,207 +465,17 @@
         ]
       ],
       "original_route_min_clearance_m": -0.013062649897186087,
-      "safe_route_min_clearance_m": 0.0018659091786249523,
-      "safe_route_min_hole_clearance_m": 0.002771391341048193,
+      "safe_route_min_clearance_m": 0.0018670518367036888,
+      "safe_route_min_hole_clearance_m": 0.0027184552159082703,
       "original_route_length_m": 0.4122441870164869,
-      "safe_route_length_m": 0.3190615123088049,
-      "safe_route_extra_m": -0.09318267470768199,
+      "safe_route_length_m": 0.31930860468657524,
+      "safe_route_extra_m": -0.09293558232991167,
       "route_validation": {
         "passed": true,
-        "minimum_clearance_m": 0.0018659091786249523,
+        "minimum_clearance_m": 0.0018670518367036888,
         "required_margin_m": 0.0015,
         "sampled_points": 654,
-        "route_length_m": 0.3190615123088049
-      }
-    },
-    {
-      "seed": 40010,
-      "accepted": true,
-      "layout": "tag_mujoco/generated_dodge_mazes/dodge_maze_seed_40010.json",
-      "preview": "artifacts/dodge_maze_previews/dodge_maze_seed_40010_overlay.png",
-      "schema_version": 1,
-      "config": {
-        "columns": 7,
-        "rows": 6,
-        "loop_fraction": 0.1,
-        "branch_holes": 6,
-        "dodge_holes": 2,
-        "edge_jitter_fraction": 0.04
-      },
-      "planner": {
-        "grid_resolution_m": 0.002,
-        "safety_margin_m": 0.0015,
-        "route_spacing_m": 0.012,
-        "clearance_cost_weight": 0.35,
-        "clearance_cost_scale_m": 0.008
-      },
-      "dodge_hole_cells": [
-        [
-          2,
-          5
-        ],
-        [
-          6,
-          2
-        ]
-      ],
-      "dodge_holes": [
-        [
-          0.0914075204405453,
-          0.21013581107467014
-        ],
-        [
-          0.24023193865893444,
-          0.09576572486388987
-        ]
-      ],
-      "original_route_min_clearance_m": -0.013112235363900023,
-      "safe_route_min_clearance_m": 0.0017849764541499995,
-      "safe_route_min_hole_clearance_m": 0.0021195889052069428,
-      "original_route_length_m": 0.41420569758505843,
-      "safe_route_length_m": 0.37502673193290176,
-      "safe_route_extra_m": -0.03917896565215667,
-      "route_validation": {
-        "passed": true,
-        "minimum_clearance_m": 0.0017849764541499995,
-        "required_margin_m": 0.0015,
-        "sampled_points": 768,
-        "route_length_m": 0.37502673193290176
-      }
-    },
-    {
-      "seed": 40011,
-      "accepted": false,
-      "error": "Planner produced an unsafe route: minimum=0.001133 m, required=0.001500 m"
-    },
-    {
-      "seed": 40012,
-      "accepted": false,
-      "error": "Planner produced an unsafe route: minimum=0.000872 m, required=0.001500 m"
-    },
-    {
-      "seed": 40013,
-      "accepted": false,
-      "error": "No route satisfies the requested finite-ball clearance"
-    },
-    {
-      "seed": 40014,
-      "accepted": false,
-      "error": "No route satisfies the requested finite-ball clearance"
-    },
-    {
-      "seed": 40015,
-      "accepted": true,
-      "layout": "tag_mujoco/generated_dodge_mazes/dodge_maze_seed_40015.json",
-      "preview": "artifacts/dodge_maze_previews/dodge_maze_seed_40015_overlay.png",
-      "schema_version": 1,
-      "config": {
-        "columns": 7,
-        "rows": 6,
-        "loop_fraction": 0.1,
-        "branch_holes": 6,
-        "dodge_holes": 2,
-        "edge_jitter_fraction": 0.04
-      },
-      "planner": {
-        "grid_resolution_m": 0.002,
-        "safety_margin_m": 0.0015,
-        "route_spacing_m": 0.012,
-        "clearance_cost_weight": 0.35,
-        "clearance_cost_scale_m": 0.008
-      },
-      "dodge_hole_cells": [
-        [
-          1,
-          4
-        ],
-        [
-          4,
-          0
-        ]
-      ],
-      "dodge_holes": [
-        [
-          0.05452805717451396,
-          0.1714986663188091
-        ],
-        [
-          0.16652714708996652,
-          0.018543629382140554
-        ]
-      ],
-      "original_route_min_clearance_m": -0.01330354625645379,
-      "safe_route_min_clearance_m": 0.002573062249853094,
-      "safe_route_min_hole_clearance_m": 0.0040754028230685895,
-      "original_route_length_m": 0.41311882523738597,
-      "safe_route_length_m": 0.32420913934754275,
-      "safe_route_extra_m": -0.08890968588984322,
-      "route_validation": {
-        "passed": true,
-        "minimum_clearance_m": 0.002573062249853094,
-        "required_margin_m": 0.0015,
-        "sampled_points": 661,
-        "route_length_m": 0.32420913934754275
-      }
-    },
-    {
-      "seed": 40016,
-      "accepted": false,
-      "error": "No route satisfies the requested finite-ball clearance"
-    },
-    {
-      "seed": 40017,
-      "accepted": true,
-      "layout": "tag_mujoco/generated_dodge_mazes/dodge_maze_seed_40017.json",
-      "preview": "artifacts/dodge_maze_previews/dodge_maze_seed_40017_overlay.png",
-      "schema_version": 1,
-      "config": {
-        "columns": 7,
-        "rows": 6,
-        "loop_fraction": 0.1,
-        "branch_holes": 6,
-        "dodge_holes": 2,
-        "edge_jitter_fraction": 0.04
-      },
-      "planner": {
-        "grid_resolution_m": 0.002,
-        "safety_margin_m": 0.0015,
-        "route_spacing_m": 0.012,
-        "clearance_cost_weight": 0.35,
-        "clearance_cost_scale_m": 0.008
-      },
-      "dodge_hole_cells": [
-        [
-          1,
-          4
-        ],
-        [
-          6,
-          2
-        ]
-      ],
-      "dodge_holes": [
-        [
-          0.05651083569636278,
-          0.17202735901909333
-        ],
-        [
-          0.24112614883901884,
-          0.09562029076958808
-        ]
-      ],
-      "original_route_min_clearance_m": -0.013258142895675494,
-      "safe_route_min_clearance_m": 0.001997958041150598,
-      "safe_route_min_hole_clearance_m": 0.0020092136421443786,
-      "original_route_length_m": 0.6425801854819302,
-      "safe_route_length_m": 0.48987944601607525,
-      "safe_route_extra_m": -0.15270073946585494,
-      "route_validation": {
-        "passed": true,
-        "minimum_clearance_m": 0.001997958041150598,
-        "required_margin_m": 0.0015,
-        "sampled_points": 1006,
-        "route_length_m": 0.48987944601607525
+        "route_length_m": 0.31930860468657524
       }
     }
   ]

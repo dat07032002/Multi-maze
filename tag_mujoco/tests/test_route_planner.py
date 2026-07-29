@@ -9,7 +9,9 @@ from tag_mujoco.maze_generator import generate_maze
 from tag_mujoco.route_planner import (
     PlannerConfig,
     apply_safe_route,
+    rounded_polyline,
     signed_ball_clearance,
+    smooth_safe_route,
     validate_route,
 )
 from tag_mujoco.maze_layout import (
@@ -49,6 +51,34 @@ class RoutePlannerTest(unittest.TestCase):
                     config.safety_margin_m,
                 )
                 self.assertTrue(validate_route(layout, layout["waypoints"], config).passed)
+
+    def test_rounded_polyline_inserts_training_points_at_corners(self):
+        route = np.asarray([[0.0, 0.0], [0.04, 0.0], [0.04, 0.04]])
+        rounded = rounded_polyline(route, radius_m=0.010, samples_per_corner=5)
+        self.assertGreater(len(rounded), len(route))
+        self.assertTrue(np.allclose(rounded[0], route[0]))
+        self.assertTrue(np.allclose(rounded[-1], route[-1]))
+        # The original corner point should be replaced by nearby arc samples,
+        # not retained as a sharp target.
+        self.assertFalse(np.any(np.all(np.isclose(rounded, route[1]), axis=1)))
+
+    def test_smooth_safe_route_preserves_clearance(self):
+        layout = {
+            "board_width": 0.12,
+            "board_height": 0.12,
+            "ball_radius": 0.006,
+            "wall_thickness": 0.0022,
+            "walls_h": [],
+            "walls_v": [],
+            "walls_angled": [],
+            "holes": [],
+            "hole_radii": [],
+        }
+        config = PlannerConfig(corner_rounding_radius_m=0.010)
+        route = np.asarray([[0.02, 0.02], [0.08, 0.02], [0.08, 0.08]])
+        smoothed = smooth_safe_route(layout, route, config)
+        self.assertGreater(len(smoothed), len(route))
+        self.assertTrue(validate_route(layout, smoothed, config).passed)
 
 
 if __name__ == "__main__":
