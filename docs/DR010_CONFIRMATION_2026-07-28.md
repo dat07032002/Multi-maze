@@ -48,3 +48,10 @@ pass is not transferred to the new bytes. The workflow instead requires the
 current checkpoint to pass two 192-episode evaluations: one at the original
 base seed and another at the new base seed. DR-0.10 remains locked if either
 evaluation fails.
+
+After the final checkpoint passed the original seed but missed the new seed,
+`scripts/continue_holeaware_then_confirm.sh` was added for one bounded recovery
+attempt. It performs another 250k nominal hole-aware agent-only continuation
+with fresh replay, monitors the dev split at 125k and 250k, and then submits the
+new final checkpoint to both mastery seeds. It does not use held-out validation
+for intermediate training decisions.
