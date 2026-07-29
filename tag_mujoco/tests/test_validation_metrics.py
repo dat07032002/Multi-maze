@@ -22,6 +22,17 @@ class ValidationMetricsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluation_env_overrides("easy")
 
+    def test_robust_evaluation_can_use_a_fixed_partial_strength(self):
+        robust = evaluation_env_overrides("robust", 0.10)
+        self.assertTrue(robust["randomize_plant"])
+        self.assertTrue(robust["randomization_curriculum"])
+        self.assertEqual(robust["randomization_initial_strength"], 0.10)
+        self.assertEqual(robust["randomization_expand_step"], 0.0)
+        with self.assertRaises(ValueError):
+            evaluation_env_overrides("canonical", 0.10)
+        with self.assertRaises(ValueError):
+            evaluation_env_overrides("robust", 0.0)
+
     def test_episode_and_aggregate_metrics(self):
         episode = {
             "reward": np.asarray([0.0, 0.2, 9.8], dtype=np.float32),

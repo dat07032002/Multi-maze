@@ -158,6 +158,25 @@ class EnvironmentTest(unittest.TestCase):
         self.assertNotEqual(full_actuator, nominal_actuator)
         self.assertNotEqual(full_physics, nominal_physics)
 
+    def test_fixed_partial_randomization_strength_does_not_expand(self):
+        task = TagMazeTask(
+            seed=6,
+            task_config=TaskConfig(
+                randomize_plant=True,
+                randomization_curriculum=True,
+                randomization_initial_strength=0.10,
+                randomization_expand_step=0.0,
+                randomization_window=2,
+                randomization_success_threshold=0.0,
+            ),
+        )
+        _, info = task.reset(seed=6)
+        self.assertAlmostEqual(info["randomization_strength"], 0.10)
+        task._recent_successes.extend((1.0, 1.0))
+        task.episodes_started = 2
+        task._advance_curricula()
+        self.assertAlmostEqual(task._randomization_strength, 0.10)
+
     def test_assumed_ball_dynamics_are_active_and_randomized(self):
         nominal = PhysicsConfig()
         self.assertAlmostEqual(nominal.floor_friction[0], 0.38)

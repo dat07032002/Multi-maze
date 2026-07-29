@@ -68,6 +68,17 @@ case "$training_profile" in
       exit 7
     fi
     ;;
+  tag_sim_v2_holeaware_dr010)
+    configs=(tag_sim_v2 tag_sim_v2_holeaware_dr010 medium)
+    if [[ "$checkpoint_mode" != "agent_only" ]]; then
+      echo "DR-0.10 training requires TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "DR-0.10 training requires TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    ;;
   tag_sim_v2_fullstart_staged_randomization)
     configs=(tag_sim_v2 tag_sim_v2_fullstart_staged_randomization medium)
     ;;
@@ -113,7 +124,7 @@ if [[ -n "${TAG_DEMO_DIR:-}" ]]; then
 fi
 if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
   test -f "$TAG_FROM_CHECKPOINT"
-  checkpoint_contract="$(dirname "$TAG_FROM_CHECKPOINT")/policy_contract.json"
+  checkpoint_contract="${TAG_CHECKPOINT_CONTRACT:-$(dirname "$TAG_FROM_CHECKPOINT")/policy_contract.json}"
   if [[ ! -f "$checkpoint_contract" ]]; then
     echo "Refusing checkpoint without v2 policy metadata: $TAG_FROM_CHECKPOINT"
     exit 6

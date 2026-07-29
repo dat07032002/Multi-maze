@@ -21,6 +21,7 @@ def _args(**overrides):
         policy_mode="sample",
         canonical_episodes_per_maze=1,
         robust_episodes_per_maze=3,
+        robust_randomization_strength=None,
         max_steps=3000,
         seed=20260723,
     )
@@ -82,6 +83,16 @@ class ValidationMonitorTests(unittest.TestCase):
             "robust",
         )
         self.assertEqual(_flag(command, "--episodes-per-maze"), "3")
+
+    def test_fixed_robust_strength_reaches_the_evaluator(self):
+        command = evaluator_command(
+            _args(robust_randomization_strength=0.10),
+            Path("/snap.ckpt"),
+            Path("/milestone"),
+            250_000,
+            "robust",
+        )
+        self.assertEqual(_flag(command, "--randomization-strength"), "0.1")
 
 
 if __name__ == "__main__":

@@ -33,9 +33,20 @@ from tag_mujoco.validation_metrics import (  # noqa: E402
 )
 
 
-def _make_env(config, layout_path: pathlib.Path, seed: int, robust: bool):
+def _make_env(
+    config,
+    layout_path: pathlib.Path,
+    seed: int,
+    robust: bool,
+    randomization_strength: float | None = None,
+):
     kwargs = dict(config.env.tagmaze)
-    kwargs.update(evaluation_env_overrides("robust" if robust else "canonical"))
+    kwargs.update(
+        evaluation_env_overrides(
+            "robust" if robust else "canonical",
+            randomization_strength=randomization_strength,
+        )
+    )
     env = TagMaze(
         "sim",
         layout_paths=[str(layout_path)],
@@ -77,6 +88,11 @@ def main() -> None:
     # "sample" reproduces the historical protocol, which draws each action from
     # the actor distribution. "mode" acts on the distribution mode instead.
     parser.add_argument("--policy-mode", choices=("sample", "mode"), default="sample")
+    parser.add_argument(
+        "--randomization-strength",
+        type=float,
+        help="Fixed robust-evaluation strength in (0, 1]; omitted means full strength.",
+    )
     parser.add_argument("--output", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
@@ -97,9 +113,17 @@ def main() -> None:
     )
     split = load_split(args.split, args.manifest)
     robust = args.mode == "robust"
+    if args.randomization_strength is not None and not robust:
+        parser.error("--randomization-strength requires --mode robust")
     policy_mode = "eval" if args.policy_mode == "sample" else "eval_mode"
 
-    prototype = _make_env(config, split.paths[0], args.seed, robust)
+    prototype = _make_env(
+        config,
+        split.paths[0],
+        args.seed,
+        robust,
+        args.randomization_strength,
+    )
     step = embodied.Counter()
     agent = agt.Agent(prototype.obs_space, prototype.act_space, step, config)
     prototype.close()
@@ -119,7 +143,13 @@ def main() -> None:
             evaluation_seed = (
                 args.seed + 10000 * layout_index + episode_index
             )
-            env = _make_env(config, layout_path, evaluation_seed, robust)
+            env = _make_env(
+                config,
+                layout_path,
+                evaluation_seed,
+                robust,
+                args.randomization_strength,
+            )
             try:
                 episode = _run_episode(agent, env, policy_mode)
             finally:
@@ -156,6 +186,9 @@ def main() -> None:
         "seed": args.seed,
         # Results from different action-selection protocols are not comparable.
         "policy_mode": args.policy_mode,
+        "randomization_strength": (
+            args.randomization_strength if robust else 0.0
+        ),
         "duration_seconds": time.time() - started,
         **aggregates,
         "episodes": records,

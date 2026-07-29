@@ -8,13 +8,24 @@ from typing import Any, Iterable, Mapping
 import numpy as np
 
 
-def evaluation_env_overrides(mode: str) -> dict[str, bool | str]:
+def evaluation_env_overrides(
+    mode: str,
+    randomization_strength: float | None = None,
+) -> dict[str, bool | float | str]:
     """Return comparable environment settings for held-out evaluation."""
 
     if mode not in {"canonical", "robust"}:
         raise ValueError(f"Unsupported evaluation mode: {mode}")
     robust = mode == "robust"
-    return {
+    if randomization_strength is not None:
+        randomization_strength = float(randomization_strength)
+        if not robust:
+            raise ValueError(
+                "A randomization strength is only valid for robust evaluation"
+            )
+        if not 0.0 < randomization_strength <= 1.0:
+            raise ValueError("Randomization strength must be in (0, 1]")
+    overrides: dict[str, bool | float | str] = {
         "maze_manifest": "",
         "maze_split": "",
         "maze_sampling": "uniform",
@@ -25,6 +36,17 @@ def evaluation_env_overrides(mode: str) -> dict[str, bool | str]:
         "start_curriculum": False,
         "randomization_curriculum": False,
     }
+    if robust and randomization_strength is not None:
+        # Reuse the curriculum interpolation machinery as a fixed-strength
+        # sampler. A zero expansion step prevents the value from changing.
+        overrides.update(
+            {
+                "randomization_curriculum": True,
+                "randomization_initial_strength": randomization_strength,
+                "randomization_expand_step": 0.0,
+            }
+        )
+    return overrides
 
 
 def _mean(values: Iterable[float]) -> float | None:

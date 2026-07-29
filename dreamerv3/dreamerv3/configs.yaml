@@ -303,6 +303,20 @@ tag_sim_v2_nominal_smooth_holeaware:
     action_rate_penalty: 0.003
     hole_clearance_penalty: 0.02
 
+# First post-mastery domain-randomization stage. Strength remains fixed at
+# 0.10 for the entire bounded run; expansion is deliberately disabled.
+tag_sim_v2_holeaware_dr010:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: True
+    randomization_curriculum: True
+    randomization_initial_strength: 0.10
+    randomization_expand_step: 0.0
+    randomization_window: 50
+    randomization_success_threshold: 1.0
+    hole_clearance_penalty: 0.02
+
 # Full-route continuation that increases dynamics variation only when each
 # environment worker demonstrates enough recent success at its current level.
 tag_sim_v2_fullstart_staged_randomization:

@@ -168,6 +168,23 @@ confirmation at different seeds.
 See [NOMINAL_DIAGNOSIS_2026-07-28.md](NOMINAL_DIAGNOSIS_2026-07-28.md) and
 [NOMINAL_AB_ARMS_2026-07-28.md](NOMINAL_AB_ARMS_2026-07-28.md).
 
+## Second confirmation and DR-0.10
+
+The next transition is implemented in
+`scripts/confirm_nominal_then_start_dr010.sh`. It repeats the unchanged
+192-episode mastery gate with base seed `20260729`, verifies the exact accepted
+checkpoint hash, and keeps domain randomization locked on any failure. A pass
+starts only a bounded 250k hole-aware run at fixed strength 0.10, followed by
+three nominal and three DR-0.10 validation episodes per maze. No higher
+randomization strength is authorized. See
+[DR010_CONFIRMATION_2026-07-28.md](DR010_CONFIRMATION_2026-07-28.md).
+
+The original result recorded checkpoint hash `448ae790...`, but the named
+snapshot path was later overwritten by the final save with hash `db4c3968...`.
+The original bytes were not found among preserved checkpoints. The guarded
+workflow therefore requires the current final checkpoint to pass at both the
+original and new confirmation seeds before DR-0.10 can unlock.
+
 ## Verification
 
 The complete local and staged-server suites pass:

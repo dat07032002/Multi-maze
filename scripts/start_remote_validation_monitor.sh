@@ -22,6 +22,7 @@ canonical_gpu="${TAG_CANONICAL_GPU:-3}"
 robust_gpu="${TAG_ROBUST_GPU:-4}"
 policy_mode="${TAG_POLICY_MODE:-sample}"
 canonical_episodes="${TAG_CANONICAL_EPISODES:-1}"
+robust_strength="${TAG_ROBUST_STRENGTH:-}"
 validation_root="$run_dir/validation"
 mkdir -p "$validation_root"
 
@@ -73,9 +74,16 @@ nohup bash -c '
   canonical_episodes="${14}"
   canonical_gpu="${15}"
   robust_gpu="${16}"
+  robust_strength="${17}"
   baseline_arg=()
   if [[ "$baseline" == "YES" ]]; then
     baseline_arg=(--baseline)
+  fi
+  robust_strength_arg=()
+  if [[ -n "$robust_strength" ]]; then
+    robust_strength_arg=(
+      --robust-randomization-strength "$robust_strength"
+    )
   fi
   "$python_bin" "$monitor" \
     --repo-root "$repo_root" \
@@ -93,6 +101,7 @@ nohup bash -c '
     --canonical-gpu "$canonical_gpu" \
     --robust-gpu "$robust_gpu" \
     --robust-episodes-per-maze 3 \
+    "${robust_strength_arg[@]}" \
     --max-steps 3000
   code=$?
   printf "%s\n" "$code" >"$status_file"
@@ -100,6 +109,7 @@ nohup bash -c '
 ' _ "$python_bin" "$monitor" "$repo_root" "$run_dir" "$status_file" "$manifest" \
   "$start_step" "$interval" "$robust_interval" "$end_step" "$baseline" \
   "$split" "$policy_mode" "$canonical_episodes" "$canonical_gpu" "$robust_gpu" \
+  "$robust_strength" \
   >"$launcher_log" 2>&1 </dev/null &
 pid=$!
 printf '%s\n' "$pid" >"$pid_file"

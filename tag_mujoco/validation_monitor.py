@@ -113,7 +113,7 @@ def evaluator_command(
         if mode == "canonical"
         else args.robust_episodes_per_maze
     )
-    return [
+    command = [
         str(args.python),
         str(args.repo_root / "dreamerv3/dreamerv3/eval_multimaze.py"),
         "--checkpoint",
@@ -139,6 +139,14 @@ def evaluator_command(
         "--output",
         str(milestone_dir / f"{mode}.json"),
     ]
+    if mode == "robust" and args.robust_randomization_strength is not None:
+        command.extend(
+            [
+                "--randomization-strength",
+                str(args.robust_randomization_strength),
+            ]
+        )
+    return command
 
 
 def launch_evaluator(
@@ -256,6 +264,7 @@ def main() -> None:
     parser.add_argument("--canonical-gpu", type=int, default=3)
     parser.add_argument("--robust-gpu", type=int, default=4)
     parser.add_argument("--robust-episodes-per-maze", type=int, default=3)
+    parser.add_argument("--robust-randomization-strength", type=float)
     parser.add_argument("--canonical-episodes-per-maze", type=int, default=1)
     # "dev" is a training subset used to rank tuning arms without reading the
     # validation split that the mastery gate measures.
@@ -268,6 +277,11 @@ def main() -> None:
     parser.add_argument("--gpu-memory-limit-mib", type=int, default=5000)
     parser.add_argument("--gpu-utilization-limit", type=int, default=10)
     args = parser.parse_args()
+    if (
+        args.robust_randomization_strength is not None
+        and not 0.0 < args.robust_randomization_strength <= 1.0
+    ):
+        parser.error("--robust-randomization-strength must be in (0, 1]")
 
     args.repo_root = args.repo_root.resolve()
     args.run_dir = args.run_dir.resolve()
