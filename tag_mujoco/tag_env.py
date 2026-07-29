@@ -55,7 +55,7 @@ except ImportError:  # Preserve direct-script execution from this directory.
 HERE = Path(__file__).resolve().parent
 DEFAULT_LAYOUT = HERE / "generated_mazes" / "maze_seed_970.json"
 DR_METRIC_KEYS = (
-    "dr_act_delay_s", "dr_act_response_s", "dr_act_units_0", "dr_act_units_1",
+    "dr_act_delay_s", "dr_act_response_s",
     "dr_act_offset_0", "dr_act_offset_1", "dr_act_coupling_01",
     "dr_act_coupling_10", "dr_act_pos_00", "dr_act_pos_01",
     "dr_act_pos_10", "dr_act_pos_11", "dr_act_neg_00", "dr_act_neg_01",
@@ -154,8 +154,10 @@ def hole_proximity_cost(config: TaskConfig, hole_clearance_m: float) -> float:
     """
 
     band = max(config.hole_warning_m, 1e-6)
-    if not math.isfinite(hole_clearance_m):
+    if math.isinf(hole_clearance_m) and hole_clearance_m > 0.0:
         return 0.0
+    if not math.isfinite(hole_clearance_m):
+        raise ValueError(f"Hole clearance must be finite or +inf, got {hole_clearance_m!r}")
     return float(np.clip((band - hole_clearance_m) / band, 0.0, 1.0))
 
 
@@ -575,8 +577,11 @@ class TagMazeTask:
         metrics: Dict[str, float] = {
             "dr_act_delay_s": actuator["total_delay_seconds"],
             "dr_act_response_s": actuator["response_time_constant_seconds"],
-            "dr_act_units_0": actuator["servo_units_per_rad"][0],
-            "dr_act_units_1": actuator["servo_units_per_rad"][1],
+            # dr_act_units_* was removed on 2026-07-29. servo_units_per_rad was
+            # never read by the forward dynamics, so those two scalars ranked
+            # pure noise in every attribution report produced before that date.
+            # The effective command gains are already logged as dr_act_pos_* and
+            # dr_act_neg_*.
             "dr_act_offset_0": actuator["zero_angle_offset_rad"][0],
             "dr_act_offset_1": actuator["zero_angle_offset_rad"][1],
             "dr_act_coupling_01": actuator["cross_axis_coupling"][0][1],

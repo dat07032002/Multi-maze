@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, Iterable, Tuple
 
@@ -17,6 +19,34 @@ except ImportError:
     from model_builder import build_mjcf
 
 
+_MODEL_CACHE: OrderedDict[str, tuple[str, mujoco.MjModel]] = OrderedDict()
+_MODEL_CACHE_LIMIT = 16
+
+
+def _model_cache_key(layout: Dict[str, Any], model_params: Dict[str, Any]) -> str:
+    return json.dumps(
+        {"layout": layout, "model_params": model_params},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _compiled_model(
+    layout: Dict[str, Any], model_params: Dict[str, Any]
+) -> tuple[str, mujoco.MjModel]:
+    key = _model_cache_key(layout, model_params)
+    cached = _MODEL_CACHE.get(key)
+    if cached is not None:
+        _MODEL_CACHE.move_to_end(key)
+        return cached
+    xml = build_mjcf(layout, model_params)
+    model = mujoco.MjModel.from_xml_string(xml)
+    _MODEL_CACHE[key] = (xml, model)
+    while len(_MODEL_CACHE) > _MODEL_CACHE_LIMIT:
+        _MODEL_CACHE.popitem(last=False)
+    return xml, model
+
+
 class TagMazeSim:
     def __init__(
         self,
@@ -25,8 +55,7 @@ class TagMazeSim:
     ):
         self.layout = layout or load_layout()
         self.model_params = model_params or {}
-        self.xml = build_mjcf(self.layout, self.model_params)
-        self.model = mujoco.MjModel.from_xml_string(self.xml)
+        self.xml, self.model = _compiled_model(self.layout, self.model_params)
         self.data = mujoco.MjData(self.model)
         self.board_body_id = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, "board"
@@ -101,6 +130,7 @@ class TagMazeSim:
         mujoco.mj_forward(self.model, self.data)
         for _ in range(settle_steps):
             mujoco.mj_step(self.model, self.data)
+            self._check_finite("reset settle")
 
     def step(self, steps: int = 1) -> None:
         for _ in range(steps):
@@ -118,6 +148,20 @@ class TagMazeSim:
                 )
                 self.data.xfrc_applied[self.ball_body_id, :3] = damping_force
             mujoco.mj_step(self.model, self.data)
+            self._check_finite("step")
+
+    def _check_finite(self, context: str) -> None:
+        checks = {
+            "qpos": self.data.qpos,
+            "qvel": self.data.qvel,
+            "ctrl": self.data.ctrl,
+            "xpos": self.data.xpos,
+        }
+        for name, values in checks.items():
+            if not np.all(np.isfinite(values)):
+                raise FloatingPointError(
+                    f"MuJoCo diverged during {context}: {name} is non-finite"
+                )
 
     def ball_world_position(self) -> np.ndarray:
         return self.data.xpos[self.ball_body_id].copy()

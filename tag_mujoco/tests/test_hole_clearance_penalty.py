@@ -35,6 +35,10 @@ class HoleProximityCostTests(unittest.TestCase):
         self.assertTrue(np.isinf(clearance[0]))
         self.assertEqual(hole_proximity_cost(TaskConfig(), float(clearance[0])), 0.0)
 
+    def test_nan_clearance_is_rejected(self):
+        with self.assertRaises(ValueError):
+            hole_proximity_cost(TaskConfig(), float("nan"))
+
 
 class HoleClearanceIsHoleOnlyTests(unittest.TestCase):
     """The band must ignore walls, or it penalizes ordinary corridor travel."""

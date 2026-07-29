@@ -1,0 +1,128 @@
+{
+  "schema_version": 2,
+  "control_rate_hz": 35.0,
+  "observation_delay_steps": 1,
+  "dominance_ratio_threshold": 1.5,
+  "conditions_used": [
+    "axis1_positive",
+    "axis2_positive"
+  ],
+  "conditions_excluded_as_ambiguous": [
+    "axis1_negative",
+    "axis2_negative"
+  ],
+  "measured_median_t90_seconds": 0.20179212093353271,
+  "measured_median_t90_all_conditions_seconds": 0.16809117794036865,
+  "driver_model_only": {
+    "total_delay_seconds": 0.0,
+    "response_time_constant_seconds": 1e-06,
+    "median_absolute_error_seconds": 0.06314766407012941,
+    "per_condition": [
+      {
+        "axis": 1,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "beta_rad",
+        "dominance_ratio": 1.951403711992031,
+        "measured_t90_seconds": 0.2649397850036621,
+        "modeled_t90_seconds": 0.2114285714285714,
+        "error_seconds": -0.0535112135750907
+      },
+      {
+        "axis": 2,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "alpha_rad",
+        "dominance_ratio": 2.1002111397279637,
+        "measured_t90_seconds": 0.13864445686340332,
+        "modeled_t90_seconds": 0.21142857142857144,
+        "error_seconds": 0.07278411456516812
+      }
+    ]
+  },
+  "superseded_double_counted": {
+    "total_delay_seconds": 0.033,
+    "response_time_constant_seconds": 0.086,
+    "median_absolute_error_seconds": 0.1861407759793038,
+    "per_condition": [
+      {
+        "axis": 1,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "beta_rad",
+        "dominance_ratio": 1.951403711992031,
+        "measured_t90_seconds": 0.2649397850036621,
+        "modeled_t90_seconds": 0.3799426984120823,
+        "error_seconds": 0.11500291340842017
+      },
+      {
+        "axis": 2,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "alpha_rad",
+        "dominance_ratio": 2.1002111397279637,
+        "measured_t90_seconds": 0.13864445686340332,
+        "modeled_t90_seconds": 0.3959230954135908,
+        "error_seconds": 0.25727863855018746
+      }
+    ]
+  },
+  "fitted_residual": {
+    "total_delay_seconds": 0.0,
+    "response_time_constant_seconds": 0.001,
+    "median_absolute_error_seconds": 0.0631476640701294,
+    "per_condition": [
+      {
+        "axis": 1,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "beta_rad",
+        "dominance_ratio": 1.951403711992031,
+        "measured_t90_seconds": 0.2649397850036621,
+        "modeled_t90_seconds": 0.21142857142858257,
+        "error_seconds": -0.05351121357507954
+      },
+      {
+        "axis": 2,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "alpha_rad",
+        "dominance_ratio": 2.1002111397279637,
+        "measured_t90_seconds": 0.13864445686340332,
+        "modeled_t90_seconds": 0.21142857142858257,
+        "error_seconds": 0.07278411456517925
+      }
+    ]
+  },
+  "committed": {
+    "total_delay_seconds": 0.0,
+    "response_time_constant_seconds": 0.001,
+    "median_absolute_error_seconds": 0.0631476640701294,
+    "per_condition": [
+      {
+        "axis": 1,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "beta_rad",
+        "dominance_ratio": 1.951403711992031,
+        "measured_t90_seconds": 0.2649397850036621,
+        "modeled_t90_seconds": 0.21142857142858257,
+        "error_seconds": -0.05351121357507954
+      },
+      {
+        "axis": 2,
+        "direction": "positive",
+        "command": 80.0,
+        "dominant_angle": "alpha_rad",
+        "dominance_ratio": 2.1002111397279637,
+        "measured_t90_seconds": 0.13864445686340332,
+        "modeled_t90_seconds": 0.21142857142858257,
+        "error_seconds": 0.07278411456517925
+      }
+    ]
+  },
+  "recommended": {
+    "total_delay_seconds": 0.0,
+    "response_time_constant_seconds": 0.001
+  }
+}

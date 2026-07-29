@@ -135,7 +135,7 @@ tag_sim:
     maze_sampling: curriculum
     curriculum_episodes: 5000
   encoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
-  decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
+  decoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
   wrapper: {length: 3000}
 
 # Adaptive multi-maze profile. This remains checkpoint/replay incompatible with
@@ -187,7 +187,7 @@ tag_sim_v2:
     randomization_window: 50
     randomization_success_threshold: 0.60
   encoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
-  decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
+  decoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
   wrapper: {length: 3000}
 
 # Continuation profile for a mature v2 policy. It removes easier mid-route
@@ -444,7 +444,7 @@ tag:
     save_every: 10
     log_keys_sum: '^log_reward$'
   encoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
-  decoder: {mlp_keys: 'states|goal$', cnn_keys: 'image'}
+  decoder: {mlp_keys: '^(states|goal)$', cnn_keys: '^image$'}
   wrapper: {length: 3000}
 
 minecraft:

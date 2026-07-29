@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from typing import Any, Iterable, Mapping
 
@@ -153,5 +154,105 @@ def summarize_records(records: list[Mapping[str, Any]]) -> dict[str, Any]:
         "summary": _aggregate(records),
         "by_difficulty": {
             band: _aggregate(items) for band, items in sorted(by_band.items())
+        },
+    }
+
+
+def _record_key(record: Mapping[str, Any]) -> tuple[str, int]:
+    return str(record["layout"]), int(record["evaluation_seed"])
+
+
+def _exact_two_sided_binomial_pvalue(successes: int, trials: int) -> float | None:
+    if trials <= 0:
+        return None
+    observed = min(successes, trials - successes)
+    probability = 0.0
+    for count in range(observed + 1):
+        probability += math.comb(trials, count) * (0.5 ** trials)
+    return float(min(1.0, 2.0 * probability))
+
+
+def paired_comparison(
+    baseline_records: list[Mapping[str, Any]],
+    candidate_records: list[Mapping[str, Any]],
+    *,
+    bootstrap_samples: int = 20000,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Compare two evaluations on matched ``(layout, evaluation_seed)`` pairs."""
+
+    baseline_by_key = {_record_key(record): record for record in baseline_records}
+    candidate_by_key = {_record_key(record): record for record in candidate_records}
+    keys = sorted(set(baseline_by_key).intersection(candidate_by_key))
+    if not keys:
+        raise ValueError("Paired comparison requires at least one matched record")
+
+    base_success = np.asarray(
+        [bool(baseline_by_key[key]["success"]) for key in keys], dtype=np.bool_
+    )
+    cand_success = np.asarray(
+        [bool(candidate_by_key[key]["success"]) for key in keys], dtype=np.bool_
+    )
+    base_fall = np.asarray(
+        [bool(baseline_by_key[key]["fall"]) for key in keys], dtype=np.bool_
+    )
+    cand_fall = np.asarray(
+        [bool(candidate_by_key[key]["fall"]) for key in keys], dtype=np.bool_
+    )
+    base_progress = np.asarray(
+        [float(baseline_by_key[key]["max_route_completion"]) for key in keys],
+        dtype=np.float64,
+    )
+    cand_progress = np.asarray(
+        [float(candidate_by_key[key]["max_route_completion"]) for key in keys],
+        dtype=np.float64,
+    )
+    progress_delta = cand_progress - base_progress
+
+    success_gained = int(np.logical_and(~base_success, cand_success).sum())
+    success_lost = int(np.logical_and(base_success, ~cand_success).sum())
+    fall_gained = int(np.logical_and(~base_fall, cand_fall).sum())
+    fall_removed = int(np.logical_and(base_fall, ~cand_fall).sum())
+
+    rng = np.random.default_rng(seed)
+    sample_count = max(0, int(bootstrap_samples))
+    if sample_count:
+        indices = rng.integers(0, len(keys), size=(sample_count, len(keys)))
+        means = progress_delta[indices].mean(axis=1)
+        progress_ci = np.quantile(means, [0.025, 0.975]).astype(float).tolist()
+        progress_p_mean_negative = float(np.mean(means < 0.0))
+    else:
+        progress_ci = None
+        progress_p_mean_negative = None
+
+    return {
+        "schema_version": 1,
+        "paired_episodes": len(keys),
+        "unpaired_baseline": len(baseline_by_key) - len(keys),
+        "unpaired_candidate": len(candidate_by_key) - len(keys),
+        "success_mcnemar": {
+            "gained": success_gained,
+            "lost": success_lost,
+            "exact_two_sided_p": _exact_two_sided_binomial_pvalue(
+                success_gained, success_gained + success_lost
+            ),
+        },
+        "fall_mcnemar": {
+            "gained": fall_gained,
+            "removed": fall_removed,
+            "exact_two_sided_p": _exact_two_sided_binomial_pvalue(
+                fall_gained, fall_gained + fall_removed
+            ),
+        },
+        "progress_bootstrap": {
+            "mean_delta": float(progress_delta.mean()),
+            "median_delta": float(np.median(progress_delta)),
+            "positive_pairs": int((progress_delta > 0.0).sum()),
+            "negative_pairs": int((progress_delta < 0.0).sum()),
+            "unchanged_pairs": int((progress_delta == 0.0).sum()),
+            "mean_delta_95ci": progress_ci,
+            "p_mean_delta_negative": progress_p_mean_negative,
+            "bootstrap_samples": sample_count,
+            "seed": int(seed),
         },
     }

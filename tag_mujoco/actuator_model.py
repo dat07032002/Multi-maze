@@ -36,13 +36,24 @@ class HiwonderActuatorModel:
         self.__init__(self.config)
 
     def submit_action(self, action: Iterable[float]) -> None:
-        action_array = np.clip(np.asarray(tuple(action), dtype=np.float64), -1.0, 1.0)
-        if action_array.shape != (2,):
-            raise ValueError(f"Expected a two-axis action, received {action_array.shape}")
-        command = (
+        raw_action = np.asarray(tuple(action), dtype=np.float64)
+        if raw_action.shape != (2,):
+            raise ValueError(f"Expected a two-axis action, received {raw_action.shape}")
+        if not np.all(np.isfinite(raw_action)):
+            # A non-finite action is how NaN from the learner reaches MuJoCo:
+            # np.clip propagates it, the servo target becomes NaN, and qpos is
+            # poisoned before the observation contract can reject anything.
+            raise ValueError(f"TAG action must be finite, received {raw_action!r}")
+        action_array = np.clip(raw_action, -1.0, 1.0)
+        # Reproduce the deployed path exactly: the learner scales by 240 and the
+        # bridge executable then clamps to 180. See ActuatorConfig for why these
+        # must stay two stages.
+        command = np.clip(
             action_array
-            * np.asarray(self.config.policy_command_limit)
-            * np.asarray(self.config.policy_command_sign)
+            * np.asarray(self.config.policy_command_scale)
+            * np.asarray(self.config.policy_command_sign),
+            -np.asarray(self.config.policy_command_limit),
+            np.asarray(self.config.policy_command_limit),
         )
         target = self._home + command * np.asarray(self.config.command_scale)
         limits = np.asarray(self.config.servo_limits, dtype=np.float64)
@@ -94,6 +105,11 @@ class HiwonderActuatorModel:
             np.asarray(self.config.board_rad_per_command_positive) @ positive
             + np.asarray(self.config.board_rad_per_command_negative) @ negative
         )
+        # Residual axis mixing beyond the identified command maps -- unmeasured
+        # linkage cross-talk. Nominal is the identity, so this changes nothing
+        # without randomization; it was declared and randomized but never
+        # applied until 2026-07-29, which silently made dr_act_coupling_* inert.
+        coupled = np.asarray(self.config.cross_axis_coupling) @ coupled
         coupled += np.asarray(self.config.zero_angle_offset_rad)
         response = 1.0 - math.exp(
             -float(dt) / max(1e-6, self.config.response_time_constant_seconds)
@@ -129,6 +145,11 @@ class HiwonderActuatorModel:
         if target.shape != (2,):
             raise ValueError(f"Expected two board angles, received {target.shape}")
         target -= np.asarray(self.config.zero_angle_offset_rad)
+        # Undo the residual axis mixing before inverting the command maps, so the
+        # privileged inverse stays consistent with the forward path.
+        target = np.linalg.solve(
+            np.asarray(self.config.cross_axis_coupling, dtype=np.float64), target
+        )
         positive_map = np.asarray(self.config.board_rad_per_command_positive)
         negative_map = np.asarray(self.config.board_rad_per_command_negative)
         candidates = []
@@ -162,8 +183,11 @@ class HiwonderActuatorModel:
         if not candidates:
             return np.zeros(2, dtype=np.float64)
         command = min(candidates, key=lambda item: item[0])[1]
+        # Invert the learner's 240 scale, not the bridge clamp. Dividing by 180
+        # here used to hand the expert a 1.33x over-scaled action, so a demo that
+        # wanted the clamp boundary asked for |action| = 1.0 instead of 0.75.
         return command / (
-            np.asarray(self.config.policy_command_limit)
+            np.asarray(self.config.policy_command_scale)
             * np.asarray(self.config.policy_command_sign)
         )
 

@@ -123,6 +123,8 @@ class TagPolicyContract:
         action_array = np.asarray(tuple(action), dtype=np.float32)
         if action_array.shape != (2,):
             raise ValueError(f"TAG action must have shape (2,), got {action_array.shape}")
+        if not np.all(np.isfinite(action_array)):
+            raise ValueError(f"TAG action must be finite, received {action_array!r}")
         normalized = np.clip(action_array, -1.0, 1.0)
         command = (
             normalized

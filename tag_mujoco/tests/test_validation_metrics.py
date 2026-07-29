@@ -5,6 +5,7 @@ import numpy as np
 from tag_mujoco.validation_metrics import (
     episode_record,
     evaluation_env_overrides,
+    paired_comparison,
     summarize_records,
 )
 
@@ -86,6 +87,46 @@ class ValidationMetricsTests(unittest.TestCase):
                 difficulty_band="easy",
                 evaluation_seed=1,
             )
+
+    def test_paired_comparison_reports_flips_and_progress_ci(self):
+        baseline = [
+            {
+                "layout": f"maze_{idx}.json",
+                "evaluation_seed": idx,
+                "success": success,
+                "fall": fall,
+                "max_route_completion": progress,
+            }
+            for idx, success, fall, progress in (
+                (0, True, False, 0.9),
+                (1, True, False, 0.8),
+                (2, False, True, 0.5),
+                (3, False, False, 0.4),
+            )
+        ]
+        candidate = [
+            {
+                "layout": f"maze_{idx}.json",
+                "evaluation_seed": idx,
+                "success": success,
+                "fall": fall,
+                "max_route_completion": progress,
+            }
+            for idx, success, fall, progress in (
+                (0, True, False, 0.95),
+                (1, False, True, 0.7),
+                (2, True, False, 0.6),
+                (3, False, False, 0.4),
+            )
+        ]
+        result = paired_comparison(baseline, candidate, bootstrap_samples=200, seed=1)
+        self.assertEqual(result["paired_episodes"], 4)
+        self.assertEqual(result["success_mcnemar"]["gained"], 1)
+        self.assertEqual(result["success_mcnemar"]["lost"], 1)
+        self.assertEqual(result["fall_mcnemar"]["gained"], 1)
+        self.assertEqual(result["fall_mcnemar"]["removed"], 1)
+        self.assertAlmostEqual(result["progress_bootstrap"]["mean_delta"], 0.0125)
+        self.assertEqual(len(result["progress_bootstrap"]["mean_delta_95ci"]), 2)
 
 
 if __name__ == "__main__":

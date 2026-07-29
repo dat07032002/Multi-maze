@@ -12,6 +12,13 @@ from ament_index_python.packages import get_package_share_directory
 from tag_dreamer import tag_layout_custom
 from tag_dreamer.path import LinearPath
 
+try:
+    from tag_mujoco.camera_model import PolicyCameraModel
+    from tag_mujoco.system_config import CameraConfig
+except Exception:  # pragma: no cover - ROS deployments may not install tag_mujoco.
+    PolicyCameraModel = None
+    CameraConfig = None
+
 
 def _recv_line(sock):
     data = bytearray()
@@ -35,6 +42,23 @@ def _parse_checkpoint_ranges(value):
         end = int(parts[1]) if len(parts) == 2 else start
         ranges.append((min(start, end), max(start, end)))
     return ranges
+
+
+def _require_finite(name, value):
+    array = np.asarray(value)
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"TAG TCP observation {name!r} contains non-finite values")
+
+
+def _camera_layout(layout):
+    normalized = dict(layout)
+    normalized.setdefault("walls_angled", [])
+    normalized.setdefault("ball_radius", 0.006)
+    normalized.setdefault(
+        "hole_radii",
+        [normalized["ball_radius"]] * len(normalized.get("holes", [])),
+    )
+    return normalized
 
 
 class TagGym(gym.Env):
@@ -70,6 +94,16 @@ class TagGym(gym.Env):
         self.offset = np.array([0.259, 0.229]) / 2.0
         shared = get_package_share_directory("tag_dreamer")
         self.p = LinearPath.load(os.path.join(shared, "path_custom.pkl"))
+        self.layout = layout
+        self.policy_camera = None
+        if PolicyCameraModel is not None and CameraConfig is not None:
+            try:
+                self.policy_camera = PolicyCameraModel(_camera_layout(layout), CameraConfig())
+                print("[TCP ENV] Policy image: synthetic sim-matched patch")
+            except Exception as exc:
+                print(f"[TCP ENV] Policy image: bridge camera fallback ({exc})")
+        else:
+            print("[TCP ENV] Policy image: bridge camera fallback (tag_mujoco unavailable)")
 
         self.path_tolerance = max(
             0.0,
@@ -290,18 +324,16 @@ class TagGym(gym.Env):
             dtype=np.float32,
         )
         states[2:] += self.offset
+        _require_finite("states", states)
 
         img_bytes = base64.b64decode(rep["image_b64"])
-        image = np.frombuffer(img_bytes, dtype=np.uint8).reshape(64, 64, 1)
+        bridge_image = np.frombuffer(img_bytes, dtype=np.uint8).reshape(64, 64, 1)
 
         rel_path = self._get_rel_path(states[2:]).flatten().astype(np.float32)
+        _require_finite("goal", rel_path)
+        image = self._policy_image(states[2:], bridge_image)
 
-        states = np.nan_to_num(states, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
-        rel_path = np.nan_to_num(rel_path, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
-        image = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0)
-        image = np.clip(image, 0, 255).astype(np.uint8)
-
-        self.obs = {"states": states, "goal": rel_path, "image": image}
+        self.obs = {"states": states.astype(np.float32), "goal": rel_path, "image": image}
         self._remember_visible_ball(self.obs)
         if was_occluded:
             print("[Occlusion]: BALL REACQUIRED")
@@ -405,13 +437,27 @@ class TagGym(gym.Env):
         self._request({"cmd": "action", "vel_1": vel_1, "vel_2": vel_2})
 
     def _action_to_command(self, action):
-        action = action.copy()
+        action = np.asarray(action, dtype=np.float32).copy()
+        if action.shape != (2,) or not np.all(np.isfinite(action)):
+            raise ValueError(f"TAG action must be finite with shape (2,), got {action!r}")
         action *= self.max_angle_vel
         vel_1 = float(self.alpha_fac * action[0])
         vel_2 = float(self.beta_fac * action[1])
         vel_1 = float(np.clip(vel_1, -self.max_cmd_1, self.max_cmd_1))
         vel_2 = float(np.clip(vel_2, -self.max_cmd_2, self.max_cmd_2))
         return vel_1, vel_2
+
+    def _policy_image(self, ball_xy, bridge_image):
+        if self.policy_camera is None:
+            return np.clip(bridge_image, 0, 255).astype(np.uint8)
+        image, detected = self.policy_camera.capture(
+            ball_xy,
+            float(self.layout.get("ball_radius", 0.006)),
+            ball_visible=True,
+        )
+        if not detected:
+            raise ValueError("Synthetic policy camera unexpectedly dropped a visible ball")
+        return image
 
     def _get_obs(self):
         while True:

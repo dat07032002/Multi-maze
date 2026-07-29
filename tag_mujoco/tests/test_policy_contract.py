@@ -36,6 +36,32 @@ class TagPolicyContractTest(unittest.TestCase):
         target = self.contract.hiwonder_command_to_servo_target(command)
         np.testing.assert_array_equal(target, (230.0, 770.0))
 
+    def test_sim_action_path_matches_policy_contract(self):
+        config = ActuatorConfig(
+            command_timeout_seconds=100.0,
+            total_delay_seconds=0.0,
+            response_time_constant_seconds=0.001,
+        )
+        for action in ((0.0, 0.0), (0.5, -0.5), (0.75, -0.75), (1.0, -1.0)):
+            with self.subTest(action=action):
+                actuator = HiwonderActuatorModel(config)
+                actuator.submit_action(action)
+                for _ in range(40):
+                    actuator.step(1.0 / config.update_rate_hz)
+                command = self.contract.action_to_hiwonder_command(action)
+                expected = self.contract.hiwonder_command_to_servo_target(command)
+                np.testing.assert_allclose(
+                    actuator.commanded_servo_positions,
+                    expected,
+                    atol=1e-6,
+                )
+
+    def test_nonfinite_action_is_rejected_by_contract_and_sim(self):
+        with self.assertRaises(ValueError):
+            self.contract.action_to_hiwonder_command((np.nan, 0.0))
+        with self.assertRaises(ValueError):
+            HiwonderActuatorModel(ActuatorConfig()).submit_action((0.0, np.inf))
+
     def test_grayscale_is_arithmetic_channel_mean(self):
         color = np.zeros((64, 64, 3), dtype=np.uint8)
         color[..., 0] = 3
@@ -89,8 +115,8 @@ class TagPolicyContractTest(unittest.TestCase):
                 actuator.step(0.01)
             return actuator.board_target_angles
 
-        axis2_positive = settle((0.0, -0.2))
-        axis2_negative = settle((0.0, 0.2))
+        axis2_positive = settle((0.0, -0.15))
+        axis2_negative = settle((0.0, 0.15))
         self.assertLess(abs(axis2_positive[0]), math.radians(0.1))
         # The command-80 fit predicts about +0.19/+0.14 degrees at command
         # -36. Preserve the measured sign and coupling without retaining the

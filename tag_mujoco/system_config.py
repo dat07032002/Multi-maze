@@ -140,13 +140,19 @@ class ActuatorConfig:
         (100.0, 900.0),
     )
     command_scale: Tuple[float, float] = (1.5, 1.5)
+    # The deployed path is two separate stages and the simulator must reproduce
+    # both. The learner scales a normalized action by 240; the bridge executable
+    # then clamps the result to 180. Collapsing them into a single 180 scale --
+    # which this config did until 2026-07-29 -- makes the simulator 25% weaker
+    # for every |action| < 0.75 and removes the real saturation plateau above
+    # it. `tests/test_policy_contract.py` now asserts equality against
+    # `TagPolicyContract.action_to_hiwonder_command`.
+    policy_command_scale: Tuple[float, float] = (240.0, 240.0)
     policy_command_limit: Tuple[float, float] = (180.0, 180.0)
     policy_command_sign: Tuple[float, float] = (-1.0, -1.0)
-    linkage_angle_sign: Tuple[float, float] = (-1.0, -1.0)
     update_rate_hz: float = 30.0
     max_step_per_tick: Tuple[float, float] = (20.0, 20.0)
     deadband_units: float = 1.0
-    move_time_seconds: float = 0.030
     command_timeout_seconds: float = 1.0
     timeout_go_home: bool = True
     reset_prehome_positions: Tuple[float, float] = (700.0, 700.0)
@@ -154,17 +160,33 @@ class ActuatorConfig:
     reset_prehome_wait_seconds: float = 0.5
     reset_home_move_seconds: float = 0.600
     # Source-timestamped +/-80 step runs on 2026-07-27 reached 90% of the
-    # dominant response in about 0.23 s.  The median first-order fit separates
-    # that into approximately one 30 Hz driver tick of pure delay and an 86 ms
-    # response time constant.
-    total_delay_seconds: float = 0.033
-    response_time_constant_seconds: float = 0.086
+    # dominant camera-observed response in about 0.23 s end to end.
+    #
+    # That number is NOT pure servo dynamics and must not be added on top of the
+    # driver model. Command 80 is 120 servo units, and `max_step_per_tick` walks
+    # 20 units per 30 Hz tick, so the modeled rate limiter alone already spends
+    # 6 ticks -- 0.20 s -- reaching the target. The superseded values below
+    # (33 ms pure delay, 86 ms time constant) re-fitted that same rate limit as
+    # if it were servo lag and applied it a second time, making the simulated
+    # board roughly 1.6x more sluggish than the measured one.
+    #
+    # These two values are now the *residual* after the tick quantization,
+    # `max_step_per_tick` slew, and `CameraConfig.observation_delay_steps` are
+    # accounted for. They are fitted offline by `fit_actuator_response.py`
+    # against `docs/sysid_actuator_step80_2026-07-27.json` and regression-tested
+    # by `tests/test_actuator_response_timing.py`. Do not hand-edit them without
+    # re-running that tool.
+    # Fitted 2026-07-29: the residual is indistinguishable from zero. Against the
+    # two trustworthy step conditions (median measured t90 202 ms) the driver
+    # model alone predicts 211 ms, while the superseded 33/86 ms pair predicted
+    # 388 ms -- a 186 ms median overshoot on a 202 ms measurement. The 30 ms move
+    # command per 33.3 ms tick means the servo does substantially reach each
+    # rate-limited intermediate target within its own tick, so there is no room
+    # left for a first-order lag on top. The 1 ms value keeps the filter
+    # numerically defined rather than asserting a measured time constant.
+    total_delay_seconds: float = 0.0
+    response_time_constant_seconds: float = 0.001
     board_angle_limit_rad: float = math.radians(10.0)
-    # Inferred only: +/-270 servo units spans the +/-10 degree policy range.
-    servo_units_per_rad: Tuple[float, float] = (
-        270.0 / math.radians(10.0),
-        270.0 / math.radians(10.0),
-    )
     zero_angle_offset_rad: Tuple[float, float] = (0.0, 0.0)
     cross_axis_coupling: Tuple[Tuple[float, float], Tuple[float, float]] = (
         (1.0, 0.0),
@@ -201,10 +223,6 @@ class ActuatorConfig:
                 np.asarray(sample) - np.asarray(nominal)
             )
 
-        gain_factor = blend(rng.uniform(0.75, 1.25, size=2), np.ones(2))
-        units_per_rad = tuple(
-            value / factor for value, factor in zip(self.servo_units_per_rad, gain_factor)
-        )
         cross = strength * rng.uniform(-0.08, 0.08, size=2)
         positive_map = np.asarray(self.board_rad_per_command_positive) * blend(
             rng.uniform(0.65, 1.35, size=(1, 2)), np.ones((1, 2))
@@ -214,13 +232,17 @@ class ActuatorConfig:
         )
         return replace(
             self,
-            servo_units_per_rad=units_per_rad,  # type: ignore[arg-type]
+            # Both ranges are residuals on top of the modeled tick quantization,
+            # slew limit, and observation delay. The delay upper bound is one
+            # driver tick of un-modeled command-path transport; the response
+            # range keeps the same relative spread the superseded 0.086 nominal
+            # had, re-centered on the refitted residual.
             total_delay_seconds=float(
-                blend(rng.uniform(0.010, 0.070), self.total_delay_seconds)
+                blend(rng.uniform(0.0, 0.033), self.total_delay_seconds)
             ),
             response_time_constant_seconds=float(
                 blend(
-                    rng.uniform(0.040, 0.140),
+                    rng.uniform(0.0, 0.040),
                     self.response_time_constant_seconds,
                 )
             ),
