@@ -26,7 +26,10 @@ Every skill stage uses the same continuation contract:
 
 2. `tag_sim_v2_easy_dodge_holes`
    - generated dodge layouts;
-   - holes are placed on the old centerline;
+   - maze topology has no loop shortcuts, so there is only one cell-level route
+     from start to goal;
+   - wrong branches are stopped by blocker holes;
+   - dodge holes are placed near the old centerline;
    - the continuous planner replans a safe path around them;
    - reward tracks the replanned safe path.
 
@@ -46,7 +49,8 @@ Every skill stage uses the same continuation contract:
 
 - cyan: replanned safe path used for training;
 - orange dashed: original centerline route that is now blocked/unsafe;
-- red-ring holes: dodge-required route hazards.
+- red-ring holes: dodge-required route hazards;
+- purple-ring holes: wrong-branch blockers.
 
 ## Reward direction
 

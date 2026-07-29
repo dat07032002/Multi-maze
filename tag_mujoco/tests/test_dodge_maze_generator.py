@@ -23,12 +23,23 @@ DODGE_MANIFEST = ROOT / "tag_mujoco" / "generated_dodge_mazes" / "maze_splits_do
 class DodgeMazeGeneratorTests(unittest.TestCase):
     def test_generated_dodge_maze_blocks_reference_and_replans_safe_path(self):
         layout, metadata = generate_dodge_maze(
-            40000,
+            40003,
             DodgeMazeConfig(),
             PlannerConfig(),
         )
         reference = np.asarray(layout["reference_waypoints"], dtype=np.float64)
         safe = np.asarray(layout["waypoints"], dtype=np.float64)
+        solution_cells = {tuple(cell) for cell in layout["solution_cells"]}
+        branch_blocker_cells = {
+            tuple(cell) for cell in metadata["branch_blocker_cells"]
+        }
+        self.assertEqual(metadata["config"]["loop_fraction"], 0.0)
+        self.assertTrue(metadata["single_solution_topology"])
+        self.assertGreater(metadata["wrong_branch_count"], 0)
+        self.assertEqual(
+            metadata["wrong_branch_count"], len(metadata["branch_blocker_cells"])
+        )
+        self.assertFalse(solution_cells & branch_blocker_cells)
         self.assertLess(float(np.min(signed_ball_clearance(layout, reference))), 0.0)
         self.assertTrue(validate_route(layout, safe, PlannerConfig()).passed)
         self.assertLess(metadata["original_route_min_clearance_m"], 0.0)
@@ -49,6 +60,8 @@ class DodgeMazeGeneratorTests(unittest.TestCase):
         self.assertFalse(set(train.paths) & set(validation.paths))
         self.assertFalse(set(train.paths) & set(test.paths))
         self.assertEqual(train.metadata[0]["curriculum_stage"], "easy_dodge_holes")
+        self.assertTrue(train.metadata[0]["single_solution_topology"])
+        self.assertGreater(train.metadata[0]["branch_blocker_count"], 0)
 
 
 if __name__ == "__main__":

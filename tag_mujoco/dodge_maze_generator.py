@@ -21,7 +21,7 @@ import math
 import hashlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -54,9 +54,12 @@ except ImportError:  # pragma: no cover - script execution from package dir.
 class DodgeMazeConfig:
     columns: int = 7
     rows: int = 6
-    loop_fraction: float = 0.10
-    branch_holes: int = 6
+    loop_fraction: float = 0.0
+    branch_holes: int = 0
     dodge_holes: int = 2
+    block_wrong_branches: bool = True
+    max_branch_blocker_holes: int = 64
+    dodge_hole_offset_m: float = 0.006
     edge_jitter_fraction: float = 0.04
 
 
@@ -71,6 +74,136 @@ def _cell_center(layout: dict[str, Any], cell: Iterable[int]) -> list[float]:
 def _polyline_min_clearance(layout: dict[str, Any], points: list[list[float]]) -> float:
     route = resample_polyline(points, 0.002)
     return float(np.min(signed_ball_clearance(layout, route)))
+
+
+def _connected_neighbors_from_layout(
+    layout: dict[str, Any], cell: tuple[int, int]
+) -> list[tuple[int, int]]:
+    """Return grid neighbors reachable without crossing a stored wall."""
+
+    columns = int(layout["grid_columns"])
+    rows = int(layout["grid_rows"])
+    horizontal = {tuple(wall) for wall in layout["grid_horizontal_walls"]}
+    vertical = {tuple(wall) for wall in layout["grid_vertical_walls"]}
+    column, row = cell
+    neighbors = []
+    for next_column, next_row in (
+        (column + 1, row),
+        (column - 1, row),
+        (column, row + 1),
+        (column, row - 1),
+    ):
+        if not (0 <= next_column < columns and 0 <= next_row < rows):
+            continue
+        if column != next_column:
+            blocked = (max(column, next_column), row) in vertical
+        else:
+            blocked = (column, max(row, next_row)) in horizontal
+        if not blocked:
+            neighbors.append((next_column, next_row))
+    return neighbors
+
+
+def _wrong_branch_components(layout: dict[str, Any]) -> list[list[tuple[int, int]]]:
+    """Collect non-solution branches connected to the one solution corridor."""
+
+    solution = [tuple(cell) for cell in layout["solution_cells"]]
+    solution_set = set(solution)
+    visited: set[tuple[int, int]] = set()
+    branches: list[list[tuple[int, int]]] = []
+    for route_cell in solution:
+        for neighbor in _connected_neighbors_from_layout(layout, route_cell):
+            if neighbor in solution_set or neighbor in visited:
+                continue
+            branch = []
+            stack = [neighbor]
+            visited.add(neighbor)
+            while stack:
+                current = stack.pop()
+                branch.append(current)
+                for next_cell in _connected_neighbors_from_layout(layout, current):
+                    if next_cell in solution_set or next_cell in visited:
+                        continue
+                    visited.add(next_cell)
+                    stack.append(next_cell)
+            branches.append(branch)
+    return branches
+
+
+def _select_branch_blocker_cells(
+    layout: dict[str, Any], max_count: int
+) -> list[tuple[int, int]]:
+    """Place one hole near the entrance of each wrong branch."""
+
+    if max_count <= 0:
+        return []
+    start = tuple(layout["start_cell"])
+    goal = tuple(layout["goal_cell"])
+    branches = _wrong_branch_components(layout)
+    # Longer branches get priority if a future config caps blockers below the
+    # number of wrong turns. Each branch list starts at its solution-corridor
+    # entrance, so branch[0] is the best "do not enter" cell.
+    branches.sort(key=len, reverse=True)
+    selected = []
+    for branch in branches:
+        entrance = branch[0]
+        if entrance in (start, goal) or entrance in selected:
+            continue
+        selected.append(entrance)
+        if len(selected) >= max_count:
+            break
+    return selected
+
+
+def _clamp_to_cell(
+    layout: dict[str, Any], point: np.ndarray, cell: tuple[int, int]
+) -> np.ndarray:
+    column, row = cell
+    # Keep the physical hole inside the nominal cell. The route planner still
+    # treats the finite ball and walls exactly, so this is just geometry hygiene.
+    margin = HOLE_RADIUS + 0.001
+    x_min = float(layout["column_edges"][column]) + margin
+    x_max = float(layout["column_edges"][column + 1]) - margin
+    y_min = float(layout["row_edges"][row]) + margin
+    y_max = float(layout["row_edges"][row + 1]) - margin
+    if x_min < x_max:
+        point[0] = float(np.clip(point[0], x_min, x_max))
+    if y_min < y_max:
+        point[1] = float(np.clip(point[1], y_min, y_max))
+    return point
+
+
+def _dodge_hole_point(
+    layout: dict[str, Any],
+    solution: Sequence[tuple[int, int]],
+    cell: tuple[int, int],
+    seed: int,
+    offset_m: float,
+) -> list[float]:
+    """Offset a route hazard so the old centerline fails but one side remains viable."""
+
+    center = np.asarray(_cell_center(layout, cell), dtype=np.float64)
+    index = solution.index(cell)
+    if 0 < index < len(solution) - 1:
+        before = np.asarray(_cell_center(layout, solution[index - 1]), dtype=np.float64)
+        after = np.asarray(_cell_center(layout, solution[index + 1]), dtype=np.float64)
+    elif index == 0:
+        before = center
+        after = np.asarray(_cell_center(layout, solution[index + 1]), dtype=np.float64)
+    else:
+        before = np.asarray(_cell_center(layout, solution[index - 1]), dtype=np.float64)
+        after = center
+    direction = after - before
+    norm = float(np.linalg.norm(direction))
+    if norm <= 1e-9:
+        return center.tolist()
+    perpendicular = np.asarray((-direction[1], direction[0]), dtype=np.float64) / norm
+    column, row = cell
+    cell_width = float(layout["column_edges"][column + 1] - layout["column_edges"][column])
+    cell_height = float(layout["row_edges"][row + 1] - layout["row_edges"][row])
+    offset = min(float(offset_m), 0.25 * min(cell_width, cell_height))
+    sign = 1.0 if (seed + column * 17 + row * 31) % 2 == 0 else -1.0
+    return _clamp_to_cell(layout, center + sign * offset * perpendicular, cell).tolist()
 
 
 def _select_dodge_cells(layout: dict[str, Any], count: int) -> list[tuple[int, int]]:
@@ -109,13 +242,34 @@ def generate_dodge_maze(
         np.sum(np.linalg.norm(np.diff(np.asarray(original_waypoints), axis=0), axis=1))
     )
 
-    dodge_cells = _select_dodge_cells(base, config.dodge_holes)
+    branch_blocker_cells = (
+        _select_branch_blocker_cells(base, config.max_branch_blocker_holes)
+        if config.block_wrong_branches
+        else []
+    )
     existing_cells = {tuple(cell) for cell in base["hole_cells"]}
-    for cell in dodge_cells:
+    for cell in branch_blocker_cells:
         if cell not in existing_cells:
             base["hole_cells"].append(list(cell))
             base["holes"].append(_cell_center(base, cell))
             base["hole_radii"].append(HOLE_RADIUS)
+            existing_cells.add(cell)
+
+    solution = [tuple(cell) for cell in base["solution_cells"]]
+    dodge_cells = _select_dodge_cells(base, config.dodge_holes)
+    dodge_hole_points = []
+    for cell in dodge_cells:
+        hole_point = _dodge_hole_point(
+            base,
+            solution,
+            cell,
+            seed,
+            config.dodge_hole_offset_m,
+        )
+        base["hole_cells"].append(list(cell))
+        base["holes"].append(hole_point)
+        base["hole_radii"].append(HOLE_RADIUS)
+        dodge_hole_points.append(hole_point)
 
     blocked_clearance = _polyline_min_clearance(base, original_waypoints)
     if blocked_clearance >= planner.safety_margin_m:
@@ -126,7 +280,6 @@ def generate_dodge_maze(
     if not validation.passed:
         raise RuntimeError(f"Dodge maze route is unsafe: {validation}")
     safe_route = np.asarray(routed["waypoints"], dtype=np.float64)
-    dodge_hole_points = np.asarray([_cell_center(base, cell) for cell in dodge_cells])
     safe_hole_clearance = float(np.min(signed_hole_clearance(routed, safe_route)))
     routed["generator"] = "dense_irregular_depth_first_grid_v2_dodge_curriculum"
     routed["reference_waypoints"] = original_waypoints
@@ -143,8 +296,12 @@ def generate_dodge_maze(
             "corner_rounding_radius_m": planner.corner_rounding_radius_m,
             "corner_rounding_samples": planner.corner_rounding_samples,
         },
+        "single_solution_topology": config.loop_fraction == 0.0,
+        "wrong_branch_count": len(_wrong_branch_components(base)),
+        "branch_blocker_cells": [list(cell) for cell in branch_blocker_cells],
+        "branch_blocker_holes": [_cell_center(base, cell) for cell in branch_blocker_cells],
         "dodge_hole_cells": [list(cell) for cell in dodge_cells],
-        "dodge_holes": dodge_hole_points.tolist(),
+        "dodge_holes": dodge_hole_points,
         "original_route_min_clearance_m": blocked_clearance,
         "safe_route_min_clearance_m": validation.minimum_clearance_m,
         "safe_route_min_hole_clearance_m": safe_hole_clearance,
@@ -236,6 +393,10 @@ def render_dodge_preview(
         tuple(round(value, 9) for value in hole)
         for hole in layout.get("dodge_curriculum", {}).get("dodge_holes", [])
     }
+    branch_blocker_holes = {
+        tuple(round(value, 9) for value in hole)
+        for hole in layout.get("dodge_curriculum", {}).get("branch_blocker_holes", [])
+    }
     for (x, y), radius in zip(layout["holes"], layout["hole_radii"]):
         cx, cy = point(x, y)
         r = radius * scale
@@ -244,6 +405,9 @@ def render_dodge_preview(
         outline_width = 1
         if tuple(round(value, 9) for value in (x, y)) in dodge_holes:
             outline = "#ff3030"
+            outline_width = 6
+        if tuple(round(value, 9) for value in (x, y)) in branch_blocker_holes:
+            outline = "#8a2be2"
             outline_width = 6
         draw.ellipse(
             [cx - r, cy - r, cx + r, cy + r],
@@ -263,10 +427,11 @@ def render_dodge_preview(
     draw.ellipse([sx - 11, sy - 11, sx + 11, sy + 11], fill="#26b34a", outline="white", width=2)
     draw.ellipse([gx - 11, gy - 11, gx + 11, gy + 11], fill="#df3b2f", outline="white", width=2)
 
-    draw.rectangle([8, 8, 430, 92], fill="white", outline="#222222")
+    draw.rectangle([8, 8, 470, 114], fill="white", outline="#222222")
     draw.text((20, 20), "cyan: replanned safe path", fill="#006f87")
     draw.text((20, 42), "orange dashed: original blocked path", fill="#a45b00")
     draw.text((20, 64), "red-ring holes: dodge-required hazards", fill="#c02020")
+    draw.text((20, 86), "purple-ring holes: wrong-branch blockers", fill="#6a1bb4")
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
 
@@ -327,6 +492,8 @@ def generate_dodge_curriculum_set(
             "difficulty_band": "dodge",
             "curriculum_stage": "easy_dodge_holes",
             "dodge_hole_count": len(entry["dodge_hole_cells"]),
+            "branch_blocker_count": len(entry["branch_blocker_cells"]),
+            "single_solution_topology": bool(entry["single_solution_topology"]),
             "original_route_min_clearance_m": entry["original_route_min_clearance_m"],
             "safe_route_min_clearance_m": entry["safe_route_min_clearance_m"],
             "safe_route_min_hole_clearance_m": entry["safe_route_min_hole_clearance_m"],
@@ -345,7 +512,7 @@ def generate_dodge_curriculum_set(
                 "schema_version": 2,
                 "dataset_id": "tag_dodge_curriculum_v1",
                 "split_policy": (
-                    "small generated preview set; route-hazard dodge layouts; "
+                    "small generated preview set; single-topology route-hazard dodge layouts; "
                     "validation/test excluded from train"
                 ),
                 "config": asdict(config),
