@@ -130,20 +130,32 @@ class TagSystemModel:
         seed: int | None = None,
         randomize: bool = False,
         randomization_strength: float = 1.0,
+        randomization_groups: str = "all",
         ball_xy: Iterable[float] | None = None,
         ball_velocity_xy: Iterable[float] = (0.0, 0.0),
         board_tilt: Tuple[float, float] = (0.0, 0.0),
     ) -> Dict[str, np.ndarray]:
         self.rng = np.random.default_rng(seed)
         randomization_strength = float(np.clip(randomization_strength, 0.0, 1.0))
+        requested_groups = {
+            item.strip()
+            for item in randomization_groups.split(",")
+            if item.strip()
+        }
+        if "all" in requested_groups:
+            requested_groups = {"actuator", "physics", "camera"}
+        unknown = requested_groups - {"actuator", "physics", "camera"}
+        if unknown:
+            raise ValueError(f"Unknown randomization groups: {sorted(unknown)}")
+        self.active_randomization_groups = tuple(sorted(requested_groups)) if randomize else ()
         self.active_actuator_config = (
             self.config.actuator.randomized(self.rng, randomization_strength)
-            if randomize
+            if randomize and "actuator" in requested_groups
             else self.config.actuator
         )
         self.active_physics_config = (
             self.config.physics.randomized(self.rng, randomization_strength)
-            if randomize
+            if randomize and "physics" in requested_groups
             else self.config.physics
         )
         self.sim = TagMazeSim(
@@ -155,7 +167,7 @@ class TagSystemModel:
         camera_seed = int(self.rng.integers(0, 2**31 - 1))
         self.camera.reset(
             camera_seed,
-            randomize=randomize,
+            randomize=randomize and "camera" in requested_groups,
             randomization_strength=randomization_strength,
         )
         self.observation_filter = TagObservationFilter(
@@ -314,6 +326,7 @@ class TagSystemModel:
             "actuator": asdict(self.active_actuator_config),
             "physics": asdict(self.active_physics_config),
             "camera": self.camera.metadata(),
+            "randomization_groups": list(self.active_randomization_groups),
             "control_rate_hz": self.config.control_rate_hz,
             "maximum_episode_steps": self.config.maximum_episode_steps,
         }

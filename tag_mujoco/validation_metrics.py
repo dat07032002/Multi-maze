@@ -11,6 +11,7 @@ import numpy as np
 def evaluation_env_overrides(
     mode: str,
     randomization_strength: float | None = None,
+    randomization_groups: str = "all",
 ) -> dict[str, bool | float | str]:
     """Return comparable environment settings for held-out evaluation."""
 
@@ -35,6 +36,7 @@ def evaluation_env_overrides(
         "randomize_plant": robust,
         "start_curriculum": False,
         "randomization_curriculum": False,
+        "randomization_groups": randomization_groups,
     }
     if robust and randomization_strength is not None:
         # Reuse the curriculum interpolation machinery as a fixed-strength
@@ -89,7 +91,7 @@ def episode_record(
     else:
         reason = "time_limit"
 
-    return {
+    record = {
         "layout": layout,
         "layout_seed": int(layout_seed),
         "difficulty_score": float(difficulty_score),
@@ -106,6 +108,12 @@ def episode_record(
         "mean_clearance_cost": _mean(clearance_cost),
         "minimum_clearance_m": float(np.min(min_clearance)),
     }
+    record["domain_randomization"] = {
+        key.removeprefix("log_"): float(np.asarray(value).reshape(-1)[0])
+        for key, value in episode.items()
+        if key.startswith("log_dr_")
+    }
+    return record
 
 
 def _aggregate(records: list[Mapping[str, Any]]) -> dict[str, Any]:

@@ -60,7 +60,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0}
     dmc: {size: [64, 64], repeat: 2, camera: -1}
     loconav: {size: [64, 64], repeat: 2, camera: -1}
-    tagmaze: {randomize_plant: False, random_start: False, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, action_rate_penalty: 0.0, hole_warning_m: 0.008, hole_clearance_penalty: 0.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_window: 50, randomization_success_threshold: 0.60}
+    tagmaze: {randomize_plant: False, random_start: False, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, action_rate_penalty: 0.0, hole_warning_m: 0.008, hole_clearance_penalty: 0.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_max_strength: 1.0, randomization_window: 50, randomization_success_threshold: 0.60, randomization_groups: all}
 
   # Agent
   task_behavior: Greedy
@@ -156,7 +156,7 @@ tag_sim_v2:
     demo_dir: ''
     demo_limit_steps: 0
     log_keys_sum: '^log_(reward|fall_cost|success)$'
-    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|action_rate|hole_cost)$'
+    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|action_rate|hole_cost|dr_.*)$'
   env.tagmaze:
     randomize_plant: True
     random_start: True
@@ -339,6 +339,32 @@ tag_sim_v2_holeaware_dr010:
     randomization_window: 50
     randomization_success_threshold: 1.0
     hole_clearance_penalty: 0.02
+
+# Conservative exploratory curriculum. Each worker advances independently only
+# after sustained success, and the first run is capped at 0.25. Every sampled
+# scalar is logged; checkpoint diagnostics separately isolate actuator,
+# physics, and camera randomization.
+tag_sim_v2_holeaware_curriculum_dr:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: True
+    randomization_groups: all
+    randomization_curriculum: True
+    randomization_initial_strength: 0.05
+    randomization_expand_step: 0.05
+    randomization_max_strength: 0.25
+    randomization_window: 100
+    randomization_success_threshold: 0.75
+    hole_clearance_penalty: 0.02
+  run:
+    train_ratio: 8
+    train_fill: 50000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
 # Full-route continuation that increases dynamics variation only when each
 # environment worker demonstrates enough recent success at its current level.

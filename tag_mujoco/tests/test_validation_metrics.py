@@ -23,11 +23,12 @@ class ValidationMetricsTests(unittest.TestCase):
             evaluation_env_overrides("easy")
 
     def test_robust_evaluation_can_use_a_fixed_partial_strength(self):
-        robust = evaluation_env_overrides("robust", 0.10)
+        robust = evaluation_env_overrides("robust", 0.10, "physics")
         self.assertTrue(robust["randomize_plant"])
         self.assertTrue(robust["randomization_curriculum"])
         self.assertEqual(robust["randomization_initial_strength"], 0.10)
         self.assertEqual(robust["randomization_expand_step"], 0.0)
+        self.assertEqual(robust["randomization_groups"], "physics")
         with self.assertRaises(ValueError):
             evaluation_env_overrides("canonical", 0.10)
         with self.assertRaises(ValueError):
@@ -43,6 +44,7 @@ class ValidationMetricsTests(unittest.TestCase):
             "log_success": np.asarray([[0.0], [0.0], [1.0]]),
             "log_fall_cost": np.zeros((3, 1)),
             "action": np.zeros((3, 2)),
+            "log_dr_phys_mass": np.full((3, 1), 0.011),
         }
         record = episode_record(
             episode,
@@ -56,6 +58,9 @@ class ValidationMetricsTests(unittest.TestCase):
         self.assertFalse(record["fall"])
         self.assertEqual(record["steps"], 2)
         self.assertAlmostEqual(record["max_route_completion"], 1.0)
+        self.assertAlmostEqual(
+            record["domain_randomization"]["dr_phys_mass"], 0.011
+        )
         summary = summarize_records([record])["summary"]
         self.assertEqual(summary["completion_rate"], 1.0)
         self.assertEqual(summary["fall_rate"], 0.0)

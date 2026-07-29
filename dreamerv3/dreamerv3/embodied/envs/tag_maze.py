@@ -15,7 +15,7 @@ REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[4]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from tag_mujoco.tag_env import TagMazeTask, TaskConfig  # noqa: E402
+from tag_mujoco.tag_env import DR_METRIC_KEYS, TagMazeTask, TaskConfig  # noqa: E402
 
 
 class TagMaze(embodied.Env):
@@ -55,6 +55,10 @@ class TagMaze(embodied.Env):
             "log_fall_cost": embodied.Space(np.float32, (1,)),
             "log_success": embodied.Space(np.float32, (1,)),
             "log_reward": embodied.Space(np.float32, (1,)),
+            **{
+                f"log_{key}": embodied.Space(np.float32, (1,))
+                for key in DR_METRIC_KEYS
+            },
             "reward": embodied.Space(np.float32),
             "is_first": embodied.Space(bool),
             "is_last": embodied.Space(bool),

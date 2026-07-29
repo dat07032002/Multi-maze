@@ -177,6 +177,37 @@ class EnvironmentTest(unittest.TestCase):
         task._advance_curricula()
         self.assertAlmostEqual(task._randomization_strength, 0.10)
 
+    def test_randomization_curriculum_respects_cap_and_logs_parameters(self):
+        task = TagMazeTask(
+            seed=8,
+            task_config=TaskConfig(
+                randomize_plant=True,
+                randomization_groups="physics",
+                randomization_curriculum=True,
+                randomization_initial_strength=0.20,
+                randomization_expand_step=0.10,
+                randomization_max_strength=0.25,
+                randomization_window=2,
+                randomization_success_threshold=0.0,
+            ),
+        )
+        task._recent_successes.extend((1.0, 1.0))
+        task.episodes_started = 2
+        task._advance_curricula()
+        observation, info = task.reset(seed=8)
+        self.assertAlmostEqual(task._randomization_strength, 0.25)
+        self.assertEqual(info["randomization_groups"], ["physics"])
+        self.assertIn("log_dr_phys_mass", observation)
+        self.assertIn("dr_phys_mass", info["domain_randomization"])
+        self.assertEqual(
+            task.model.active_actuator_config,
+            task.model.config.actuator,
+        )
+        self.assertNotEqual(
+            task.model.active_physics_config,
+            task.model.config.physics,
+        )
+
     def test_assumed_ball_dynamics_are_active_and_randomized(self):
         nominal = PhysicsConfig()
         self.assertAlmostEqual(nominal.floor_friction[0], 0.38)

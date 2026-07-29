@@ -37,6 +37,7 @@ class PolicyCameraModel:
         self._noise_std = 0.0
         self._crop_shift = np.zeros(2, dtype=np.float64)
         self._dropout_remaining = 0
+        self._randomization_strength = 0.0
 
     def reset(
         self,
@@ -47,6 +48,7 @@ class PolicyCameraModel:
         self._rng = np.random.default_rng(seed)
         strength = float(np.clip(randomization_strength, 0.0, 1.0))
         self._randomize = bool(randomize and strength > 0.0)
+        self._randomization_strength = strength if randomize else 0.0
         if randomize:
             def around_one(bounds: Tuple[float, float]) -> float:
                 sampled = float(self._rng.uniform(*bounds))
@@ -123,12 +125,17 @@ class PolicyCameraModel:
             if self._dropout_remaining > 0:
                 self._dropout_remaining -= 1
                 detected = False
-            elif self._rng.random() < self.config.dropout_burst_start_probability:
+            elif self._rng.random() < (
+                self._randomization_strength
+                * self.config.dropout_burst_start_probability
+            ):
                 low, high = self.config.dropout_burst_frames
                 burst = int(self._rng.integers(max(1, low), max(1, high) + 1))
                 self._dropout_remaining = max(0, burst - 1)
                 detected = False
-            elif self._rng.random() < self.config.dropout_probability:
+            elif self._rng.random() < (
+                self._randomization_strength * self.config.dropout_probability
+            ):
                 detected = False
         if not detected:
             return (
@@ -226,4 +233,16 @@ class PolicyCameraModel:
             ],
             "grayscale_method": "mean_of_available_channels",
             "model_level": "post_calibration_board_rectified",
+            "sampled_brightness": self._brightness,
+            "sampled_contrast": self._contrast,
+            "sampled_blur_radius": self._blur,
+            "sampled_pixel_noise_std": self._noise_std,
+            "sampled_crop_shift_m": self._crop_shift.tolist(),
+            "effective_dropout_probability": (
+                self._randomization_strength * self.config.dropout_probability
+            ),
+            "effective_dropout_burst_start_probability": (
+                self._randomization_strength
+                * self.config.dropout_burst_start_probability
+            ),
         }

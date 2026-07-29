@@ -68,8 +68,8 @@ case "$training_profile" in
       exit 7
     fi
     ;;
-  tag_sim_v2_holeaware_dr010)
-    configs=(tag_sim_v2 tag_sim_v2_holeaware_dr010 medium)
+  tag_sim_v2_holeaware_dr010|tag_sim_v2_holeaware_curriculum_dr)
+    configs=(tag_sim_v2 "$training_profile" medium)
     if [[ "$checkpoint_mode" != "agent_only" ]]; then
       echo "DR-0.10 training requires TAG_CHECKPOINT_MODE=agent_only."
       exit 7

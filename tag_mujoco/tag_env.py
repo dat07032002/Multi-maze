@@ -54,6 +54,20 @@ except ImportError:  # Preserve direct-script execution from this directory.
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_LAYOUT = HERE / "generated_mazes" / "maze_seed_970.json"
+DR_METRIC_KEYS = (
+    "dr_act_delay_s", "dr_act_response_s", "dr_act_units_0", "dr_act_units_1",
+    "dr_act_offset_0", "dr_act_offset_1", "dr_act_coupling_01",
+    "dr_act_coupling_10", "dr_act_pos_00", "dr_act_pos_01",
+    "dr_act_pos_10", "dr_act_pos_11", "dr_act_neg_00", "dr_act_neg_01",
+    "dr_act_neg_10", "dr_act_neg_11", "dr_act_stiction_pos_0",
+    "dr_act_stiction_pos_1", "dr_act_stiction_neg_0",
+    "dr_act_stiction_neg_1", "dr_phys_mass", "dr_phys_floor_slide",
+    "dr_phys_wall_slide", "dr_phys_ball_slide", "dr_phys_torsional",
+    "dr_phys_rolling", "dr_phys_damping", "dr_phys_restitution",
+    "dr_phys_kp", "dr_phys_kv", "dr_cam_brightness", "dr_cam_contrast",
+    "dr_cam_blur", "dr_cam_noise", "dr_cam_crop_x", "dr_cam_crop_y",
+    "dr_cam_dropout", "dr_cam_burst",
+)
 
 
 @dataclass(frozen=True)
@@ -104,8 +118,10 @@ class TaskConfig:
     randomization_curriculum: bool = False
     randomization_initial_strength: float = 0.0
     randomization_expand_step: float = 0.10
+    randomization_max_strength: float = 1.0
     randomization_window: int = 50
     randomization_success_threshold: float = 0.60
+    randomization_groups: str = "all"
 
 
 def reward_components(
@@ -214,6 +230,8 @@ class TagMazeTask:
             raise ValueError("start_curriculum_window must be positive")
         if task_config.randomization_window <= 0:
             raise ValueError("randomization_window must be positive")
+        if not 0.0 <= task_config.randomization_max_strength <= 1.0:
+            raise ValueError("randomization_max_strength must be in [0, 1]")
         if task_config.maze_split and layout_paths is not None:
             raise ValueError("Choose either maze_split or explicit layout_paths, not both")
         if task_config.maze_split:
@@ -325,7 +343,7 @@ class TagMazeTask:
             )
             if enough_time and float(np.mean(recent)) >= config.randomization_success_threshold:
                 self._randomization_strength = min(
-                    1.0,
+                    config.randomization_max_strength,
                     self._randomization_strength + config.randomization_expand_step,
                 )
                 self._last_randomization_expansion = self.episodes_started
@@ -496,6 +514,7 @@ class TagMazeTask:
                 if self.task_config.randomization_curriculum
                 else float(self.task_config.randomize_plant)
             ),
+            randomization_groups=self.task_config.randomization_groups,
             ball_xy=ball_xy,
             ball_velocity_xy=velocity,
         )
@@ -504,6 +523,7 @@ class TagMazeTask:
             if self.task_config.randomization_curriculum
             else float(self.task_config.randomize_plant)
         )
+        self._dr_metrics = self._domain_randomization_metrics()
         self.progress_m = self.route.closest_progress(ball_xy)
         clearance = float(signed_ball_clearance(self.layout, ball_xy[None])[0])
         self.minimum_clearance_m = clearance
@@ -523,6 +543,7 @@ class TagMazeTask:
         observation["log_randomization_strength"] = np.asarray(
             [self.active_randomization_strength], dtype=np.float32
         )
+        observation.update(self._dr_log_observation())
         info = {
             **diagnostic,
             "layout_path": str(self.layout_path),
@@ -536,11 +557,70 @@ class TagMazeTask:
             "layout_sampling_probability": sampling_probability,
             "start_progress_fraction": self.start_progress_fraction,
             "randomization_strength": self.active_randomization_strength,
+            "randomization_groups": list(self.model.active_randomization_groups),
+            "domain_randomization": dict(self._dr_metrics),
             "is_terminal": False,
             "termination_reason": "reset",
         }
         self.last_info = info
         return observation, info
+
+    def _domain_randomization_metrics(self) -> Dict[str, float]:
+        """Flatten every sampled DR scalar for episode-level attribution."""
+
+        snapshot = self.model.parameter_snapshot()
+        actuator = snapshot["actuator"]
+        physics = snapshot["physics"]
+        camera = snapshot["camera"]
+        metrics: Dict[str, float] = {
+            "dr_act_delay_s": actuator["total_delay_seconds"],
+            "dr_act_response_s": actuator["response_time_constant_seconds"],
+            "dr_act_units_0": actuator["servo_units_per_rad"][0],
+            "dr_act_units_1": actuator["servo_units_per_rad"][1],
+            "dr_act_offset_0": actuator["zero_angle_offset_rad"][0],
+            "dr_act_offset_1": actuator["zero_angle_offset_rad"][1],
+            "dr_act_coupling_01": actuator["cross_axis_coupling"][0][1],
+            "dr_act_coupling_10": actuator["cross_axis_coupling"][1][0],
+            "dr_act_pos_00": actuator["board_rad_per_command_positive"][0][0],
+            "dr_act_pos_01": actuator["board_rad_per_command_positive"][0][1],
+            "dr_act_pos_10": actuator["board_rad_per_command_positive"][1][0],
+            "dr_act_pos_11": actuator["board_rad_per_command_positive"][1][1],
+            "dr_act_neg_00": actuator["board_rad_per_command_negative"][0][0],
+            "dr_act_neg_01": actuator["board_rad_per_command_negative"][0][1],
+            "dr_act_neg_10": actuator["board_rad_per_command_negative"][1][0],
+            "dr_act_neg_11": actuator["board_rad_per_command_negative"][1][1],
+            "dr_act_stiction_pos_0": actuator["stiction_command_positive"][0],
+            "dr_act_stiction_pos_1": actuator["stiction_command_positive"][1],
+            "dr_act_stiction_neg_0": actuator["stiction_command_negative"][0],
+            "dr_act_stiction_neg_1": actuator["stiction_command_negative"][1],
+            "dr_phys_mass": physics["ball_mass_kg"],
+            "dr_phys_floor_slide": physics["floor_friction"][0],
+            "dr_phys_wall_slide": physics["wall_friction"][0],
+            "dr_phys_ball_slide": physics["ball_friction"][0],
+            "dr_phys_torsional": physics["floor_friction"][1],
+            "dr_phys_rolling": physics["floor_friction"][2],
+            "dr_phys_damping": physics["linear_ball_damping_per_second"],
+            "dr_phys_restitution": physics["wall_restitution"],
+            "dr_phys_kp": physics["actuator_kp"],
+            "dr_phys_kv": physics["actuator_kv"],
+            "dr_cam_brightness": camera["sampled_brightness"],
+            "dr_cam_contrast": camera["sampled_contrast"],
+            "dr_cam_blur": camera["sampled_blur_radius"],
+            "dr_cam_noise": camera["sampled_pixel_noise_std"],
+            "dr_cam_crop_x": camera["sampled_crop_shift_m"][0],
+            "dr_cam_crop_y": camera["sampled_crop_shift_m"][1],
+            "dr_cam_dropout": camera["effective_dropout_probability"],
+            "dr_cam_burst": camera[
+                "effective_dropout_burst_start_probability"
+            ],
+        }
+        return {key: float(value) for key, value in metrics.items()}
+
+    def _dr_log_observation(self) -> Dict[str, np.ndarray]:
+        return {
+            f"log_{key}": np.asarray([value], dtype=np.float32)
+            for key, value in self._dr_metrics.items()
+        }
 
     def _project_measured_position(
         self, measured_xy: np.ndarray
@@ -605,6 +685,7 @@ class TagMazeTask:
                 [self.active_randomization_strength], dtype=np.float32
             ),
         }
+        observation.update(self._dr_log_observation())
         self.policy_contract.validate_observation(observation)
         return observation, {
             "route_progress_m": self.progress_m,
@@ -740,6 +821,12 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
                 "log_hole_cost": gym.spaces.Box(
                     -np.inf, np.inf, (1,), dtype=np.float32
                 ),
+                **{
+                    f"log_{key}": gym.spaces.Box(
+                        -np.inf, np.inf, (1,), dtype=np.float32
+                    )
+                    for key in DR_METRIC_KEYS
+                },
             }
         )
         self.action_space = gym.spaces.Box(-1.0, 1.0, (2,), dtype=np.float32)

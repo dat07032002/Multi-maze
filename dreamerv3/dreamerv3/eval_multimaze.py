@@ -39,12 +39,14 @@ def _make_env(
     seed: int,
     robust: bool,
     randomization_strength: float | None = None,
+    randomization_groups: str = "all",
 ):
     kwargs = dict(config.env.tagmaze)
     kwargs.update(
         evaluation_env_overrides(
             "robust" if robust else "canonical",
             randomization_strength=randomization_strength,
+            randomization_groups=randomization_groups,
         )
     )
     env = TagMaze(
@@ -93,6 +95,11 @@ def main() -> None:
         type=float,
         help="Fixed robust-evaluation strength in (0, 1]; omitted means full strength.",
     )
+    parser.add_argument(
+        "--randomization-groups",
+        default="all",
+        help="Comma-separated causal DR families: actuator,physics,camera, or all.",
+    )
     parser.add_argument("--output", type=pathlib.Path, required=True)
     args = parser.parse_args()
 
@@ -123,6 +130,7 @@ def main() -> None:
         args.seed,
         robust,
         args.randomization_strength,
+        args.randomization_groups,
     )
     step = embodied.Counter()
     agent = agt.Agent(prototype.obs_space, prototype.act_space, step, config)
@@ -149,6 +157,7 @@ def main() -> None:
                 evaluation_seed,
                 robust,
                 args.randomization_strength,
+                args.randomization_groups,
             )
             try:
                 episode = _run_episode(agent, env, policy_mode)
@@ -188,6 +197,9 @@ def main() -> None:
         "policy_mode": args.policy_mode,
         "randomization_strength": (
             args.randomization_strength if robust else 0.0
+        ),
+        "randomization_groups": (
+            args.randomization_groups if robust else "none"
         ),
         "duration_seconds": time.time() - started,
         **aggregates,
