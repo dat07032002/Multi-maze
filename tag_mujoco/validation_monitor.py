@@ -250,6 +250,18 @@ def requires_new_checkpoint(trigger_step: int, end_step: int) -> bool:
     return trigger_step not in {0, end_step}
 
 
+def regressed_from_baseline(
+    baseline: dict[str, Any],
+    candidate: dict[str, Any],
+) -> bool:
+    """Require both lower completion and higher falls before stopping."""
+
+    return (
+        float(candidate["completion_rate"]) < float(baseline["completion_rate"])
+        and float(candidate["fall_rate"]) > float(baseline["fall_rate"])
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, required=True)
@@ -276,6 +288,7 @@ def main() -> None:
     parser.add_argument("--final-checkpoint-grace-seconds", type=float, default=120.0)
     parser.add_argument("--gpu-memory-limit-mib", type=int, default=5000)
     parser.add_argument("--gpu-utilization-limit", type=int, default=10)
+    parser.add_argument("--stop-on-regression", action="store_true")
     args = parser.parse_args()
     if (
         args.robust_randomization_strength is not None
@@ -304,6 +317,7 @@ def main() -> None:
         args.start_step, args.interval, args.end_step, args.baseline
     )
     print(f"Validation milestones: {schedule}", flush=True)
+    baseline_summary = None
     for trigger_step in schedule:
         milestone_dir = validation_root / f"step_{trigger_step:09d}"
         expected = {"canonical"}
@@ -312,6 +326,10 @@ def main() -> None:
         done = completed_modes(milestone_dir) if milestone_dir.exists() else set()
         if expected <= done:
             print(f"Skipping completed milestone {trigger_step}.", flush=True)
+            if trigger_step == 0:
+                baseline_summary = json.loads(
+                    (milestone_dir / "canonical.json").read_text()
+                )["summary"]
             continue
 
         while latest_metric_step(metrics) < trigger_step:
@@ -389,6 +407,25 @@ def main() -> None:
                 f"Completed {mode} validation for milestone {trigger_step}.",
                 flush=True,
             )
+            if mode == "canonical" and trigger_step == 0:
+                baseline_summary = result["summary"]
+            elif (
+                mode == "canonical"
+                and args.stop_on_regression
+                and baseline_summary is not None
+                and regressed_from_baseline(baseline_summary, result["summary"])
+            ):
+                stop_file = args.run_dir / "STOP_TRAINING"
+                stop_file.write_text(
+                    "Validation regression: completion decreased and fall "
+                    f"rate increased at trigger step {trigger_step}.\n",
+                    encoding="utf-8",
+                )
+                print(
+                    f"Requested early stop via {stop_file}.",
+                    flush=True,
+                )
+                return
 
     print("All configured validation milestones are complete.", flush=True)
 

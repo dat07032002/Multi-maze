@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Reworked mature-policy continuation to load learned checkpoint variables
+  before replay prefill, use the loaded policy instead of random actions, and
+  reset model/actor/critic optimizer state for a genuine weights-only resume.
+- Added `tag_sim_v2_nominal_safe_resume`: a 50k warm replay made from up to 25k
+  source-replay transitions spread across the prior run plus new source-policy
+  experience, train ratio 8, 10x lower actor/critic learning rates, lower model
+  learning rate, optimizer warmup, and a separate 100k update budget.
+- Changed the hole-aware continuation monitor to evaluate 192 dev episodes at
+  baseline and every 25k steps, request an early stop when completion decreases
+  while falls increase, and confirm the best monitored checkpoint rather than
+  the final checkpoint.
 - Diagnosed the completed 500k nominal pilot: the 192-episode mastery gate fails
   every criterion, seven validation layouts never succeed on any seed and cap
   completion at 89.1%, and every one of those layouts fails at a route turn in

@@ -5,7 +5,22 @@ import embodied
 import numpy as np
 
 
-def _load_demonstrations(replay, directory, limit_steps=0):
+class _AgentWeights:
+    """Checkpoint adapter that deliberately excludes optimizer state."""
+
+    def __init__(self, agent):
+        self.agent = agent
+
+    def save(self):
+        return self.agent.save()
+
+    def load(self, state):
+        self.agent.load_weights(state)
+
+
+def _load_demonstrations(
+    replay, directory, limit_steps=0, sampling="chronological"
+):
     """Load complete expert episodes without joining streams across files."""
 
     if not directory:
@@ -13,8 +28,23 @@ def _load_demonstrations(replay, directory, limit_steps=0):
     root = Path(str(directory)).expanduser().resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"Demonstration directory does not exist: {root}")
+    filenames = sorted(root.rglob("*.npz"))
+    if sampling == "uniform_chunks" and limit_steps and filenames:
+        # Replay chunks contain 1024 contiguous transitions by default. Spread
+        # the retained subset across the source run instead of taking only its
+        # earliest experience.
+        chunk_count = min(
+            len(filenames), max(1, int(np.ceil(int(limit_steps) / 1024)))
+        )
+        indices = np.linspace(0, len(filenames) - 1, chunk_count, dtype=int)
+        filenames = [filenames[index] for index in np.unique(indices)]
+    elif sampling != "chronological":
+        raise ValueError(
+            f"Unknown demonstration sampling mode: {sampling!r}"
+        )
+
     loaded = 0
-    for episode_index, filename in enumerate(sorted(root.rglob("*.npz"))):
+    for episode_index, filename in enumerate(filenames):
         with np.load(filename, allow_pickle=False) as episode:
             keys = tuple(episode.files)
             if not {"image", "states", "goal", "action", "reward"}.issubset(keys):
@@ -103,7 +133,6 @@ def train(agent, env, replay, logger, args):
 
     driver = embodied.Driver(env)
     driver.on_episode(lambda ep, worker: per_episode(ep))
-    driver.on_step(lambda tran, _: step.increment())
 
     def add_replay(ep, worker):
         for i in range(len(ep["reward"])):
@@ -112,11 +141,47 @@ def train(agent, env, replay, logger, args):
 
     driver.on_episode(add_replay)
 
-    _load_demonstrations(replay, args.demo_dir, args.demo_limit_steps)
+    checkpoint = embodied.Checkpoint(logdir / "checkpoint.ckpt")
+    timer.wrap("checkpoint", checkpoint, ["save", "load"])
+    checkpoint.step = step
+    checkpoint.agent = agent
+    checkpoint.replay = replay
+    loaded_agent = False
+    if args.from_checkpoint:
+        load_keys = _checkpoint_load_keys(args.from_checkpoint_mode)
+        if load_keys == ["agent"]:
+            external = embodied.Checkpoint()
+            external.agent = _AgentWeights(agent)
+            external.load(args.from_checkpoint, keys=["agent"])
+            loaded_agent = True
+            print(
+                "Loaded learned agent variables only; optimizer state, step "
+                "counter, and replay remain fresh."
+            )
+        else:
+            checkpoint.load(args.from_checkpoint)
+            loaded_agent = True
+    checkpoint.load_or_save()
+
+    _load_demonstrations(
+        replay,
+        args.demo_dir,
+        args.demo_limit_steps,
+        args.demo_sampling,
+    )
     print("Prefill train dataset.")
-    random_agent = embodied.RandomAgent(env.act_space)
+    if loaded_agent:
+        print("Prefill uses the loaded checkpoint policy.")
+        prefill_policy = lambda *xs: agent.policy(*xs, mode="train")
+    else:
+        print("Prefill uses a random policy because no checkpoint was loaded.")
+        prefill_policy = embodied.RandomAgent(env.act_space).policy
+    if args.count_prefill_steps:
+        driver.on_step(lambda tran, _: step.increment())
     while len(replay) < max(args.batch_steps, args.train_fill):
-        driver(random_agent.policy, steps=100)
+        driver(prefill_policy, steps=100)
+    if not args.count_prefill_steps:
+        driver.on_step(lambda tran, _: step.increment())
     logger.add(metrics.result())
     logger.write()
 
@@ -147,27 +212,18 @@ def train(agent, env, replay, logger, args):
 
     driver.on_episode(train_step)
 
-    checkpoint = embodied.Checkpoint(logdir / "checkpoint.ckpt")
-    timer.wrap("checkpoint", checkpoint, ["save", "load"])
-    checkpoint.step = step
-    checkpoint.agent = agent
-    checkpoint.replay = replay
-    if args.from_checkpoint:
-        load_keys = _checkpoint_load_keys(args.from_checkpoint_mode)
-        checkpoint.load(args.from_checkpoint, keys=load_keys)
-        if load_keys == ["agent"]:
-            print(
-                "Loaded agent weights only; step counter and replay remain fresh."
-            )
-    checkpoint.load_or_save()
-    # should_save(step)  # Register that we jused saved.
-
     print("Start training loop.")
     policy = lambda *args: agent.policy(
         *args, mode="explore" if should_expl(step) else "train"
     )
+    stop_file = Path(str(logdir)) / "STOP_TRAINING"
     while step < args.steps:
+        if stop_file.exists():
+            print(f"Stopping at validation request: {stop_file}")
+            break
         driver(policy, episodes=1)
         if should_save(episode):
             checkpoint.save()
+    replay.save(wait=True)
+    checkpoint.save()
     logger.write()

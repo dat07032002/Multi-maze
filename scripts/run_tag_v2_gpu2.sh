@@ -54,7 +54,7 @@ case "$training_profile" in
       exit 7
     fi
     ;;
-  tag_sim_v2_nominal_ratio64|tag_sim_v2_nominal_fallpenalty|tag_sim_v2_nominal_sharp_plr|tag_sim_v2_nominal_smooth|tag_sim_v2_nominal_holeaware|tag_sim_v2_nominal_smooth_holeaware)
+  tag_sim_v2_nominal_ratio64|tag_sim_v2_nominal_fallpenalty|tag_sim_v2_nominal_sharp_plr|tag_sim_v2_nominal_smooth|tag_sim_v2_nominal_holeaware|tag_sim_v2_nominal_smooth_holeaware|tag_sim_v2_nominal_safe_resume)
     # Bounded nominal A/B arms. Each changes one thing against
     # tag_sim_v2_nominal_fullstart and carries the same agent-only requirement,
     # so every arm starts from the same policy with a fresh nominal replay.
@@ -114,13 +114,20 @@ fi
 
 mkdir -p "$logdir"
 assumptions_sha256="$(sha256sum "$repo_root/tag_mujoco/assumed_dynamics.json" | awk '{print $1}')"
-printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"%s","dataset_id":"cyberrunner_fixed_board_512train_64val_64test_v2","checkpoint_compatible_with_v1":false,"checkpoint_load_mode":"%s","assumed_dynamics_sha256":"%s"}\n' \
-  "$training_profile" "$checkpoint_mode" "$assumptions_sha256" >"$logdir/policy_contract.json"
+optimizer_state_reset=false
+if [[ "$checkpoint_mode" == "agent_only" ]]; then
+  optimizer_state_reset=true
+fi
+printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"%s","dataset_id":"cyberrunner_fixed_board_512train_64val_64test_v2","checkpoint_compatible_with_v1":false,"checkpoint_load_mode":"%s","optimizer_state_reset":%s,"assumed_dynamics_sha256":"%s"}\n' \
+  "$training_profile" "$checkpoint_mode" "$optimizer_state_reset" \
+  "$assumptions_sha256" >"$logdir/policy_contract.json"
 
 extra_args=()
 if [[ -n "${TAG_DEMO_DIR:-}" ]]; then
   test -d "$TAG_DEMO_DIR"
   extra_args+=(--run.demo_dir "$TAG_DEMO_DIR")
+  extra_args+=(--run.demo_limit_steps "${TAG_DEMO_LIMIT_STEPS:-0}")
+  extra_args+=(--run.demo_sampling "${TAG_DEMO_SAMPLING:-chronological}")
 fi
 if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
   test -f "$TAG_FROM_CHECKPOINT"

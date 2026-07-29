@@ -35,6 +35,7 @@ defaults:
     eval_samples: 1
     train_ratio: 32.0
     train_fill: 0
+    count_prefill_steps: True
     eval_fill: 0
     log_zeros: False
     log_keys_video: [image]
@@ -45,6 +46,7 @@ defaults:
     from_checkpoint_mode: full
     demo_dir: ''
     demo_limit_steps: 0
+    demo_sampling: chronological
     sync_every: 1
     # actor_addr: 'tcp://127.0.0.1:5551'
     actor_addr: 'ipc:///tmp/5552'
@@ -302,6 +304,27 @@ tag_sim_v2_nominal_smooth_holeaware:
     randomization_curriculum: False
     action_rate_penalty: 0.003
     hole_clearance_penalty: 0.02
+
+# Conservative continuation of an already competent hole-aware policy. The
+# source checkpoint is loaded before replay prefill, optimizer state is reset,
+# and the source policy collects the new half of a 50k warm buffer without
+# consuming the fine-tuning step budget. The launcher supplies 25k retained
+# source-replay transitions for a balanced old/new starting distribution.
+tag_sim_v2_nominal_safe_resume:
+  run:
+    train_ratio: 8
+    train_fill: 50000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    hole_clearance_penalty: 0.02
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
 # First post-mastery domain-randomization stage. Strength remains fixed at
 # 0.10 for the entire bounded run; expansion is deliberately disabled.

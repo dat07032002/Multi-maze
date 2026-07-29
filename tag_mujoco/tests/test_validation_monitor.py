@@ -7,6 +7,7 @@ from tag_mujoco.validation_monitor import (
     evaluator_command,
     latest_metric_step,
     milestones,
+    regressed_from_baseline,
     requires_new_checkpoint,
 )
 
@@ -93,6 +94,24 @@ class ValidationMonitorTests(unittest.TestCase):
             "robust",
         )
         self.assertEqual(_flag(command, "--randomization-strength"), "0.1")
+
+    def test_regression_requires_both_worse_completion_and_more_falls(self):
+        baseline = {"completion_rate": 0.90, "fall_rate": 0.08}
+        self.assertTrue(
+            regressed_from_baseline(
+                baseline, {"completion_rate": 0.85, "fall_rate": 0.12}
+            )
+        )
+        self.assertFalse(
+            regressed_from_baseline(
+                baseline, {"completion_rate": 0.85, "fall_rate": 0.07}
+            )
+        )
+        self.assertFalse(
+            regressed_from_baseline(
+                baseline, {"completion_rate": 0.91, "fall_rate": 0.12}
+            )
+        )
 
 
 if __name__ == "__main__":

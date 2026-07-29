@@ -23,6 +23,7 @@ robust_gpu="${TAG_ROBUST_GPU:-4}"
 policy_mode="${TAG_POLICY_MODE:-sample}"
 canonical_episodes="${TAG_CANONICAL_EPISODES:-1}"
 robust_strength="${TAG_ROBUST_STRENGTH:-}"
+stop_on_regression="${TAG_STOP_ON_REGRESSION:-NO}"
 validation_root="$run_dir/validation"
 mkdir -p "$validation_root"
 
@@ -41,6 +42,18 @@ case "$baseline" in
     ;;
   *)
     echo "TAG_BASELINE must be YES or NO."
+    exit 4
+    ;;
+esac
+case "$stop_on_regression" in
+  YES)
+    stop_arg=(--stop-on-regression)
+    ;;
+  NO)
+    stop_arg=()
+    ;;
+  *)
+    echo "TAG_STOP_ON_REGRESSION must be YES or NO."
     exit 4
     ;;
 esac
@@ -75,6 +88,7 @@ nohup bash -c '
   canonical_gpu="${15}"
   robust_gpu="${16}"
   robust_strength="${17}"
+  stop_on_regression="${18}"
   baseline_arg=()
   if [[ "$baseline" == "YES" ]]; then
     baseline_arg=(--baseline)
@@ -84,6 +98,10 @@ nohup bash -c '
     robust_strength_arg=(
       --robust-randomization-strength "$robust_strength"
     )
+  fi
+  stop_arg=()
+  if [[ "$stop_on_regression" == "YES" ]]; then
+    stop_arg=(--stop-on-regression)
   fi
   "$python_bin" "$monitor" \
     --repo-root "$repo_root" \
@@ -102,6 +120,7 @@ nohup bash -c '
     --robust-gpu "$robust_gpu" \
     --robust-episodes-per-maze 3 \
     "${robust_strength_arg[@]}" \
+    "${stop_arg[@]}" \
     --max-steps 3000
   code=$?
   printf "%s\n" "$code" >"$status_file"
@@ -109,7 +128,7 @@ nohup bash -c '
 ' _ "$python_bin" "$monitor" "$repo_root" "$run_dir" "$status_file" "$manifest" \
   "$start_step" "$interval" "$robust_interval" "$end_step" "$baseline" \
   "$split" "$policy_mode" "$canonical_episodes" "$canonical_gpu" "$robust_gpu" \
-  "$robust_strength" \
+  "$robust_strength" "$stop_on_regression" \
   >"$launcher_log" 2>&1 </dev/null &
 pid=$!
 printf '%s\n' "$pid" >"$pid_file"

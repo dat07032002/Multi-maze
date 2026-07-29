@@ -7,6 +7,7 @@ import numpy as np
 
 from . import jaxutils
 from . import ninjax as nj
+from .checkpoint_loading import is_optimizer_variable
 
 tree_map = jax.tree_util.tree_map
 tree_flatten = jax.tree_util.tree_flatten
@@ -115,6 +116,47 @@ class JAXAgent(embodied.Agent):
         else:
             self.varibs = jax.device_put_replicated(state, self.train_devices)
         self.sync()
+
+    def load_weights(self, state):
+        """Restore learned variables while keeping fresh optimizer state."""
+
+        current = self.save()
+        missing = sorted(
+            key
+            for key in current
+            if not is_optimizer_variable(key) and key not in state
+        )
+        unexpected = sorted(
+            key
+            for key in state
+            if not is_optimizer_variable(key) and key not in current
+        )
+        if missing or unexpected:
+            raise ValueError(
+                "Checkpoint parameter tree is incompatible: "
+                f"missing={missing[:5]}, unexpected={unexpected[:5]}"
+            )
+
+        restored = {}
+        retained = 0
+        for key, value in current.items():
+            if is_optimizer_variable(key):
+                restored[key] = value
+                retained += 1
+                continue
+            source = state[key]
+            if source.shape != value.shape or source.dtype != value.dtype:
+                raise ValueError(
+                    f"Incompatible checkpoint variable {key!r}: "
+                    f"source={source.shape}/{source.dtype}, "
+                    f"target={value.shape}/{value.dtype}"
+                )
+            restored[key] = source
+        self.load(restored)
+        print(
+            f"Restored {len(restored) - retained} learned variables and reset "
+            f"{retained} optimizer variables."
+        )
 
     def sync(self):
         # print('Syncing...')
