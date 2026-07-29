@@ -156,7 +156,7 @@ tag_sim_v2:
     demo_dir: ''
     demo_limit_steps: 0
     log_keys_sum: '^log_(reward|fall_cost|success)$'
-    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|action_rate|hole_cost|dr_.*)$'
+    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|action_rate|hole_cost|path_cost|wall_cost|dr_.*)$'
   env.tagmaze:
     randomize_plant: True
     random_start: True
@@ -356,8 +356,9 @@ tag_sim_v2_safe_path_tracking:
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
-# Skill stage B: easy route-hazard dodge mazes. The maze manifest supplies a
-# replanned safe path that bends around holes placed on the original centerline.
+# Skill stage B: single-path route-hazard dodge mazes. The maze manifest
+# supplies a replanned safe path that bends around holes near the original
+# centerline, while blocker holes stop wrong branches.
 tag_sim_v2_easy_dodge_holes:
   jax:
     precision: float32
@@ -372,6 +373,9 @@ tag_sim_v2_easy_dodge_holes:
     start_curriculum: False
     randomize_plant: False
     randomization_curriculum: False
+    maze_manifest: tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json
+    maze_split: train
+    maze_sampling: plr
     hole_warning_m: 0.010
     hole_clearance_penalty: 0.05
     path_tracking_tolerance_m: 0.005

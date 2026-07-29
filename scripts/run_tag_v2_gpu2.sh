@@ -9,9 +9,19 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-manifest="$repo_root/tag_mujoco/maze_splits_v2.json"
+training_profile="${TAG_TRAINING_PROFILE:-tag_sim_v2}"
+case "$training_profile" in
+  tag_sim_v2_easy_dodge_holes)
+    manifest="$repo_root/tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json"
+    dataset_id="tag_dodge_curriculum_v1"
+    ;;
+  *)
+    manifest="$repo_root/tag_mujoco/maze_splits_v2.json"
+    dataset_id="cyberrunner_fixed_board_512train_64val_64test_v2"
+    ;;
+esac
 test -f "$manifest"
-grep -q 'cyberrunner_fixed_board_512train_64val_64test_v2' "$manifest"
+grep -q "$dataset_id" "$manifest"
 
 # Physical GPU 2 remains the default for production training. Bounded A/B arms
 # may be placed on another idle device so arms can run concurrently. Physical
@@ -33,7 +43,6 @@ stamp="$(date +%Y%m%d_%H%M%S)"
 logdir="${TAG_LOGDIR:-$HOME/tag_logs/multimaze_v2_gpu2_$stamp}"
 steps="${TAG_STEPS:-10000}"
 python_bin="${TAG_PYTHON:-python}"
-training_profile="${TAG_TRAINING_PROFILE:-tag_sim_v2}"
 checkpoint_mode="${TAG_CHECKPOINT_MODE:-full}"
 
 case "$training_profile" in
@@ -92,6 +101,14 @@ case "$training_profile" in
       exit 7
     fi
     ;;
+  tag_sim_v2_easy_dodge_holes)
+    configs=(tag_sim_v2 medium "$training_profile")
+    if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Scratch dodge training refuses TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    checkpoint_mode="none"
+    ;;
   tag_sim_v2_fullstart_staged_randomization)
     configs=(tag_sim_v2 tag_sim_v2_fullstart_staged_randomization medium)
     ;;
@@ -131,8 +148,8 @@ optimizer_state_reset=false
 if [[ "$checkpoint_mode" == "agent_only" ]]; then
   optimizer_state_reset=true
 fi
-printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"%s","dataset_id":"cyberrunner_fixed_board_512train_64val_64test_v2","checkpoint_compatible_with_v1":false,"checkpoint_load_mode":"%s","optimizer_state_reset":%s,"assumed_dynamics_sha256":"%s"}\n' \
-  "$training_profile" "$checkpoint_mode" "$optimizer_state_reset" \
+printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"%s","dataset_id":"%s","checkpoint_compatible_with_v1":false,"checkpoint_load_mode":"%s","optimizer_state_reset":%s,"assumed_dynamics_sha256":"%s"}\n' \
+  "$training_profile" "$dataset_id" "$checkpoint_mode" "$optimizer_state_reset" \
   "$assumptions_sha256" >"$logdir/policy_contract.json"
 
 extra_args=()
@@ -150,7 +167,7 @@ if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
     exit 6
   fi
   if ! grep -q '"policy_contract_version":"tag_hardware_policy_v1"' "$checkpoint_contract" ||
-     ! grep -q '"dataset_id":"cyberrunner_fixed_board_512train_64val_64test_v2"' "$checkpoint_contract"; then
+     ! grep -q "\"dataset_id\":\"$dataset_id\"" "$checkpoint_contract"; then
     echo "Refusing checkpoint without matching v2 policy and dataset metadata: $TAG_FROM_CHECKPOINT"
     exit 6
   fi
@@ -163,7 +180,7 @@ fi
 if command -v nvidia-smi >/dev/null 2>&1; then
   nvidia-smi -i "$train_gpu" --query-gpu=index,uuid,name --format=csv,noheader
 fi
-echo "V2 profile=$training_profile checkpoint_mode=$checkpoint_mode steps=$steps envs=8 gpu=$train_gpu dataset=512/64/64 logdir=$logdir"
+echo "V2 profile=$training_profile checkpoint_mode=$checkpoint_mode steps=$steps envs=8 gpu=$train_gpu dataset=$dataset_id manifest=$manifest logdir=$logdir"
 
 "$python_bin" dreamerv3/dreamerv3/train.py \
   --configs "${configs[@]}" \

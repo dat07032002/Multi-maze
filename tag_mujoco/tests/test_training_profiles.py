@@ -60,12 +60,24 @@ class TrainingProfileTests(unittest.TestCase):
         profile = profile_block("tag_sim_v2_easy_dodge_holes")
         for expected in (
             "precision: float32",
+            "maze_manifest: tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json",
+            "maze_split: train",
+            "maze_sampling: plr",
             "hole_warning_m: 0.010",
             "hole_clearance_penalty: 0.05",
             "path_tracking_penalty: 0.15",
             "wall_riding_penalty: 0.05",
         ):
             self.assertIn(expected, profile)
+
+    def test_v2_launcher_routes_dodge_profile_to_dodge_dataset(self):
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("tag_sim_v2_easy_dodge_holes)", launcher)
+        self.assertIn("generated_dodge_mazes/maze_splits_dodge.json", launcher)
+        self.assertIn('dataset_id="tag_dodge_curriculum_v1"', launcher)
+        self.assertIn("Scratch dodge training refuses TAG_FROM_CHECKPOINT", launcher)
 
 
 if __name__ == "__main__":
