@@ -79,6 +79,16 @@ class TrainingProfileTests(unittest.TestCase):
         self.assertIn('dataset_id="tag_dodge_curriculum_v1"', launcher)
         self.assertIn("Scratch dodge training refuses TAG_FROM_CHECKPOINT", launcher)
 
+    def test_dreamer_defaults_declare_path_and_wall_reward_keys(self):
+        defaults = profile_block("defaults")
+        for expected in (
+            "path_tracking_tolerance_m: 0.004",
+            "path_tracking_penalty: 0.0",
+            "wall_warning_m: 0.003",
+            "wall_riding_penalty: 0.0",
+        ):
+            self.assertIn(expected, defaults)
+
 
 if __name__ == "__main__":
     unittest.main()
