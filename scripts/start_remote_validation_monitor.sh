@@ -24,6 +24,11 @@ policy_mode="${TAG_POLICY_MODE:-sample}"
 canonical_episodes="${TAG_CANONICAL_EPISODES:-1}"
 robust_strength="${TAG_ROBUST_STRENGTH:-}"
 stop_on_regression="${TAG_STOP_ON_REGRESSION:-NO}"
+stop_on_plateau="${TAG_STOP_ON_PLATEAU:-NO}"
+plateau_patience="${TAG_PLATEAU_PATIENCE:-3}"
+min_completion_delta="${TAG_MIN_COMPLETION_DELTA:-0.01}"
+min_route_delta="${TAG_MIN_ROUTE_DELTA:-0.005}"
+max_fall_delta="${TAG_MAX_FALL_DELTA:-0.005}"
 validation_root="$run_dir/validation"
 mkdir -p "$validation_root"
 
@@ -54,6 +59,18 @@ case "$stop_on_regression" in
     ;;
   *)
     echo "TAG_STOP_ON_REGRESSION must be YES or NO."
+    exit 4
+    ;;
+esac
+case "$stop_on_plateau" in
+  YES)
+    plateau_arg=(--stop-on-plateau)
+    ;;
+  NO)
+    plateau_arg=()
+    ;;
+  *)
+    echo "TAG_STOP_ON_PLATEAU must be YES or NO."
     exit 4
     ;;
 esac
@@ -89,6 +106,11 @@ nohup bash -c '
   robust_gpu="${16}"
   robust_strength="${17}"
   stop_on_regression="${18}"
+  stop_on_plateau="${19}"
+  plateau_patience="${20}"
+  min_completion_delta="${21}"
+  min_route_delta="${22}"
+  max_fall_delta="${23}"
   baseline_arg=()
   if [[ "$baseline" == "YES" ]]; then
     baseline_arg=(--baseline)
@@ -102,6 +124,10 @@ nohup bash -c '
   stop_arg=()
   if [[ "$stop_on_regression" == "YES" ]]; then
     stop_arg=(--stop-on-regression)
+  fi
+  plateau_arg=()
+  if [[ "$stop_on_plateau" == "YES" ]]; then
+    plateau_arg=(--stop-on-plateau)
   fi
   "$python_bin" "$monitor" \
     --repo-root "$repo_root" \
@@ -121,6 +147,11 @@ nohup bash -c '
     --robust-episodes-per-maze 3 \
     "${robust_strength_arg[@]}" \
     "${stop_arg[@]}" \
+    "${plateau_arg[@]}" \
+    --plateau-patience "$plateau_patience" \
+    --min-completion-delta "$min_completion_delta" \
+    --min-route-delta "$min_route_delta" \
+    --max-fall-delta "$max_fall_delta" \
     --max-steps 3000
   code=$?
   printf "%s\n" "$code" >"$status_file"
@@ -128,7 +159,8 @@ nohup bash -c '
 ' _ "$python_bin" "$monitor" "$repo_root" "$run_dir" "$status_file" "$manifest" \
   "$start_step" "$interval" "$robust_interval" "$end_step" "$baseline" \
   "$split" "$policy_mode" "$canonical_episodes" "$canonical_gpu" "$robust_gpu" \
-  "$robust_strength" "$stop_on_regression" \
+  "$robust_strength" "$stop_on_regression" "$stop_on_plateau" \
+  "$plateau_patience" "$min_completion_delta" "$min_route_delta" "$max_fall_delta" \
   >"$launcher_log" 2>&1 </dev/null &
 pid=$!
 printf '%s\n' "$pid" >"$pid_file"

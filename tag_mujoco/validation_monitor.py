@@ -13,6 +13,21 @@ import time
 from pathlib import Path
 from typing import Any
 
+try:
+    from .training_monitor import (
+        PlateauConfig,
+        plateau_state,
+        validation_weakness_report,
+        write_json,
+    )
+except ImportError:  # pragma: no cover - script execution from repo root.
+    from training_monitor import (  # type: ignore
+        PlateauConfig,
+        plateau_state,
+        validation_weakness_report,
+        write_json,
+    )
+
 
 def latest_metric_step(metrics_path: Path) -> int:
     latest = -1
@@ -209,6 +224,12 @@ def append_history(validation_root: Path, result: dict[str, Any]) -> None:
         writer.writerow(row)
 
     if result["mode"] == "canonical":
+        weakness = validation_weakness_report(result)
+        write_json(
+            validation_root / f"step_{result['trigger_step']:09d}" / "weakness.json",
+            weakness,
+        )
+        write_json(validation_root / "latest_weakness_report.json", weakness)
         best_path = validation_root / "best_checkpoint.json"
         current = json.loads(best_path.read_text()) if best_path.exists() else None
 
@@ -289,6 +310,11 @@ def main() -> None:
     parser.add_argument("--gpu-memory-limit-mib", type=int, default=5000)
     parser.add_argument("--gpu-utilization-limit", type=int, default=10)
     parser.add_argument("--stop-on-regression", action="store_true")
+    parser.add_argument("--stop-on-plateau", action="store_true")
+    parser.add_argument("--plateau-patience", type=int, default=3)
+    parser.add_argument("--min-completion-delta", type=float, default=0.01)
+    parser.add_argument("--min-route-delta", type=float, default=0.005)
+    parser.add_argument("--max-fall-delta", type=float, default=0.005)
     args = parser.parse_args()
     if (
         args.robust_randomization_strength is not None
@@ -318,6 +344,13 @@ def main() -> None:
     )
     print(f"Validation milestones: {schedule}", flush=True)
     baseline_summary = None
+    canonical_results: list[dict[str, Any]] = []
+    plateau_config = PlateauConfig(
+        patience=args.plateau_patience,
+        min_completion_delta=args.min_completion_delta,
+        min_route_delta=args.min_route_delta,
+        max_fall_delta=args.max_fall_delta,
+    )
     for trigger_step in schedule:
         milestone_dir = validation_root / f"step_{trigger_step:09d}"
         expected = {"canonical"}
@@ -326,10 +359,15 @@ def main() -> None:
         done = completed_modes(milestone_dir) if milestone_dir.exists() else set()
         if expected <= done:
             print(f"Skipping completed milestone {trigger_step}.", flush=True)
-            if trigger_step == 0:
-                baseline_summary = json.loads(
+            if "canonical" in done:
+                completed_result = json.loads(
                     (milestone_dir / "canonical.json").read_text()
-                )["summary"]
+                )
+                canonical_results.append(completed_result)
+                if trigger_step == 0:
+                    baseline_summary = completed_result["summary"]
+                plateau = plateau_state(canonical_results, plateau_config)
+                write_json(validation_root / "plateau_state.json", plateau)
             continue
 
         while latest_metric_step(metrics) < trigger_step:
@@ -407,25 +445,41 @@ def main() -> None:
                 f"Completed {mode} validation for milestone {trigger_step}.",
                 flush=True,
             )
-            if mode == "canonical" and trigger_step == 0:
-                baseline_summary = result["summary"]
-            elif (
-                mode == "canonical"
-                and args.stop_on_regression
-                and baseline_summary is not None
-                and regressed_from_baseline(baseline_summary, result["summary"])
-            ):
-                stop_file = args.run_dir / "STOP_TRAINING"
-                stop_file.write_text(
-                    "Validation regression: completion decreased and fall "
-                    f"rate increased at trigger step {trigger_step}.\n",
-                    encoding="utf-8",
-                )
-                print(
-                    f"Requested early stop via {stop_file}.",
-                    flush=True,
-                )
-                return
+            if mode == "canonical":
+                canonical_results.append(result)
+                plateau = plateau_state(canonical_results, plateau_config)
+                write_json(validation_root / "plateau_state.json", plateau)
+                if trigger_step == 0:
+                    baseline_summary = result["summary"]
+                elif (
+                    args.stop_on_regression
+                    and baseline_summary is not None
+                    and regressed_from_baseline(baseline_summary, result["summary"])
+                ):
+                    stop_file = args.run_dir / "STOP_TRAINING"
+                    stop_file.write_text(
+                        "Validation regression: completion decreased and fall "
+                        f"rate increased at trigger step {trigger_step}.\n",
+                        encoding="utf-8",
+                    )
+                    print(
+                        f"Requested early stop via {stop_file}.",
+                        flush=True,
+                    )
+                    return
+                elif args.stop_on_plateau and plateau["plateaued"]:
+                    stop_file = args.run_dir / "STOP_TRAINING"
+                    stop_file.write_text(
+                        "Validation plateau: no meaningful canonical improvement "
+                        f"for {plateau['stale_count']} milestone(s) at trigger "
+                        f"step {trigger_step}.\n",
+                        encoding="utf-8",
+                    )
+                    print(
+                        f"Requested plateau early stop via {stop_file}.",
+                        flush=True,
+                    )
+                    return
 
     print("All configured validation milestones are complete.", flush=True)
 
