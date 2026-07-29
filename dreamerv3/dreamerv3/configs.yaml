@@ -311,6 +311,9 @@ tag_sim_v2_nominal_smooth_holeaware:
 # consuming the fine-tuning step budget. The launcher supplies 25k retained
 # source-replay transitions for a balanced old/new starting distribution.
 tag_sim_v2_nominal_safe_resume:
+  jax:
+    precision: float32
+    debug_nans: False
   run:
     train_ratio: 8
     train_fill: 50000
