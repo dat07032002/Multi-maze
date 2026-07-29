@@ -17,12 +17,20 @@ Run `holeaware_curriculum_dr_100k_20260729_v3` completed collection at about
 - 127 of 146 collected episodes succeeded, but these successes do not
   demonstrate policy learning.
 
-The source replay is the direct cause of the failed numerical path. Of 906
-source replay chunks, 185 (20.4%) contain non-finite values in `states`,
-`goal`, `action`, or `reward`. Uniform chunk selection imported seven
-contaminated chunks in the selected set of 25. The invalid values then
-propagated into newly saved replay: 85 of the run's 255 chunks contain at least
-one non-finite value.
+The failure was in replay serialization/import, not in the valid source
+transitions. Partial chunks preallocated arrays for 1,024 transitions and saved
+the entire backing arrays instead of only their initialized prefix. The valid
+length was encoded in the filename, but demonstration import ignored it and
+treated all 1,024 slots as data. Of 906 source files, 185 contained arbitrary
+non-finite values only after their declared valid length; all 906 valid prefixes
+are finite. Uniform selection chose seven such partial files, and the old
+importer fed their uninitialized tails to training.
+
+The same storage artifact explains the apparent non-finite values in newly
+saved replay. It was not evidence that a NaN policy propagated through the
+environment. Chunk save/load and demonstration import now slice to the declared
+valid length, while finite checks still reject any non-finite value inside that
+valid prefix.
 
 The curriculum also could not advance independently of that failure. Each of
 the eight process-local environments owns its own 100-episode success window.
@@ -135,6 +143,14 @@ buffers, JAX policy/training wrapper, and main training loop. The runnable
 float32 profile is `tag_sim_v2_clean_smoke`; its guarded launcher is
 `scripts/start_clean_training_smoke.sh`. The old curriculum launcher exits
 without starting training.
+
+The first clean smoke completed successfully at step 2,752 (the 2k ceiling is
+checked at episode boundaries). All three optimizers had finite losses and
+gradient norms, their counters advanced, and the 99-variable acting digest
+changed. A post-run audit found zero non-finite values inside the valid prefix
+of every replay file. With the corrected length-aware importer, the source
+selection supplies 25,000 valid transitions from 34 files with zero rejected
+files.
 
 ### Gate 1: prove that optimization works
 

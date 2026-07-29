@@ -56,11 +56,21 @@ class FiniteTrainingDataTests(unittest.TestCase):
             np.savez_compressed(
                 root / ("20260101T000000F000002-bad0" + suffix), reward=bad
             )
+            np.savez_compressed(
+                root
+                / "20260101T000000F000003-tail-0000000000000000000000-1.npz",
+                reward=np.asarray([5.0, np.nan], np.float32),
+            )
             replay_saver = saverlib.Saver(root)
             loaded = list(replay_saver.load(capacity=None, length=1))
-            self.assertEqual(len(loaded), 2)
-            self.assertTrue(all(float(step["reward"]) in (0.0, 1.0) for step, _ in loaded))
-            self.assertEqual(replay_saver.load_report["accepted_chunks"], 1)
+            self.assertEqual(len(loaded), 3)
+            self.assertTrue(
+                all(
+                    float(step["reward"]) in (0.0, 1.0, 5.0)
+                    for step, _ in loaded
+                )
+            )
+            self.assertEqual(replay_saver.load_report["accepted_chunks"], 2)
             self.assertEqual(replay_saver.load_report["rejected_chunks"], 1)
             self.assertTrue((root / "replay_load_report.json").is_file())
 

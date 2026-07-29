@@ -2,9 +2,11 @@
 
 ## Clean-training gate added 2026-07-29
 
-The failed curriculum-DR v3 run must not be resumed. Its imported replay
-contained non-finite states, goals, actions, and rewards, so no optimizer made
-a valid update. New training now fails closed at every data boundary:
+The failed curriculum-DR v3 run must not be resumed. Its importer read
+uninitialized storage beyond each partial replay chunk's filename-declared
+length, introducing non-finite states, goals, actions, and rewards, so no
+optimizer made a valid update. The valid source transitions themselves are
+finite. New training now fails closed at every data boundary:
 
 - complete imported demonstration chunks are rejected if any numeric field is
   non-finite;
@@ -37,6 +39,12 @@ bash scripts/start_clean_training_smoke.sh \
 
 This command still requires explicit approval and does not run as part of
 tests or documentation updates.
+
+The first authorized clean smoke completed at step 2,752 with status 0. Model,
+actor, and critic losses and gradient norms stayed finite, optimizer counters
+advanced, and the acting-parameter digest changed. The corrected importer
+selected 34 source chunks, loaded 25,000 valid transitions, and rejected none.
+Domain randomization remains locked pending the 10k nominal continuation gate.
 
 ## Current result
 

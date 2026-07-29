@@ -19,6 +19,16 @@ class _AgentWeights:
         self.agent.load_weights(state)
 
 
+def _declared_chunk_length(filename, fallback):
+    """Read the valid transition count from a replay chunk filename."""
+
+    try:
+        length = int(Path(filename).stem.rsplit("-", 1)[1])
+    except (IndexError, ValueError):
+        return int(fallback)
+    return min(max(length, 0), int(fallback))
+
+
 def _load_demonstrations(
     replay,
     directory,
@@ -35,14 +45,26 @@ def _load_demonstrations(
         raise FileNotFoundError(f"Demonstration directory does not exist: {root}")
     filenames = sorted(root.rglob("*.npz"))
     if sampling == "uniform_chunks" and limit_steps and filenames:
-        # Replay chunks contain 1024 contiguous transitions by default. Spread
-        # the retained subset across the source run instead of taking only its
-        # earliest experience.
+        # Spread selection across the source run while accounting for partial
+        # chunks. Their backing arrays historically had length 1024, but only
+        # the count encoded in the filename is valid.
+        lengths = [_declared_chunk_length(name, 1024) for name in filenames]
+        total = max(1, sum(lengths))
         chunk_count = min(
-            len(filenames), max(1, int(np.ceil(int(limit_steps) / 1024)))
+            len(filenames),
+            max(1, int(np.ceil(int(limit_steps) * len(filenames) / total))),
         )
-        indices = np.linspace(0, len(filenames) - 1, chunk_count, dtype=int)
-        filenames = [filenames[index] for index in np.unique(indices)]
+        while True:
+            indices = np.unique(
+                np.linspace(0, len(filenames) - 1, chunk_count, dtype=int)
+            )
+            if (
+                sum(lengths[index] for index in indices) >= int(limit_steps)
+                or chunk_count >= len(filenames)
+            ):
+                break
+            chunk_count += 1
+        filenames = [filenames[index] for index in indices]
     elif sampling != "chronological":
         raise ValueError(
             f"Unknown demonstration sampling mode: {sampling!r}"
@@ -59,7 +81,9 @@ def _load_demonstrations(
             lengths = {len(episode[key]) for key in keys}
             if len(lengths) != 1:
                 raise ValueError(f"Mismatched demonstration arrays: {filename}")
-            arrays = {key: episode[key] for key in keys}
+            stored_length = lengths.pop()
+            valid_length = _declared_chunk_length(filename, stored_length)
+            arrays = {key: episode[key][:valid_length] for key in keys}
             failures = embodied.nonfinite_fields(arrays)
             if failures:
                 rejected.append(
@@ -74,7 +98,7 @@ def _load_demonstrations(
                 )
                 continue
             accepted_files += 1
-            for index in range(lengths.pop()):
+            for index in range(valid_length):
                 replay.add(
                     {key: arrays[key][index] for key in keys},
                     worker=1_000_000 + episode_index,

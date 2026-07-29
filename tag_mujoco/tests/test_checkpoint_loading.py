@@ -148,6 +148,29 @@ class CheckpointLoadingTests(unittest.TestCase):
             self.assertEqual(report["rejected_files"], 1)
             self.assertIn("action", report["rejections"][0]["nonfinite_fields"])
 
+    def test_partial_chunk_ignores_uninitialized_storage_tail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            good = np.ones((4, 1), dtype=np.float32)
+            action = good.copy()
+            action[2:, 0] = np.nan
+            filename = (
+                "20260101T000000F000001-part-"
+                "0000000000000000000000-2.npz"
+            )
+            np.savez_compressed(
+                root / filename,
+                image=good,
+                states=good,
+                goal=good,
+                action=action,
+                reward=good[:, 0],
+            )
+            replay = _FakeReplay()
+            loaded = _load_demonstrations(replay, root)
+            self.assertEqual(loaded, 2)
+            self.assertEqual(replay.rewards, [1.0, 1.0])
+
     def test_optimizer_health_rejects_nonfinite_and_stalled_updates(self):
         tracker = OptimizerHealthTracker(stall_limit=3)
         tracker.check({"model_opt_grad_steps": 1, "model_opt_loss": 2.0})

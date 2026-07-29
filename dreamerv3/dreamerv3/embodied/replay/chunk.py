@@ -41,7 +41,12 @@ class Chunk:
         succ = succ.uuid if isinstance(succ, type(self)) else succ
         filename = f"{self.time}-{self.uuid}-{succ}-{self.length}.npz"
         filename = embodied.Path(directory) / filename
-        data = {k: embodied.convert(v) for k, v in self.data.items()}
+        # The backing arrays are preallocated to the chunk capacity. Persist
+        # only initialized transitions; otherwise unused memory can contain
+        # arbitrary NaN values that a later importer may mistake for data.
+        data = {
+            k: embodied.convert(v[: self.length]) for k, v in self.data.items()
+        }
         with io.BytesIO() as stream:
             np.savez_compressed(stream, **data)
             stream.seek(0)
@@ -53,7 +58,10 @@ class Chunk:
         length = int(filename.stem.split("-")[3])
         with embodied.Path(filename).open("rb") as f:
             data = np.load(f)
-            data = {k: data[k] for k in data.keys()}
+            # Slice old files too: historical partial chunks stored their full
+            # preallocated capacity even though the filename records the valid
+            # transition count.
+            data = {k: data[k][:length] for k in data.keys()}
         chunk = cls(length)
         chunk.time = filename.stem.split("-")[0]
         chunk.uuid = filename.stem.split("-")[1]
