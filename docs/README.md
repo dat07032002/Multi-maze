@@ -23,6 +23,7 @@
 - [sysid_actuator_step40_2026-07-27.json](sysid_actuator_step40_2026-07-27.json): machine-readable intermediate command-40 response
 - [sysid_actuator_step80_2026-07-27.json](sysid_actuator_step80_2026-07-27.json): machine-readable accepted command-80 actuator fit and raw-file hashes
 - [REAL_TRAJECTORY_RETRAINING.md](REAL_TRAJECTORY_RETRAINING.md): passive real-data recording, dynamics fitting, and quality-gated simulator refinement
+- [REAL_HARDWARE_ADAPTATION_DESIGN.md](REAL_HARDWARE_ADAPTATION_DESIGN.md): planned frozen-main, bounded-residual, and safety-supervisor architecture for efficient hardware fine-tuning
 - [VISION_RELIABILITY_PLAN_2026-07-27.md](VISION_RELIABILITY_PLAN_2026-07-27.md): evidence, model/data plan, and camera-only acceptance gates for robust marble tracking
 - [sysid_axis_2026-07-24.json](sysid_axis_2026-07-24.json): machine-readable low-amplitude actuator response, timing, repeatability, and raw-file hashes
 - [SYSID_STEP_2026-07-24.md](SYSID_STEP_2026-07-24.md): accepted +/-10 step-response results, nonlinear comparison, and rejected stick-slip event

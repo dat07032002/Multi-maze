@@ -50,6 +50,12 @@ converted to servo targets around position 500 with scale 1.5.
 See the canonical numerical specification in
 [`HARDWARE_CONTRACT.md`](../tag_mujoco/HARDWARE_CONTRACT.md).
 
+Future real-hardware learning will retain an immutable main policy, add only a
+bounded residual correction, and place both behind an independent safety
+supervisor. The staged data, system-identification, weakness-mining, training,
+and promotion design is specified in
+[`REAL_HARDWARE_ADAPTATION_DESIGN.md`](REAL_HARDWARE_ADAPTATION_DESIGN.md).
+
 ## Maze contract
 
 The confirmed removable footprint is `259 x 229 mm`. A single JSON definition
