@@ -18,32 +18,56 @@ Every skill stage uses the same continuation contract:
 
 ## Skill stages
 
-1. `tag_sim_v2_safe_path_tracking`
+1. `tag_sim_v2_singlepath_progress`
+   - scratch stage;
+   - single-path topology;
+   - no holes yet;
+   - train-from-goal/random starts enabled;
+   - progress reward dominates, with no path/wall style penalty.
+
+2. `tag_sim_v2_branch_blockers`
+   - warm-start from the best Stage 1 checkpoint;
+   - wrong branches are stopped by blocker holes;
+   - route hazards are still absent;
+   - progress remains the dominant objective.
+
+3. `tag_sim_v2_dodge_progress`
+   - warm-start from the best Stage 2 checkpoint;
+   - red route-hazard holes are introduced;
+   - path/wall penalties are deliberately light so the policy keeps moving.
+
+4. `tag_sim_v2_easy_dodge_holes`
+   - warm-start from the best Stage 3 checkpoint;
+   - same dodge layouts;
+   - stronger path-centering, hole-clearance, and wall-riding shaping;
+   - use this only after progress is healthy.
+
+5. `tag_sim_v2_safe_path_tracking`
    - normal safe-path tracking;
    - gentle path-centering penalty;
    - gentle wall-riding penalty;
    - no domain randomization.
 
-2. `tag_sim_v2_easy_dodge_holes`
-   - generated dodge layouts;
-   - maze topology has no loop shortcuts, so there is only one cell-level route
-     from start to goal;
-   - wrong branches are stopped by blocker holes;
-   - dodge holes are placed near the old centerline;
-   - the continuous planner replans a safe path around them;
-   - reward tracks the replanned safe path.
-
-3. Tight dodge holes
+6. Tight dodge holes
    - future stage;
    - smaller margins and harder layouts after easy dodge is reliable.
 
-4. Mixed hard mastery
+7. Mixed hard mastery
    - future stage;
    - normal hard mazes plus dodge mazes.
 
-5. Domain randomization
+8. Domain randomization
    - future stage;
    - only after nominal safe-path and dodge success are high.
+
+## Why the scratch stages are progress-first
+
+The first scratch dodge pilot reached 0% completion. Its best route progress was
+early, then collapsed from 33.2% at 25k to 0.3% at 75k while falls and
+cross-track error improved. That means the policy discovered a local optimum:
+stay safe and near the path, but stop moving. The staged curriculum prevents
+that by teaching forward progress before adding blocker holes, dodge holes, and
+clean-driving penalties.
 
 ## Layout overlay convention
 

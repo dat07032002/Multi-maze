@@ -5,13 +5,14 @@ is useful for baseline route following, but it lets a policy learn to ride walls
 through corridors without practicing the core hardware skill: stay close to a
 safe reference path while bending around hazards.
 
-This module keeps the old generator intact and builds a second curriculum family
+This module keeps the old generator intact and builds staged curriculum families
 on top of it:
 
 1. generate a wide-cell maze with a normal centerline route;
-2. place a small number of holes directly on interior route cells;
-3. ask the continuous finite-ball planner to create a new safe path around them;
-4. store both the blocked reference route and the replanned safe path.
+2. optionally stop wrong branches with blocker holes;
+3. optionally place route hazards near the old centerline;
+4. ask the continuous finite-ball planner to create a safe path;
+5. store both the reference route and the replanned safe path.
 """
 
 from __future__ import annotations
@@ -61,6 +62,50 @@ class DodgeMazeConfig:
     max_branch_blocker_holes: int = 64
     dodge_hole_offset_m: float = 0.006
     edge_jitter_fraction: float = 0.04
+
+
+@dataclass(frozen=True)
+class CurriculumStage:
+    name: str
+    dataset_id: str
+    manifest_name: str
+    file_prefix: str
+    difficulty_band: str
+    config: DodgeMazeConfig
+
+
+STAGES: dict[str, CurriculumStage] = {
+    "progress": CurriculumStage(
+        name="singlepath_progress",
+        dataset_id="tag_singlepath_progress_v1",
+        manifest_name="maze_splits_progress.json",
+        file_prefix="progress_maze_seed",
+        difficulty_band="singlepath_progress",
+        config=DodgeMazeConfig(
+            block_wrong_branches=False,
+            dodge_holes=0,
+        ),
+    ),
+    "branch": CurriculumStage(
+        name="singlepath_branch_blockers",
+        dataset_id="tag_singlepath_branch_blockers_v1",
+        manifest_name="maze_splits_branch_blockers.json",
+        file_prefix="branch_blocker_maze_seed",
+        difficulty_band="branch_blockers",
+        config=DodgeMazeConfig(
+            block_wrong_branches=True,
+            dodge_holes=0,
+        ),
+    ),
+    "dodge": CurriculumStage(
+        name="easy_dodge_holes",
+        dataset_id="tag_dodge_curriculum_v1",
+        manifest_name="maze_splits_dodge.json",
+        file_prefix="dodge_maze_seed",
+        difficulty_band="dodge",
+        config=DodgeMazeConfig(),
+    ),
+}
 
 
 def _cell_center(layout: dict[str, Any], cell: Iterable[int]) -> list[float]:
@@ -256,7 +301,7 @@ def generate_dodge_maze(
             existing_cells.add(cell)
 
     solution = [tuple(cell) for cell in base["solution_cells"]]
-    dodge_cells = _select_dodge_cells(base, config.dodge_holes)
+    dodge_cells = _select_dodge_cells(base, config.dodge_holes) if config.dodge_holes else []
     dodge_hole_points = []
     for cell in dodge_cells:
         hole_point = _dodge_hole_point(
@@ -272,7 +317,7 @@ def generate_dodge_maze(
         dodge_hole_points.append(hole_point)
 
     blocked_clearance = _polyline_min_clearance(base, original_waypoints)
-    if blocked_clearance >= planner.safety_margin_m:
+    if dodge_cells and blocked_clearance >= planner.safety_margin_m:
         raise RuntimeError("Dodge holes did not invalidate the original route")
 
     routed, validation = apply_safe_route(base, planner)
@@ -280,7 +325,10 @@ def generate_dodge_maze(
     if not validation.passed:
         raise RuntimeError(f"Dodge maze route is unsafe: {validation}")
     safe_route = np.asarray(routed["waypoints"], dtype=np.float64)
-    safe_hole_clearance = float(np.min(signed_hole_clearance(routed, safe_route)))
+    safe_hole_clearance_raw = float(np.min(signed_hole_clearance(routed, safe_route)))
+    safe_hole_clearance = (
+        None if not math.isfinite(safe_hole_clearance_raw) else safe_hole_clearance_raw
+    )
     routed["generator"] = "dense_irregular_depth_first_grid_v2_dodge_curriculum"
     routed["reference_waypoints"] = original_waypoints
     routed["dodge_curriculum"] = {
@@ -444,6 +492,11 @@ def generate_dodge_curriculum_set(
     count: int,
     config: DodgeMazeConfig = DodgeMazeConfig(),
     planner: PlannerConfig = PlannerConfig(),
+    dataset_id: str = STAGES["dodge"].dataset_id,
+    curriculum_stage: str = STAGES["dodge"].name,
+    difficulty_band: str = STAGES["dodge"].difficulty_band,
+    file_prefix: str = STAGES["dodge"].file_prefix,
+    manifest_name: str = STAGES["dodge"].manifest_name,
 ) -> list[dict[str, Any]]:
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_dir.mkdir(parents=True, exist_ok=True)
@@ -463,8 +516,8 @@ def generate_dodge_curriculum_set(
                 }
             )
             continue
-        layout_path = output_dir / f"dodge_maze_seed_{seed}.json"
-        preview_path = preview_dir / f"dodge_maze_seed_{seed}_overlay.png"
+        layout_path = output_dir / f"{file_prefix}_{seed}.json"
+        preview_path = preview_dir / f"{file_prefix}_{seed}_overlay.png"
         save_json_layout(layout, layout_path)
         render_dodge_preview(layout, preview_path)
         generated.append(
@@ -489,8 +542,8 @@ def generate_dodge_curriculum_set(
             "difficulty_score": 0.25
             + 0.75
             * min(1.0, max(0.0, float(entry["safe_route_length_m"]) / 0.80)),
-            "difficulty_band": "dodge",
-            "curriculum_stage": "easy_dodge_holes",
+            "difficulty_band": difficulty_band,
+            "curriculum_stage": curriculum_stage,
             "dodge_hole_count": len(entry["dodge_hole_cells"]),
             "branch_blocker_count": len(entry["branch_blocker_cells"]),
             "single_solution_topology": bool(entry["single_solution_topology"]),
@@ -505,14 +558,14 @@ def generate_dodge_curriculum_set(
     test = relatives[-1:] if len(relatives) >= 1 else relatives[:1]
     smoke = train[: min(2, len(train))]
     dev = train[: min(4, len(train))]
-    manifest_path = output_dir / "maze_splits_dodge.json"
+    manifest_path = output_dir / manifest_name
     manifest_path.write_text(
         json.dumps(
             {
                 "schema_version": 2,
-                "dataset_id": "tag_dodge_curriculum_v1",
+                "dataset_id": dataset_id,
                 "split_policy": (
-                    "small generated preview set; single-topology route-hazard dodge layouts; "
+                    f"small generated preview set; {curriculum_stage} layouts; "
                     "validation/test excluded from train"
                 ),
                 "config": asdict(config),
@@ -548,16 +601,24 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=Path("tag_mujoco/generated_dodge_mazes"))
     parser.add_argument("--preview-dir", type=Path, default=Path("artifacts/dodge_maze_previews"))
+    parser.add_argument("--stage", choices=sorted(STAGES), default="dodge")
     parser.add_argument("--seed-start", type=int, default=40000)
     parser.add_argument("--seed-count", type=int, default=80)
     parser.add_argument("--count", type=int, default=6)
     args = parser.parse_args()
+    stage = STAGES[args.stage]
 
     entries = generate_dodge_curriculum_set(
         args.output_dir,
         args.preview_dir,
         seeds=range(args.seed_start, args.seed_start + args.seed_count),
         count=args.count,
+        config=stage.config,
+        dataset_id=stage.dataset_id,
+        curriculum_stage=stage.name,
+        difficulty_band=stage.difficulty_band,
+        file_prefix=stage.file_prefix,
+        manifest_name=stage.manifest_name,
     )
     accepted = [entry for entry in entries if entry["accepted"]]
     print(json.dumps({"accepted": len(accepted), "entries": entries}, indent=2))

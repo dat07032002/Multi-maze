@@ -11,7 +11,15 @@ cd "$repo_root"
 
 training_profile="${TAG_TRAINING_PROFILE:-tag_sim_v2}"
 case "$training_profile" in
-  tag_sim_v2_easy_dodge_holes)
+  tag_sim_v2_singlepath_progress)
+    manifest="$repo_root/tag_mujoco/generated_singlepath_progress_mazes/maze_splits_progress.json"
+    dataset_id="tag_singlepath_progress_v1"
+    ;;
+  tag_sim_v2_branch_blockers)
+    manifest="$repo_root/tag_mujoco/generated_branch_blocker_mazes/maze_splits_branch_blockers.json"
+    dataset_id="tag_singlepath_branch_blockers_v1"
+    ;;
+  tag_sim_v2_dodge_progress|tag_sim_v2_easy_dodge_holes)
     manifest="$repo_root/tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json"
     dataset_id="tag_dodge_curriculum_v1"
     ;;
@@ -101,13 +109,15 @@ case "$training_profile" in
       exit 7
     fi
     ;;
-  tag_sim_v2_easy_dodge_holes)
+  tag_sim_v2_singlepath_progress|tag_sim_v2_branch_blockers|tag_sim_v2_dodge_progress|tag_sim_v2_easy_dodge_holes)
     configs=(tag_sim_v2 medium "$training_profile")
-    if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
-      echo "Scratch dodge training refuses TAG_FROM_CHECKPOINT."
+    if [[ -n "${TAG_FROM_CHECKPOINT:-}" && "$checkpoint_mode" != "agent_only" ]]; then
+      echo "Curriculum skill continuation requires TAG_CHECKPOINT_MODE=agent_only."
       exit 7
     fi
-    checkpoint_mode="none"
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      checkpoint_mode="none"
+    fi
     ;;
   tag_sim_v2_fullstart_staged_randomization)
     configs=(tag_sim_v2 tag_sim_v2_fullstart_staged_randomization medium)

@@ -63,21 +63,59 @@ class TrainingProfileTests(unittest.TestCase):
             "maze_manifest: tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json",
             "maze_split: train",
             "maze_sampling: plr",
+            "progress_reward_scale: 15.0",
             "hole_warning_m: 0.010",
-            "hole_clearance_penalty: 0.05",
-            "path_tracking_penalty: 0.15",
-            "wall_riding_penalty: 0.05",
+            "hole_clearance_penalty: 0.03",
+            "path_tracking_penalty: 0.08",
+            "wall_riding_penalty: 0.03",
         ):
             self.assertIn(expected, profile)
 
-    def test_v2_launcher_routes_dodge_profile_to_dodge_dataset(self):
+    def test_scratch_curriculum_profiles_progress_before_style(self):
+        progress = profile_block("tag_sim_v2_singlepath_progress")
+        for expected in (
+            "random_start: True",
+            "start_curriculum: True",
+            "maze_manifest: tag_mujoco/generated_singlepath_progress_mazes/maze_splits_progress.json",
+            "progress_reward_scale: 15.0",
+            "path_tracking_penalty: 0.0",
+            "wall_riding_penalty: 0.0",
+        ):
+            self.assertIn(expected, progress)
+        branch = profile_block("tag_sim_v2_branch_blockers")
+        for expected in (
+            "maze_manifest: tag_mujoco/generated_branch_blocker_mazes/maze_splits_branch_blockers.json",
+            "hole_clearance_penalty: 0.01",
+            "path_tracking_penalty: 0.02",
+            "wall_riding_penalty: 0.0",
+        ):
+            self.assertIn(expected, branch)
+        dodge = profile_block("tag_sim_v2_dodge_progress")
+        for expected in (
+            "maze_manifest: tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json",
+            "hole_clearance_penalty: 0.02",
+            "path_tracking_penalty: 0.03",
+            "wall_riding_penalty: 0.01",
+        ):
+            self.assertIn(expected, dodge)
+
+    def test_v2_launcher_routes_scratch_curriculum_profiles_to_stage_datasets(self):
         launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
             encoding="utf-8"
         )
-        self.assertIn("tag_sim_v2_easy_dodge_holes)", launcher)
+        self.assertIn("tag_sim_v2_singlepath_progress)", launcher)
+        self.assertIn("tag_sim_v2_branch_blockers)", launcher)
+        self.assertIn("tag_sim_v2_dodge_progress|tag_sim_v2_easy_dodge_holes)", launcher)
+        self.assertIn("generated_singlepath_progress_mazes/maze_splits_progress.json", launcher)
+        self.assertIn("generated_branch_blocker_mazes/maze_splits_branch_blockers.json", launcher)
         self.assertIn("generated_dodge_mazes/maze_splits_dodge.json", launcher)
+        self.assertIn('dataset_id="tag_singlepath_progress_v1"', launcher)
+        self.assertIn('dataset_id="tag_singlepath_branch_blockers_v1"', launcher)
         self.assertIn('dataset_id="tag_dodge_curriculum_v1"', launcher)
-        self.assertIn("Scratch dodge training refuses TAG_FROM_CHECKPOINT", launcher)
+        self.assertIn(
+            "Curriculum skill continuation requires TAG_CHECKPOINT_MODE=agent_only",
+            launcher,
+        )
 
     def test_dreamer_defaults_declare_path_and_wall_reward_keys(self):
         defaults = profile_block("defaults")

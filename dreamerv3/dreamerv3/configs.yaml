@@ -329,6 +329,114 @@ tag_sim_v2_nominal_safe_resume:
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
+# Scratch dodge curriculum stage 1: learn to move along the single available
+# route before any hole-specific behavior is requested. Random starts are the
+# train-from-goal mechanism: the early distribution includes late-route starts
+# so the policy sees local success before it can solve full episodes.
+tag_sim_v2_singlepath_progress:
+  jax:
+    precision: float32
+    debug_nans: False
+  run:
+    train_ratio: 8
+    train_fill: 25000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  env.tagmaze:
+    random_start: True
+    start_curriculum: True
+    start_curriculum_initial_min: 0.85
+    start_curriculum_expand_step: 0.10
+    full_start_probability: 0.10
+    randomize_plant: False
+    randomization_curriculum: False
+    maze_manifest: tag_mujoco/generated_singlepath_progress_mazes/maze_splits_progress.json
+    maze_split: train
+    maze_sampling: plr
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+# Scratch dodge curriculum stage 2: keep the progress-first reward but add
+# blocker holes at wrong-branch entrances. The policy should still learn "move
+# forward", now with a visible reason not to explore dead branches.
+tag_sim_v2_branch_blockers:
+  jax:
+    precision: float32
+    debug_nans: False
+  run:
+    train_ratio: 8
+    train_fill: 25000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  env.tagmaze:
+    random_start: True
+    start_curriculum: True
+    start_curriculum_initial_min: 0.85
+    start_curriculum_expand_step: 0.10
+    full_start_probability: 0.10
+    randomize_plant: False
+    randomization_curriculum: False
+    maze_manifest: tag_mujoco/generated_branch_blocker_mazes/maze_splits_branch_blockers.json
+    maze_split: train
+    maze_sampling: plr
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 8.0
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.01
+    path_tracking_tolerance_m: 0.006
+    path_tracking_penalty: 0.02
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+# Scratch dodge curriculum stage 3: add the red route hazards, but keep the
+# reward progress-heavy. This is the antidote to the first 250k pilot, where
+# the policy learned "safe and still" before it learned forward motion.
+tag_sim_v2_dodge_progress:
+  jax:
+    precision: float32
+    debug_nans: False
+  run:
+    train_ratio: 8
+    train_fill: 25000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  env.tagmaze:
+    random_start: True
+    start_curriculum: True
+    start_curriculum_initial_min: 0.85
+    start_curriculum_expand_step: 0.10
+    full_start_probability: 0.10
+    randomize_plant: False
+    randomization_curriculum: False
+    maze_manifest: tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json
+    maze_split: train
+    maze_sampling: plr
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 10.0
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.02
+    path_tracking_tolerance_m: 0.006
+    path_tracking_penalty: 0.03
+    wall_warning_m: 0.003
+    wall_riding_penalty: 0.01
+    action_rate_penalty: 0.0005
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
 # Skill stage A: teach the warm-started policy to track the planned safe path
 # without relying on walls as rails. The terms are intentionally gentle: route
 # progress remains the main reward, while path and wall costs shape style.
@@ -376,12 +484,14 @@ tag_sim_v2_easy_dodge_holes:
     maze_manifest: tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json
     maze_split: train
     maze_sampling: plr
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
     hole_warning_m: 0.010
-    hole_clearance_penalty: 0.05
+    hole_clearance_penalty: 0.03
     path_tracking_tolerance_m: 0.005
-    path_tracking_penalty: 0.15
+    path_tracking_penalty: 0.08
     wall_warning_m: 0.003
-    wall_riding_penalty: 0.05
+    wall_riding_penalty: 0.03
     action_rate_penalty: 0.001
   model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}

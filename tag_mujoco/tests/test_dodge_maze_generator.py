@@ -18,6 +18,18 @@ from tag_mujoco.route_planner import (
 
 ROOT = Path(__file__).resolve().parents[2]
 DODGE_MANIFEST = ROOT / "tag_mujoco" / "generated_dodge_mazes" / "maze_splits_dodge.json"
+PROGRESS_MANIFEST = (
+    ROOT
+    / "tag_mujoco"
+    / "generated_singlepath_progress_mazes"
+    / "maze_splits_progress.json"
+)
+BRANCH_MANIFEST = (
+    ROOT
+    / "tag_mujoco"
+    / "generated_branch_blocker_mazes"
+    / "maze_splits_branch_blockers.json"
+)
 
 
 class DodgeMazeGeneratorTests(unittest.TestCase):
@@ -48,6 +60,31 @@ class DodgeMazeGeneratorTests(unittest.TestCase):
             PlannerConfig().safety_margin_m,
         )
 
+    def test_staged_generation_can_remove_route_hazards_until_later_stage(self):
+        progress_layout, progress_meta = generate_dodge_maze(
+            40000,
+            DodgeMazeConfig(block_wrong_branches=False, dodge_holes=0),
+            PlannerConfig(),
+        )
+        self.assertTrue(progress_meta["single_solution_topology"])
+        self.assertEqual(progress_meta["branch_blocker_cells"], [])
+        self.assertEqual(progress_meta["dodge_hole_cells"], [])
+        self.assertEqual(progress_layout["holes"], [])
+        self.assertGreater(progress_meta["original_route_min_clearance_m"], 0.0)
+
+        branch_layout, branch_meta = generate_dodge_maze(
+            40000,
+            DodgeMazeConfig(block_wrong_branches=True, dodge_holes=0),
+            PlannerConfig(),
+        )
+        self.assertGreater(len(branch_meta["branch_blocker_cells"]), 0)
+        self.assertEqual(branch_meta["dodge_hole_cells"], [])
+        self.assertEqual(
+            len(branch_layout["holes"]),
+            len(branch_meta["branch_blocker_cells"]),
+        )
+        self.assertGreater(branch_meta["original_route_min_clearance_m"], 0.0)
+
     def test_preview_manifest_uses_standard_train_validation_test_splits(self):
         manifest = json.loads(DODGE_MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(manifest["dataset_id"], "tag_dodge_curriculum_v1")
@@ -62,6 +99,41 @@ class DodgeMazeGeneratorTests(unittest.TestCase):
         self.assertEqual(train.metadata[0]["curriculum_stage"], "easy_dodge_holes")
         self.assertTrue(train.metadata[0]["single_solution_topology"])
         self.assertGreater(train.metadata[0]["branch_blocker_count"], 0)
+
+    def test_staged_manifests_have_expected_hazard_progression(self):
+        expected = (
+            (
+                PROGRESS_MANIFEST,
+                "tag_singlepath_progress_v1",
+                "singlepath_progress",
+                0,
+                0,
+            ),
+            (
+                BRANCH_MANIFEST,
+                "tag_singlepath_branch_blockers_v1",
+                "singlepath_branch_blockers",
+                1,
+                0,
+            ),
+            (
+                DODGE_MANIFEST,
+                "tag_dodge_curriculum_v1",
+                "easy_dodge_holes",
+                1,
+                1,
+            ),
+        )
+        for manifest_path, dataset_id, stage, min_blockers, min_dodge in expected:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["dataset_id"], dataset_id)
+            train = load_split("train", manifest_path)
+            self.assertGreaterEqual(len(train.paths), 1)
+            metadata = train.metadata[0]
+            self.assertEqual(metadata["curriculum_stage"], stage)
+            self.assertTrue(metadata["single_solution_topology"])
+            self.assertGreaterEqual(metadata["branch_blocker_count"], min_blockers)
+            self.assertGreaterEqual(metadata["dodge_hole_count"], min_dodge)
 
 
 if __name__ == "__main__":

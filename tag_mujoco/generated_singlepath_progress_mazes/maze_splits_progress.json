@@ -1,0 +1,411 @@
+{
+  "schema_version": 2,
+  "dataset_id": "tag_singlepath_progress_v1",
+  "split_policy": "small generated preview set; singlepath_progress layouts; validation/test excluded from train",
+  "config": {
+    "columns": 7,
+    "rows": 6,
+    "loop_fraction": 0.0,
+    "branch_holes": 0,
+    "dodge_holes": 0,
+    "block_wrong_branches": false,
+    "max_branch_blocker_holes": 64,
+    "dodge_hole_offset_m": 0.006,
+    "edge_jitter_fraction": 0.04
+  },
+  "planner": {
+    "grid_resolution_m": 0.002,
+    "safety_margin_m": 0.0015,
+    "route_spacing_m": 0.012,
+    "clearance_cost_weight": 0.35,
+    "clearance_cost_scale_m": 0.008,
+    "corner_rounding_radius_m": 0.006,
+    "corner_rounding_samples": 5
+  },
+  "smoke": [
+    "progress_maze_seed_40000.json",
+    "progress_maze_seed_40001.json"
+  ],
+  "train": [
+    "progress_maze_seed_40000.json",
+    "progress_maze_seed_40001.json",
+    "progress_maze_seed_40002.json",
+    "progress_maze_seed_40003.json"
+  ],
+  "dev": [
+    "progress_maze_seed_40000.json",
+    "progress_maze_seed_40001.json",
+    "progress_maze_seed_40002.json",
+    "progress_maze_seed_40003.json"
+  ],
+  "validation": [
+    "progress_maze_seed_40004.json"
+  ],
+  "test": [
+    "progress_maze_seed_40005.json"
+  ],
+  "metadata": {
+    "progress_maze_seed_40000.json": {
+      "seed": 40000,
+      "difficulty_score": 0.7628385912363009,
+      "difficulty_band": "singlepath_progress",
+      "curriculum_stage": "singlepath_progress",
+      "dodge_hole_count": 0,
+      "branch_blocker_count": 0,
+      "single_solution_topology": true,
+      "original_route_min_clearance_m": 0.010973706934079558,
+      "safe_route_min_clearance_m": 0.010973044657087571,
+      "safe_route_min_hole_clearance_m": null,
+      "route_length_m": 0.5470278306520543,
+      "sha256": "63f0b4fdbc29e93a261eff35aa6a6ed8477e1046290ab74496255afb2d527434"
+    },
+    "progress_maze_seed_40001.json": {
+      "seed": 40001,
+      "difficulty_score": 1.0,
+      "difficulty_band": "singlepath_progress",
+      "curriculum_stage": "singlepath_progress",
+      "dodge_hole_count": 0,
+      "branch_blocker_count": 0,
+      "single_solution_topology": true,
+      "original_route_min_clearance_m": 0.010715181297026458,
+      "safe_route_min_clearance_m": 0.010715181297026458,
+      "safe_route_min_hole_clearance_m": null,
+      "route_length_m": 1.1288265878237491,
+      "sha256": "6202747d30ff75b95f7b1ffec3468086f77e06f2f3585ebd7dedadca88b2c91a"
+    },
+    "progress_maze_seed_40002.json": {
+      "seed": 40002,
+      "difficulty_score": 0.9629229549843323,
+      "difficulty_band": "singlepath_progress",
+      "curriculum_stage": "singlepath_progress",
+      "dodge_hole_count": 0,
+      "branch_blocker_count": 0,
+      "single_solution_topology": true,
+      "original_route_min_clearance_m": 0.010411768255279364,
+      "safe_route_min_clearance_m": 0.010411768255279364,
+      "safe_route_min_hole_clearance_m": null,
+      "route_length_m": 0.7604511519832878,
+      "sha256": "23cb90d6c8e03054ec1889194e58449c59f8253037bebcedbede393aa7c10693"
+    },
+    "progress_maze_seed_40003.json": {
+      "seed": 40003,
+      "difficulty_score": 0.7598826574197417,
+      "difficulty_band": "singlepath_progress",
+      "curriculum_stage": "singlepath_progress",
+      "dodge_hole_count": 0,
+      "branch_blocker_count": 0,
+      "single_solution_topology": true,
+      "original_route_min_clearance_m": 0.010974880740737837,
+      "safe_route_min_clearance_m": 0.010974880740737837,
+      "safe_route_min_hole_clearance_m": null,
+      "route_length_m": 0.5438748345810578,
+      "sha256": "a8cad53dde0601ad07950f3ecd31f172a7cd64838dc1c25fe61f227ee21a6b16"
+    },
+    "progress_maze_seed_40004.json": {
+      "seed": 40004,
+      "difficulty_score": 1.0,
+      "difficulty_band": "singlepath_progress",
+      "curriculum_stage": "singlepath_progress",
+      "dodge_hole_count": 0,
+      "branch_blocker_count": 0,
+      "single_solution_topology": true,
+      "original_route_min_clearance_m": 0.010324726072471447,
+      "safe_route_min_clearance_m": 0.010324726072471447,
+      "safe_route_min_hole_clearance_m": null,
+      "route_length_m": 0.8373940540946688,
+      "sha256": "19b788ef07126c3dfc7f85e89bbe1dd8d6d1dc92b0d871cf2e846d18bc482d50"
+    },
+    "progress_maze_seed_40005.json": {
+      "seed": 40005,
+      "difficulty_score": 0.6991316075656795,
+      "difficulty_band": "singlepath_progress",
+      "curriculum_stage": "singlepath_progress",
+      "dodge_hole_count": 0,
+      "branch_blocker_count": 0,
+      "single_solution_topology": true,
+      "original_route_min_clearance_m": 0.011136459281898959,
+      "safe_route_min_clearance_m": 0.011136459281898959,
+      "safe_route_min_hole_clearance_m": null,
+      "route_length_m": 0.47907371473672483,
+      "sha256": "5cc199e874b2236001ecb026d0a82ebbfde015397e3545a69d77bd5a6ab40dbd"
+    }
+  },
+  "entries": [
+    {
+      "seed": 40000,
+      "accepted": true,
+      "layout": "tag_mujoco/generated_singlepath_progress_mazes/progress_maze_seed_40000.json",
+      "preview": "artifacts/singlepath_progress_previews/progress_maze_seed_40000_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.0,
+        "branch_holes": 0,
+        "dodge_holes": 0,
+        "block_wrong_branches": false,
+        "max_branch_blocker_holes": 64,
+        "dodge_hole_offset_m": 0.006,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "single_solution_topology": true,
+      "wrong_branch_count": 6,
+      "branch_blocker_cells": [],
+      "branch_blocker_holes": [],
+      "dodge_hole_cells": [],
+      "dodge_holes": [],
+      "original_route_min_clearance_m": 0.010973706934079558,
+      "safe_route_min_clearance_m": 0.010973044657087571,
+      "safe_route_min_hole_clearance_m": null,
+      "original_route_length_m": 0.5654341327963077,
+      "safe_route_length_m": 0.5470278306520543,
+      "safe_route_extra_m": -0.018406302144253428,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.010973044657087571,
+        "required_margin_m": 0.0015,
+        "sampled_points": 1120,
+        "route_length_m": 0.5470278306520543
+      }
+    },
+    {
+      "seed": 40001,
+      "accepted": true,
+      "layout": "tag_mujoco/generated_singlepath_progress_mazes/progress_maze_seed_40001.json",
+      "preview": "artifacts/singlepath_progress_previews/progress_maze_seed_40001_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.0,
+        "branch_holes": 0,
+        "dodge_holes": 0,
+        "block_wrong_branches": false,
+        "max_branch_blocker_holes": 64,
+        "dodge_hole_offset_m": 0.006,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "single_solution_topology": true,
+      "wrong_branch_count": 4,
+      "branch_blocker_cells": [],
+      "branch_blocker_holes": [],
+      "dodge_hole_cells": [],
+      "dodge_holes": [],
+      "original_route_min_clearance_m": 0.010715181297026458,
+      "safe_route_min_clearance_m": 0.010715181297026458,
+      "safe_route_min_hole_clearance_m": null,
+      "original_route_length_m": 1.1610376165761922,
+      "safe_route_length_m": 1.1288265878237491,
+      "safe_route_extra_m": -0.03221102875244308,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.010715181297026458,
+        "required_margin_m": 0.0015,
+        "sampled_points": 2305,
+        "route_length_m": 1.1288265878237491
+      }
+    },
+    {
+      "seed": 40002,
+      "accepted": true,
+      "layout": "tag_mujoco/generated_singlepath_progress_mazes/progress_maze_seed_40002.json",
+      "preview": "artifacts/singlepath_progress_previews/progress_maze_seed_40002_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.0,
+        "branch_holes": 0,
+        "dodge_holes": 0,
+        "block_wrong_branches": false,
+        "max_branch_blocker_holes": 64,
+        "dodge_hole_offset_m": 0.006,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "single_solution_topology": true,
+      "wrong_branch_count": 3,
+      "branch_blocker_cells": [],
+      "branch_blocker_holes": [],
+      "dodge_hole_cells": [],
+      "dodge_holes": [],
+      "original_route_min_clearance_m": 0.010411768255279364,
+      "safe_route_min_clearance_m": 0.010411768255279364,
+      "safe_route_min_hole_clearance_m": null,
+      "original_route_length_m": 0.7903613929676994,
+      "safe_route_length_m": 0.7604511519832878,
+      "safe_route_extra_m": -0.02991024098441153,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.010411768255279364,
+        "required_margin_m": 0.0015,
+        "sampled_points": 1563,
+        "route_length_m": 0.7604511519832878
+      }
+    },
+    {
+      "seed": 40003,
+      "accepted": true,
+      "layout": "tag_mujoco/generated_singlepath_progress_mazes/progress_maze_seed_40003.json",
+      "preview": "artifacts/singlepath_progress_previews/progress_maze_seed_40003_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.0,
+        "branch_holes": 0,
+        "dodge_holes": 0,
+        "block_wrong_branches": false,
+        "max_branch_blocker_holes": 64,
+        "dodge_hole_offset_m": 0.006,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "single_solution_topology": true,
+      "wrong_branch_count": 4,
+      "branch_blocker_cells": [],
+      "branch_blocker_holes": [],
+      "dodge_hole_cells": [],
+      "dodge_holes": [],
+      "original_route_min_clearance_m": 0.010974880740737837,
+      "safe_route_min_clearance_m": 0.010974880740737837,
+      "safe_route_min_hole_clearance_m": null,
+      "original_route_length_m": 0.5622811367253109,
+      "safe_route_length_m": 0.5438748345810578,
+      "safe_route_extra_m": -0.018406302144253095,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.010974880740737837,
+        "required_margin_m": 0.0015,
+        "sampled_points": 1116,
+        "route_length_m": 0.5438748345810578
+      }
+    },
+    {
+      "seed": 40004,
+      "accepted": true,
+      "layout": "tag_mujoco/generated_singlepath_progress_mazes/progress_maze_seed_40004.json",
+      "preview": "artifacts/singlepath_progress_previews/progress_maze_seed_40004_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.0,
+        "branch_holes": 0,
+        "dodge_holes": 0,
+        "block_wrong_branches": false,
+        "max_branch_blocker_holes": 64,
+        "dodge_hole_offset_m": 0.006,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "single_solution_topology": true,
+      "wrong_branch_count": 5,
+      "branch_blocker_cells": [],
+      "branch_blocker_holes": [],
+      "dodge_hole_cells": [],
+      "dodge_holes": [],
+      "original_route_min_clearance_m": 0.010324726072471447,
+      "safe_route_min_clearance_m": 0.010324726072471447,
+      "safe_route_min_hole_clearance_m": null,
+      "original_route_length_m": 0.8650035073110486,
+      "safe_route_length_m": 0.8373940540946688,
+      "safe_route_extra_m": -0.027609453216379753,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.010324726072471447,
+        "required_margin_m": 0.0015,
+        "sampled_points": 1713,
+        "route_length_m": 0.8373940540946688
+      }
+    },
+    {
+      "seed": 40005,
+      "accepted": true,
+      "layout": "tag_mujoco/generated_singlepath_progress_mazes/progress_maze_seed_40005.json",
+      "preview": "artifacts/singlepath_progress_previews/progress_maze_seed_40005_overlay.png",
+      "schema_version": 1,
+      "config": {
+        "columns": 7,
+        "rows": 6,
+        "loop_fraction": 0.0,
+        "branch_holes": 0,
+        "dodge_holes": 0,
+        "block_wrong_branches": false,
+        "max_branch_blocker_holes": 64,
+        "dodge_hole_offset_m": 0.006,
+        "edge_jitter_fraction": 0.04
+      },
+      "planner": {
+        "grid_resolution_m": 0.002,
+        "safety_margin_m": 0.0015,
+        "route_spacing_m": 0.012,
+        "clearance_cost_weight": 0.35,
+        "clearance_cost_scale_m": 0.008,
+        "corner_rounding_radius_m": 0.006,
+        "corner_rounding_samples": 5
+      },
+      "single_solution_topology": true,
+      "wrong_branch_count": 2,
+      "branch_blocker_cells": [],
+      "branch_blocker_holes": [],
+      "dodge_hole_cells": [],
+      "dodge_holes": [],
+      "original_route_min_clearance_m": 0.011136459281898959,
+      "safe_route_min_clearance_m": 0.011136459281898959,
+      "safe_route_min_hole_clearance_m": null,
+      "original_route_length_m": 0.48827686580885155,
+      "safe_route_length_m": 0.47907371473672483,
+      "safe_route_extra_m": -0.009203151072126714,
+      "route_validation": {
+        "passed": true,
+        "minimum_clearance_m": 0.011136459281898959,
+        "required_margin_m": 0.0015,
+        "sampled_points": 972,
+        "route_length_m": 0.47907371473672483
+      }
+    }
+  ]
+}
