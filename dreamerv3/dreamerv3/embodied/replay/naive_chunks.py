@@ -34,6 +34,7 @@ class NaiveChunks(embodied.Replay):
         return {"size": len(self), "chunks": len(self.buffers)}
 
     def add(self, step, worker=0):
+        embodied.assert_finite(step, f"chunk replay transition from worker {worker}")
         chunk = self.ongoing[worker]
         chunk.append(step)
         if len(chunk) >= self.chunks:
@@ -57,6 +58,7 @@ class NaiveChunks(embodied.Replay):
         idx = self.rng.integers(0, len(chunk) - self.length + 1)
         seq = {k: chunk.data[k][idx : idx + self.length] for k in chunk.data.keys()}
         seq["is_first"][0] = True
+        embodied.assert_finite(seq, "sampled chunk replay sequence")
         return seq
 
     def dataset(self):

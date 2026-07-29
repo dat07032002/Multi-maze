@@ -7,7 +7,12 @@ import numpy as np
 
 from . import jaxutils
 from . import ninjax as nj
-from .checkpoint_loading import is_optimizer_variable
+from .checkpoint_loading import (
+    OptimizerHealthTracker,
+    is_acting_variable,
+    is_optimizer_variable,
+    variable_sha256,
+)
 
 tree_map = jax.tree_util.tree_map
 tree_flatten = jax.tree_util.tree_flatten
@@ -45,6 +50,7 @@ class JAXAgent(embodied.Agent):
         print("Train devices: ", ", ".join([str(x) for x in self.train_devices]))
 
         self._once = True
+        self._health_tracker = OptimizerHealthTracker(stall_limit=3)
         self._updates = embodied.Counter()
         self._should_metrics = embodied.when.Every(self.config.metrics_every)
         self._transform()
@@ -53,6 +59,7 @@ class JAXAgent(embodied.Agent):
 
     def policy(self, obs, state=None, mode="train"):
         obs = obs.copy()
+        embodied.assert_finite(obs, f"policy observation in {mode!r} mode")
         obs = self._convert_inps(obs, self.policy_devices)
         rng = self._next_rngs(self.policy_devices)
         varibs = self.varibs if self.single_device else self.policy_varibs
@@ -63,6 +70,7 @@ class JAXAgent(embodied.Agent):
             state = self._convert_inps(state, self.policy_devices)
         (outs, state), _ = self._policy(varibs, rng, obs, state, mode=mode)
         outs = self._convert_outs(outs, self.policy_devices)
+        embodied.assert_finite(outs, f"policy output in {mode!r} mode")
         # TODO: Consider keeping policy states in accelerator memory.
         state = self._convert_outs(state, self.policy_devices)
         return outs, state
@@ -74,10 +82,19 @@ class JAXAgent(embodied.Agent):
         (outs, state, mets), self.varibs = self._train(self.varibs, rng, data, state)
         outs = self._convert_outs(outs, self.train_devices)
         self._updates.increment()
+        health = {
+            key: value
+            for key, value in mets.items()
+            if key.endswith(
+                ("_opt_loss", "_opt_grad_norm", "_grad_steps", "_grad_overflow")
+            )
+        }
+        health = self._convert_mets(health, self.train_devices)
+        self._health_tracker.check(health)
         if self._should_metrics(self._updates):
             mets = self._convert_mets(mets, self.train_devices)
         else:
-            mets = {}
+            mets = health
         if self._once:
             self._once = False
             assert jaxutils.Optimizer.PARAM_COUNTS
@@ -92,10 +109,14 @@ class JAXAgent(embodied.Agent):
         return mets
 
     def dataset(self, generator):
+        def prepare_batch(batch):
+            embodied.assert_finite(batch, "training batch before device transfer")
+            return self._convert_inps(batch, self.train_devices)
+
         batcher = embodied.Batcher(
             sources=[generator] * self.batch_size,
             workers=self.data_loaders,
-            postprocess=lambda x: self._convert_inps(x, self.train_devices),
+            postprocess=prepare_batch,
             prefetch_source=4,
             prefetch_batch=1,
         )
@@ -109,6 +130,11 @@ class JAXAgent(embodied.Agent):
         varibs = jax.device_get(varibs)
         data = tree_map(np.asarray, varibs)
         return data
+
+    def acting_weights_digest(self):
+        """Return a stable digest and count for actor/world-model variables."""
+
+        return variable_sha256(self.save(), is_acting_variable)
 
     def load(self, state):
         if len(self.train_devices) == 1:

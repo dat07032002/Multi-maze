@@ -18,6 +18,7 @@ from .worker import Worker
 from .batcher import Batcher
 from .metrics import Metrics
 from .uuid import uuid
+from .finite import NonFiniteDataError, assert_finite, nonfinite_fields
 
 from .batch import BatchEnv
 from .random import RandomAgent

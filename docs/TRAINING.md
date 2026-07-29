@@ -1,5 +1,43 @@
 # Training and validation
 
+## Clean-training gate added 2026-07-29
+
+The failed curriculum-DR v3 run must not be resumed. Its imported replay
+contained non-finite states, goals, actions, and rewards, so no optimizer made
+a valid update. New training now fails closed at every data boundary:
+
+- complete imported demonstration chunks are rejected if any numeric field is
+  non-finite;
+- existing saved replay chunks are validated and rejected as whole chunks;
+- environment transitions, policy observations/actions, replay insertions,
+  replay samples, and assembled training batches are checked;
+- non-finite optimizer losses or gradient norms, gradient overflows, and three
+  stalled optimizer updates abort the process; and
+- the actor/world-model SHA-256 digest must change by optimizer step 2, after
+  the warmup schedule moves above its intentionally zero first learning rate.
+
+Each run writes `replay_import_report.json`, `replay/replay_load_report.json`
+when saved replay is restored, and `training_health.json`. A missing or failed
+health report blocks checkpoint promotion.
+
+The only authorized next training profile is `tag_sim_v2_clean_smoke`. It uses
+float32, nominal dynamics, full-route starts, fresh optimizer state, sanitized
+source replay, and a 2k counted-step ceiling. The historical
+`start_curriculum_dr.sh` launcher is locked until this smoke and the subsequent
+10k nominal gate pass.
+
+```bash
+export TAG_TRAINING_APPROVED=YES
+export TAG_PYTHON=/path/to/python
+
+bash scripts/start_clean_training_smoke.sh \
+  /path/to/source/champion/checkpoint.ckpt \
+  /path/to/source/run
+```
+
+This command still requires explicit approval and does not run as part of
+tests or documentation updates.
+
 ## Current result
 
 The best preserved checkpoint is the staged-randomization 13M model at

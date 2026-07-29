@@ -70,6 +70,7 @@ class Reverb:
 
     def add(self, step, worker=0):
         step = {k: v for k, v in step.items() if not k.startswith("log_")}
+        embodied.assert_finite(step, f"Reverb transition from worker {worker}")
         step = {k: embodied.convert(v) for k, v in step.items()}
         step["id"] = np.asarray(embodied.uuid(step.get("id")))
         if not self.server:
@@ -104,6 +105,7 @@ class Reverb:
             if "is_first" in seq:
                 seq["is_first"] = np.array(seq["is_first"])
                 seq["is_first"][0] = True
+            embodied.assert_finite(seq, "sampled Reverb sequence")
             yield seq
 
     def prioritize(self, ids, prios):

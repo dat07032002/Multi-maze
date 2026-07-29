@@ -69,6 +69,7 @@ class Generic:
 
     def add(self, step, worker=0, load=False):
         step = {k: v for k, v in step.items() if not k.startswith("log_")}
+        embodied.assert_finite(step, f"replay transition from worker {worker}")
         step["id"] = np.asarray(embodied.uuid(step.get("id")))
         stream = self.streams[worker]
         stream.append(step)
@@ -115,6 +116,7 @@ class Generic:
         seq = {k: embodied.convert(v) for k, v in seq.items()}
         if "is_first" in seq:
             seq["is_first"][0] = True
+        embodied.assert_finite(seq, "sampled replay sequence")
         return seq
 
     def _remove(self, key):

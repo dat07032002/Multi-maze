@@ -326,6 +326,29 @@ tag_sim_v2_nominal_safe_resume:
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
+# Numerical trainability gate for checkpoint continuation. The launcher sets a
+# 2k counted-step limit and supplies the champion checkpoint and source replay.
+# Float32 deliberately removes mixed-precision scaling from the first
+# diagnosis; all replay and optimizer fail-closed checks remain active.
+tag_sim_v2_clean_smoke:
+  jax:
+    precision: float32
+    debug_nans: False
+  run:
+    train_ratio: 8
+    train_fill: 50000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    hole_clearance_penalty: 0.02
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
 # First post-mastery domain-randomization stage. Strength remains fixed at
 # 0.10 for the entire bounded run; expansion is deliberately disabled.
 tag_sim_v2_holeaware_dr010:
@@ -340,10 +363,10 @@ tag_sim_v2_holeaware_dr010:
     randomization_success_threshold: 1.0
     hole_clearance_penalty: 0.02
 
-# Conservative exploratory curriculum. Each worker advances independently only
-# after sustained success, and the first run is capped at 0.25. Every sampled
-# scalar is logged; checkpoint diagnostics separately isolate actuator,
-# physics, and camera randomization.
+# Historical process-local curriculum retained only to reproduce the invalid
+# v3 experiment. Do not use it for new training: an eight-worker 100-episode
+# local window cannot advance in a bounded run. New DR stages are explicit,
+# checkpoint-gated fixed-strength runs documented in the attribution design.
 tag_sim_v2_holeaware_curriculum_dr:
   env.tagmaze:
     random_start: False

@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -19,7 +20,11 @@ class _AgentWeights:
 
 
 def _load_demonstrations(
-    replay, directory, limit_steps=0, sampling="chronological"
+    replay,
+    directory,
+    limit_steps=0,
+    sampling="chronological",
+    report_path=None,
 ):
     """Load complete expert episodes without joining streams across files."""
 
@@ -44,6 +49,8 @@ def _load_demonstrations(
         )
 
     loaded = 0
+    accepted_files = 0
+    rejected = []
     for episode_index, filename in enumerate(filenames):
         with np.load(filename, allow_pickle=False) as episode:
             keys = tuple(episode.files)
@@ -52,15 +59,55 @@ def _load_demonstrations(
             lengths = {len(episode[key]) for key in keys}
             if len(lengths) != 1:
                 raise ValueError(f"Mismatched demonstration arrays: {filename}")
+            arrays = {key: episode[key] for key in keys}
+            failures = embodied.nonfinite_fields(arrays)
+            if failures:
+                rejected.append(
+                    {
+                        "filename": str(filename),
+                        "nonfinite_fields": failures,
+                    }
+                )
+                print(
+                    f"Skipping non-finite demonstration chunk {filename}: "
+                    f"{failures}"
+                )
+                continue
+            accepted_files += 1
             for index in range(lengths.pop()):
                 replay.add(
-                    {key: episode[key][index] for key in keys},
+                    {key: arrays[key][index] for key in keys},
                     worker=1_000_000 + episode_index,
                 )
                 loaded += 1
                 if limit_steps and loaded >= int(limit_steps):
-                    print(f"Loaded {loaded} expert demonstration steps from {root}.")
-                    return loaded
+                    break
+        if limit_steps and loaded >= int(limit_steps):
+            break
+    report = {
+        "source": str(root),
+        "sampling": sampling,
+        "limit_steps": int(limit_steps),
+        "selected_files": len(filenames),
+        "accepted_files": accepted_files,
+        "rejected_files": len(rejected),
+        "loaded_steps": loaded,
+        "rejections": rejected,
+    }
+    if report_path:
+        destination = Path(str(report_path))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_suffix(destination.suffix + ".tmp")
+        temporary.write_text(
+            json.dumps(report, indent=2, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
+        temporary.replace(destination)
+    if rejected:
+        print(
+            f"Quarantined {len(rejected)} of {len(filenames)} selected "
+            "demonstration chunks."
+        )
     print(f"Loaded {loaded} expert demonstration steps from {root}.")
     return loaded
 
@@ -75,6 +122,16 @@ def _checkpoint_load_keys(mode):
     raise ValueError(
         f"Unknown checkpoint load mode {mode!r}; expected 'full' or 'agent_only'."
     )
+
+
+def _write_training_health(path, report):
+    destination = Path(str(path))
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(report, indent=2, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(destination)
 
 
 def train(agent, env, replay, logger, args):
@@ -133,6 +190,11 @@ def train(agent, env, replay, logger, args):
 
     driver = embodied.Driver(env)
     driver.on_episode(lambda ep, worker: per_episode(ep))
+    driver.on_step(
+        lambda transition, worker: embodied.assert_finite(
+            transition, f"environment transition from worker {worker}"
+        )
+    )
 
     def add_replay(ep, worker):
         for i in range(len(ep["reward"])):
@@ -162,17 +224,53 @@ def train(agent, env, replay, logger, args):
             checkpoint.load(args.from_checkpoint)
             loaded_agent = True
     checkpoint.load_or_save()
+    health_path = Path(str(logdir)) / "training_health.json"
+    health_report = {
+        "schema_version": 1,
+        "status": "awaiting_first_update",
+    }
+    if hasattr(agent, "acting_weights_digest"):
+        digest, count = agent.acting_weights_digest()
+        health_report.update(
+            {
+                "initial_acting_weights_sha256": digest,
+                "acting_variable_count": count,
+            }
+        )
+    _write_training_health(health_path, health_report)
+
+    def record_failure(error, phase):
+        health_report.update(
+            {
+                "status": "failed",
+                "failure_phase": phase,
+                "failure_type": type(error).__name__,
+                "failure": str(error),
+            }
+        )
+        _write_training_health(health_path, health_report)
+
+    def checked_policy(mode):
+        def policy(*policy_args):
+            try:
+                return agent.policy(*policy_args, mode=mode)
+            except Exception as error:
+                record_failure(error, f"policy_{mode}")
+                raise
+
+        return policy
 
     _load_demonstrations(
         replay,
         args.demo_dir,
         args.demo_limit_steps,
         args.demo_sampling,
+        report_path=Path(str(logdir)) / "replay_import_report.json",
     )
     print("Prefill train dataset.")
     if loaded_agent:
         print("Prefill uses the loaded checkpoint policy.")
-        prefill_policy = lambda *xs: agent.policy(*xs, mode="train")
+        prefill_policy = checked_policy("train")
     else:
         print("Prefill uses a random policy because no checkpoint was loaded.")
         prefill_policy = embodied.RandomAgent(env.act_space).policy
@@ -189,12 +287,55 @@ def train(agent, env, replay, logger, args):
     state = [None]  # To be writable from train step function below.
     batch = [None]
     episode = embodied.Counter()
+    first_update_verified = [False]
 
     def train_step(ep, worker):
         for _ in range(should_train(step)):
-            with timer.scope("dataset"):
-                batch[0] = next(dataset)
-            outs, state[0], mets = agent.train(batch[0], state[0])
+            try:
+                with timer.scope("dataset"):
+                    batch[0] = next(dataset)
+                outs, state[0], mets = agent.train(batch[0], state[0])
+            except Exception as error:
+                record_failure(error, "training_update")
+                raise
+            grad_steps = [
+                int(np.asarray(value))
+                for key, value in mets.items()
+                if key.endswith("_grad_steps")
+            ]
+            # Warmup schedules intentionally apply a zero learning rate on the
+            # first optimizer call. Verify mutation once every optimizer has
+            # reached step 2, where the schedule must be nonzero.
+            ready_for_hash_check = grad_steps and min(grad_steps) >= 2
+            if (
+                not first_update_verified[0]
+                and ready_for_hash_check
+                and hasattr(agent, "acting_weights_digest")
+            ):
+                digest, count = agent.acting_weights_digest()
+                initial = health_report.get("initial_acting_weights_sha256")
+                if digest == initial:
+                    health_report.update(
+                        {
+                            "status": "failed",
+                            "failure": "acting weights unchanged after optimizer step 2",
+                            "first_update_acting_weights_sha256": digest,
+                        }
+                    )
+                    _write_training_health(health_path, health_report)
+                    raise RuntimeError(
+                        "Actor/world-model variables did not change after all "
+                        "optimizers reached step 2."
+                    )
+                health_report.update(
+                    {
+                        "status": "first_update_verified",
+                        "first_update_acting_weights_sha256": digest,
+                        "acting_variable_count": count,
+                    }
+                )
+                _write_training_health(health_path, health_report)
+                first_update_verified[0] = True
             metrics.add(mets, prefix="train")
             if "priority" in outs:
                 replay.prioritize(outs["key"], outs["priority"])
@@ -213,9 +354,13 @@ def train(agent, env, replay, logger, args):
     driver.on_episode(train_step)
 
     print("Start training loop.")
-    policy = lambda *args: agent.policy(
-        *args, mode="explore" if should_expl(step) else "train"
-    )
+    def policy(*policy_args):
+        mode = "explore" if should_expl(step) else "train"
+        try:
+            return agent.policy(*policy_args, mode=mode)
+        except Exception as error:
+            record_failure(error, f"policy_{mode}")
+            raise
     stop_file = Path(str(logdir)) / "STOP_TRAINING"
     while step < args.steps:
         if stop_file.exists():

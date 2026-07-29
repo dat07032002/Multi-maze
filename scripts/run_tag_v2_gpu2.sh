@@ -68,6 +68,19 @@ case "$training_profile" in
       exit 7
     fi
     ;;
+  tag_sim_v2_clean_smoke)
+    # Apply the smoke profile after medium so float32 cannot be overwritten by
+    # the medium profile's float16 default.
+    configs=(tag_sim_v2 medium tag_sim_v2_clean_smoke)
+    if [[ "$checkpoint_mode" != "agent_only" ]]; then
+      echo "Clean smoke training requires TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Clean smoke training requires TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    ;;
   tag_sim_v2_holeaware_dr010|tag_sim_v2_holeaware_curriculum_dr)
     configs=(tag_sim_v2 "$training_profile" medium)
     if [[ "$checkpoint_mode" != "agent_only" ]]; then
