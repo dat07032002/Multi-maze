@@ -1,0 +1,14 @@
+# Safe default for future integration. Loading this file must not enable a
+# residual action on hardware.
+mode: shadow
+execution_enabled: false
+maximum_residual_action: 0.15
+maximum_residual_scale: 1.0
+maximum_action: 1.0
+maximum_action_rate: 0.25
+maximum_state_age_seconds: 0.10
+maximum_board_angle_rad: 0.17453292519943295
+warning_hole_clearance_m: 0.008
+stop_hole_clearance_m: 0.001
+warning_fall_probability: 0.50
+stop_fall_probability: 0.80

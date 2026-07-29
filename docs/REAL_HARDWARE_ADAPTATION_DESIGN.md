@@ -1,7 +1,14 @@
 # Real-hardware policy adaptation design
 
-Status: planned future architecture. This document does not authorize online
-hardware learning or motor commands.
+Status: core offline and safety-locked components implemented; policy-runtime
+integration and online learning remain disabled. This document does not
+authorize online hardware learning or motor commands.
+
+The implementation is in [`tag_adaptation`](../tag_adaptation/README.md).
+It currently provides the bounded action combiner, safety supervisor, immutable
+session recorder, weakness analyzer, policy identities, and promotion gates.
+It deliberately provides no ROS publisher, service, action client, motor
+driver, online optimizer, or automatic promotion command.
 
 ## Decision
 
@@ -131,6 +138,21 @@ Every candidate report must include:
 Raw correlation is diagnostic, not causal. Matched residual-on/off trials on
 the same conditions determine whether the helper caused an improvement.
 
+## Activation gates still required
+
+The implementation must remain in shadow mode until all of the following are
+completed:
+
+1. the current hardware policy runtime emits the required synchronized record;
+2. hole clearance and state age are available and validated on the runtime;
+3. a fall-risk model is trained and calibrated on held-out real episodes;
+4. action limits are reviewed against the active Hiwonder conversion;
+5. shadow decisions demonstrate zero command-path side effects;
+6. an operator approves a bounded hardware protocol.
+
+Even after integration, residual execution requires both
+`execution_enabled=True` and per-decision `execution_approved=True`.
+
 ## Rejected default alternatives
 
 - Two unrestricted policies blended together: ambiguous credit assignment and
@@ -158,4 +180,3 @@ the same conditions determine whether the helper caused an improvement.
   with Human Intervention*: <https://proceedings.mlr.press/v164/xu22a.html>
 - Peng et al., *Sim-to-Real Transfer of Robotic Control with Dynamics
   Randomization*: <https://arxiv.org/abs/1710.06537>
-
