@@ -329,6 +329,60 @@ tag_sim_v2_nominal_safe_resume:
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
+# Skill stage A: teach the warm-started policy to track the planned safe path
+# without relying on walls as rails. The terms are intentionally gentle: route
+# progress remains the main reward, while path and wall costs shape style.
+tag_sim_v2_safe_path_tracking:
+  jax:
+    precision: float32
+    debug_nans: False
+  run:
+    train_ratio: 8
+    train_fill: 50000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    hole_clearance_penalty: 0.02
+    path_tracking_tolerance_m: 0.004
+    path_tracking_penalty: 0.20
+    wall_warning_m: 0.003
+    wall_riding_penalty: 0.05
+    action_rate_penalty: 0.001
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+# Skill stage B: easy route-hazard dodge mazes. The maze manifest supplies a
+# replanned safe path that bends around holes placed on the original centerline.
+tag_sim_v2_easy_dodge_holes:
+  jax:
+    precision: float32
+    debug_nans: False
+  run:
+    train_ratio: 8
+    train_fill: 50000
+    count_prefill_steps: False
+    demo_sampling: uniform_chunks
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.05
+    path_tracking_tolerance_m: 0.005
+    path_tracking_penalty: 0.15
+    wall_warning_m: 0.003
+    wall_riding_penalty: 0.05
+    action_rate_penalty: 0.001
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
 # Numerical trainability gate for checkpoint continuation. The launcher sets a
 # 2k counted-step limit and supplies the champion checkpoint and source replay.
 # Float32 deliberately removes mixed-precision scaling from the first

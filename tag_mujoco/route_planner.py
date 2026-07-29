@@ -105,6 +105,38 @@ def signed_hole_clearance(layout: Dict[str, Any], points: np.ndarray) -> np.ndar
     return clearance
 
 
+def signed_wall_clearance(layout: Dict[str, Any], points: np.ndarray) -> np.ndarray:
+    """Return clearance to walls and board boundary, deliberately excluding holes."""
+
+    points = np.asarray(points, dtype=np.float64)
+    if points.shape[-1] != 2:
+        raise ValueError(f"Expected points ending in XY, received {points.shape}")
+    width = float(layout["board_width"])
+    height = float(layout["board_height"])
+    ball_radius = float(layout["ball_radius"])
+    wall_half = 0.5 * float(layout.get("wall_thickness", 0.0022))
+
+    clearance = np.minimum.reduce(
+        (
+            points[..., 0],
+            width - points[..., 0],
+            points[..., 1],
+            height - points[..., 1],
+        )
+    ) - ball_radius
+
+    for x0, x1, y in layout.get("walls_h", []):
+        distance = _distance_to_segment(points, (x0, y), (x1, y))
+        clearance = np.minimum(clearance, distance - wall_half - ball_radius)
+    for y0, y1, x in layout.get("walls_v", []):
+        distance = _distance_to_segment(points, (x, y0), (x, y1))
+        clearance = np.minimum(clearance, distance - wall_half - ball_radius)
+    for x0, y0, x1, y1 in layout.get("walls_angled", []):
+        distance = _distance_to_segment(points, (x0, y0), (x1, y1))
+        clearance = np.minimum(clearance, distance - wall_half - ball_radius)
+    return clearance
+
+
 def _grid_axis(size: float, resolution: float) -> np.ndarray:
     count = max(2, int(math.floor(size / resolution)) + 1)
     return np.linspace(0.0, size, count, dtype=np.float64)

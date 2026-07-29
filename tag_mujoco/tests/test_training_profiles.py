@@ -45,6 +45,28 @@ class TrainingProfileTests(unittest.TestCase):
         ):
             self.assertIn(expected, self.profile)
 
+    def test_safe_path_tracking_profile_enables_path_and_wall_terms(self):
+        profile = profile_block("tag_sim_v2_safe_path_tracking")
+        for expected in (
+            "precision: float32",
+            "path_tracking_penalty: 0.20",
+            "wall_riding_penalty: 0.05",
+            "action_rate_penalty: 0.001",
+            "hole_clearance_penalty: 0.02",
+        ):
+            self.assertIn(expected, profile)
+
+    def test_easy_dodge_profile_enables_hole_path_and_wall_terms(self):
+        profile = profile_block("tag_sim_v2_easy_dodge_holes")
+        for expected in (
+            "precision: float32",
+            "hole_warning_m: 0.010",
+            "hole_clearance_penalty: 0.05",
+            "path_tracking_penalty: 0.15",
+            "wall_riding_penalty: 0.05",
+        ):
+            self.assertIn(expected, profile)
+
 
 if __name__ == "__main__":
     unittest.main()

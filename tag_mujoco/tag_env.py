@@ -33,6 +33,7 @@ try:
         apply_safe_route,
         signed_ball_clearance,
         signed_hole_clearance,
+        signed_wall_clearance,
         validate_route,
     )
     from .system_config import SystemConfig
@@ -46,6 +47,7 @@ except ImportError:  # Preserve direct-script execution from this directory.
         apply_safe_route,
         signed_ball_clearance,
         signed_hole_clearance,
+        signed_wall_clearance,
         validate_route,
     )
     from system_config import SystemConfig
@@ -102,6 +104,10 @@ class TaskConfig:
     # reward exactly.
     hole_warning_m: float = 0.008
     hole_clearance_penalty: float = 0.0
+    path_tracking_tolerance_m: float = 0.004
+    path_tracking_penalty: float = 0.0
+    wall_warning_m: float = 0.003
+    wall_riding_penalty: float = 0.0
     maze_manifest: str = ""
     maze_split: str = ""
     maze_sampling: str = "uniform"
@@ -159,6 +165,28 @@ def hole_proximity_cost(config: TaskConfig, hole_clearance_m: float) -> float:
     if not math.isfinite(hole_clearance_m):
         raise ValueError(f"Hole clearance must be finite or +inf, got {hole_clearance_m!r}")
     return float(np.clip((band - hole_clearance_m) / band, 0.0, 1.0))
+
+
+def path_tracking_cost(config: TaskConfig, cross_track_error_m: float) -> float:
+    """Return zero inside the desired path tube and ramp outside it."""
+
+    if not math.isfinite(cross_track_error_m):
+        return 0.0
+    tolerance = max(config.path_tracking_tolerance_m, 1e-6)
+    return float(max(0.0, cross_track_error_m - tolerance) / tolerance)
+
+
+def wall_riding_cost(config: TaskConfig, wall_clearance_m: float) -> float:
+    """Return a soft cost for sustained near-wall driving.
+
+    This is intentionally separate from hole clearance. Walls are allowed as
+    backup rails, but a policy should not depend on riding them for progress.
+    """
+
+    band = max(config.wall_warning_m, 1e-6)
+    if not math.isfinite(wall_clearance_m):
+        raise ValueError(f"Wall clearance must be finite, got {wall_clearance_m!r}")
+    return float(np.clip((band - wall_clearance_m) / band, 0.0, 1.0))
 
 
 def action_rate_cost(
@@ -731,12 +759,22 @@ class TagMazeTask:
         hole_clearance = float(signed_hole_clearance(self.layout, true_xy[None])[0])
         hole_cost = hole_proximity_cost(self.task_config, hole_clearance)
         hole_reward = -self.task_config.hole_clearance_penalty * hole_cost
+        wall_clearance = float(signed_wall_clearance(self.layout, true_xy[None])[0])
+        wall_cost = wall_riding_cost(self.task_config, wall_clearance)
+        wall_reward = -self.task_config.wall_riding_penalty * wall_cost
+        path_cost = path_tracking_cost(
+            self.task_config,
+            float(diagnostic["cross_track_error_m"]),
+        )
+        path_reward = -self.task_config.path_tracking_penalty * path_cost
         reward = (
             progress_reward
             + success_reward
             + failure_reward
             + rate_reward
             + hole_reward
+            + wall_reward
+            + path_reward
         )
         fall_cost = float(failed)
         self.episode_return += float(reward)
@@ -746,9 +784,13 @@ class TagMazeTask:
         observation["log_reward"] = np.asarray([reward], dtype=np.float32)
         observation["log_action_rate"] = np.asarray([rate_cost], dtype=np.float32)
         observation["log_hole_cost"] = np.asarray([hole_cost], dtype=np.float32)
+        observation["log_path_cost"] = np.asarray([path_cost], dtype=np.float32)
+        observation["log_wall_cost"] = np.asarray([wall_cost], dtype=np.float32)
         info = {
             **result.info,
             **diagnostic,
+            "hole_clearance_m": hole_clearance,
+            "wall_clearance_m": wall_clearance,
             "layout_path": str(self.layout_path),
             "layout_seed": self.layout.get("seed"),
             "route_length_m": self.route.total_length,
@@ -765,6 +807,9 @@ class TagMazeTask:
             "progress_reward": float(progress_reward),
             "success_reward": float(success_reward),
             "failure_reward": float(failure_reward),
+            "hole_reward": float(hole_reward),
+            "wall_reward": float(wall_reward),
+            "path_reward": float(path_reward),
             "episode_return": self.episode_return,
             "episode_steps": self.episode_steps,
             "is_terminal": bool(result.terminated),
@@ -826,6 +871,12 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
                 "log_hole_cost": gym.spaces.Box(
                     -np.inf, np.inf, (1,), dtype=np.float32
                 ),
+                "log_path_cost": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_wall_cost": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
                 **{
                     f"log_{key}": gym.spaces.Box(
                         -np.inf, np.inf, (1,), dtype=np.float32
@@ -844,6 +895,8 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
         observation.setdefault("log_reward", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_action_rate", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_hole_cost", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_path_cost", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_wall_cost", np.zeros(1, dtype=np.float32))
         if _GYMNASIUM_API:
             return observation, info
         return observation

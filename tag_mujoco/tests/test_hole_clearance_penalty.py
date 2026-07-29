@@ -4,8 +4,17 @@ from pathlib import Path
 
 import numpy as np
 
-from tag_mujoco.route_planner import signed_ball_clearance, signed_hole_clearance
-from tag_mujoco.tag_env import TaskConfig, hole_proximity_cost
+from tag_mujoco.route_planner import (
+    signed_ball_clearance,
+    signed_hole_clearance,
+    signed_wall_clearance,
+)
+from tag_mujoco.tag_env import (
+    TaskConfig,
+    hole_proximity_cost,
+    path_tracking_cost,
+    wall_riding_cost,
+)
 
 HERE = Path(__file__).resolve().parent
 LAYOUT = HERE.parent / "generated_mazes_v2" / "maze_seed_20024.json"
@@ -84,6 +93,40 @@ class HoleClearanceIsHoleOnlyTests(unittest.TestCase):
         budget = config.progress_reward_scale + config.success_bonus
         charged = 0.02 * mean_cost * 750
         self.assertLess(charged, 0.05 * budget)
+
+
+class SafePathAndWallCostTests(unittest.TestCase):
+    def test_new_path_and_wall_penalties_default_to_zero(self):
+        config = TaskConfig()
+        self.assertEqual(config.path_tracking_penalty, 0.0)
+        self.assertEqual(config.wall_riding_penalty, 0.0)
+
+    def test_path_tracking_cost_ignores_error_inside_tolerance(self):
+        config = TaskConfig(path_tracking_tolerance_m=0.004)
+        self.assertEqual(path_tracking_cost(config, 0.003), 0.0)
+        self.assertAlmostEqual(path_tracking_cost(config, 0.006), 0.5)
+
+    def test_wall_riding_cost_ramps_near_walls(self):
+        config = TaskConfig(wall_warning_m=0.003)
+        self.assertEqual(wall_riding_cost(config, 0.010), 0.0)
+        self.assertAlmostEqual(wall_riding_cost(config, 0.0015), 0.5)
+        self.assertEqual(wall_riding_cost(config, -0.001), 1.0)
+
+    def test_wall_clearance_excludes_holes(self):
+        layout = {
+            "board_width": 0.20,
+            "board_height": 0.20,
+            "ball_radius": 0.006,
+            "wall_thickness": 0.002,
+            "walls_h": [],
+            "walls_v": [],
+            "walls_angled": [],
+            "holes": [[0.10, 0.10]],
+            "hole_radii": [0.0075],
+        }
+        point = np.asarray([[0.10, 0.10]], dtype=np.float64)
+        self.assertLess(signed_hole_clearance(layout, point)[0], 0.0)
+        self.assertGreater(signed_wall_clearance(layout, point)[0], 0.08)
 
 
 if __name__ == "__main__":
