@@ -14,9 +14,12 @@ from embodied.run.train import (  # noqa: E402
     _AgentWeights,
     _checkpoint_load_keys,
     _load_demonstrations,
+    _mixed_replay_dataset,
+    _wait_at_validation_barrier,
 )
 from checkpoint_loading import (  # noqa: E402
     OptimizerHealthTracker,
+    initialize_multihead_state,
     is_acting_variable,
     is_optimizer_variable,
     variable_sha256,
@@ -42,13 +45,83 @@ class _FakeReplay:
         del worker
         self.rewards.append(float(transition["reward"]))
 
+    def dataset(self):
+        while True:
+            yield {
+                "reward": np.asarray([self.rewards[0]], np.float32),
+                "is_first": np.asarray([False]),
+            }
+
 
 class CheckpointLoadingTests(unittest.TestCase):
+    def test_legacy_actor_is_copied_into_every_multihead_actor(self):
+        source = {
+            "agent/wm/value": np.asarray([1.0], np.float32),
+            "agent/task_behavior/ac/actor/h0/kernel": np.asarray([2.0], np.float32),
+        }
+        current = {
+            "agent/wm/value": np.asarray([0.0], np.float32),
+            "agent/task_behavior/ac/actor_stabilize/h0/kernel": np.asarray([0.0], np.float32),
+            "agent/task_behavior/ac/actor_straight/h0/kernel": np.asarray([0.0], np.float32),
+            "agent/task_behavior/ac/actor_opt/step": np.asarray(0, np.int32),
+        }
+        restored = initialize_multihead_state(
+            current, source, ("stabilize", "straight")
+        )
+        self.assertEqual(float(restored["agent/wm/value"].item()), 1.0)
+        self.assertEqual(
+            float(restored["agent/task_behavior/ac/actor_stabilize/h0/kernel"].item()),
+            2.0,
+        )
+        self.assertEqual(
+            float(restored["agent/task_behavior/ac/actor_straight/h0/kernel"].item()),
+            2.0,
+        )
+        self.assertEqual(
+            int(restored["agent/task_behavior/ac/actor_opt/step"].item()), 0
+        )
+
+    def test_validation_barrier_saves_and_observes_preexisting_release(self):
+        class _Checkpoint:
+            saved = 0
+
+            def save(self):
+                self.saved += 1
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            barrier = root / "validation/barriers"
+            barrier.mkdir(parents=True)
+            (barrier / "step_000025000.release.json").write_text("{}\n")
+            checkpoint = _Checkpoint()
+            passed = _wait_at_validation_barrier(
+                root, 25_000, checkpoint, root / "STOP_TRAINING", 0.001
+            )
+            self.assertTrue(passed)
+            self.assertEqual(checkpoint.saved, 1)
+            self.assertTrue(
+                (barrier / "step_000025000.request.json").is_file()
+            )
+
+    def test_fixed_retention_replay_fraction_does_not_dilute(self):
+        online = _FakeReplay()
+        retention = _FakeReplay()
+        online.rewards.append(0.0)
+        retention.rewards.append(1.0)
+        dataset = _mixed_replay_dataset(online, retention, 0.25, seed=7)
+        samples = np.asarray(
+            [next(dataset)["is_retention"].item() for _ in range(20_000)]
+        )
+        self.assertAlmostEqual(float(samples.mean()), 0.25, delta=0.01)
+
     def test_full_resume_restores_every_checkpoint_entry(self):
         self.assertIsNone(_checkpoint_load_keys("full"))
 
     def test_agent_only_adaptation_excludes_step_and_replay(self):
         self.assertEqual(_checkpoint_load_keys("agent_only"), ["agent"])
+
+    def test_multihead_initialization_loads_only_agent_state(self):
+        self.assertEqual(_checkpoint_load_keys("multihead_init"), ["agent"])
 
     def test_agent_only_adapter_uses_true_weights_loader(self):
         agent = _FakeAgent()

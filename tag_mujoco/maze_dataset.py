@@ -16,7 +16,7 @@ SPLIT_NAMES = ("smoke", "train", "validation", "test")
 # deliberate subset of the training layouts. It exists so tuning decisions can be
 # ranked without reading the held-out validation split that the mastery gate
 # measures. Its absolute scores are optimistic because the policy trains on it.
-OPTIONAL_SPLIT_NAMES = ("dev",)
+OPTIONAL_SPLIT_NAMES = ("dev", "seen", "rehearsal")
 
 
 @dataclass(frozen=True)
@@ -106,6 +106,16 @@ def validate_manifest(manifest: Mapping[str, Any], manifest_path: Path) -> None:
             overlap = split_sets[first] & split_sets[second]
             if overlap:
                 raise ValueError(f"Dataset leakage between {first} and {second}: {sorted(overlap)}")
+    for name in ("seen", "rehearsal"):
+        if name in split_sets:
+            overlap = split_sets[name] & (
+                split_sets["validation"] | split_sets["test"]
+            )
+            if overlap:
+                raise ValueError(
+                    f"Sequential split {name!r} leaks held-out layouts: "
+                    f"{sorted(overlap)}"
+                )
 
 
 def load_split(

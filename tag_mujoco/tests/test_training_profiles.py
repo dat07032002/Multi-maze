@@ -200,6 +200,92 @@ class TrainingProfileTests(unittest.TestCase):
         self.assertIn("TAG_SPLIT=dev", stage)
         self.assertIn("maze_splits_group_${code}.json", stage)
 
+    def test_skill_first_profiles_preserve_contract_and_stage_conditions(self):
+        base = profile_block("tag_sim_v3_skill_base")
+        for expected in (
+            "precision: float32",
+            "conditioned_resets: True",
+            "maze_sampling: uniform",
+            "randomize_plant: False",
+            "train_ratio: 8",
+            "envs.amount: 16",
+            "wrapper.length: 1000",
+            "logical_cpus: 32",
+        ):
+            self.assertIn(expected, base)
+        hazard = profile_block("tag_sim_v3_skill_hazard")
+        self.assertIn("hole_clearance_penalty: 0.02", hazard)
+        actuator = profile_block("tag_sim_v3_skill_actuator025")
+        self.assertIn("randomization_groups: actuator", actuator)
+        self.assertIn("randomization_initial_strength: 0.025", actuator)
+        retention = profile_block("tag_sim_v3_skill_stabilize_retention")
+        self.assertIn("demo_replay_fraction: 0.25", retention)
+        self.assertIn("model_opt: {opt: adam, lr: 1e-5", retention)
+        self.assertIn("actor_opt: {opt: adam, lr: 1e-6", retention)
+        straight_retention = profile_block("tag_sim_v3_skill_straight_retention")
+        self.assertIn("demo_replay_fraction: 0.50", straight_retention)
+        self.assertIn("actor_retention_bc_scale: 0.5", straight_retention)
+        self.assertIn("validation_barrier_interval: 25000", straight_retention)
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('extra_args+=(--seed "$TAG_SEED")', launcher)
+        straight_head = profile_block("tag_sim_v3_skill_straight_head")
+        self.assertIn("multihead_actor: True", straight_head)
+        self.assertIn("actor_head: straight", straight_head)
+        self.assertIn("freeze_world_model: True", straight_head)
+        turn_head = profile_block("tag_sim_v3_skill_turn_head")
+        self.assertIn("multihead_actor: True", turn_head)
+        self.assertIn("actor_head: turn", turn_head)
+        self.assertIn("freeze_world_model: True", turn_head)
+
+    def test_sequential_map_profiles_collect_only_one_manifest_stage(self):
+        local = profile_block("tag_sim_v3_sequential_map_local")
+        for expected in (
+            "maze_sampling: uniform",
+            "random_start: True",
+            "start_curriculum: True",
+            "randomize_plant: False",
+            "demo_sampling: uniform_chunks",
+            "envs.amount: 16",
+            "logical_cpus: 32",
+        ):
+            self.assertIn(expected, local)
+        fullstart = profile_block("tag_sim_v3_sequential_map_fullstart")
+        self.assertIn("random_start: False", fullstart)
+        self.assertIn("start_curriculum: False", fullstart)
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Sequential map stages require a balanced TAG_DEMO_DIR", launcher)
+        self.assertIn("TAG_CHECKPOINT_DATASET_ID", launcher)
+
+    def test_continuous_unified_profile_uses_one_actor_and_neutral_endpoints(self):
+        profile = profile_block("tag_sim_v3_continuous_unified")
+        for expected in (
+            "continuous_path: True",
+            "conditioned_resets: False",
+            "maze_sampling: uniform",
+            "success_bonus: 0.0",
+            "validation_barrier_interval: 50000",
+        ):
+            self.assertIn(expected, profile)
+        self.assertNotIn("multihead_actor", profile)
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Continuous unified training requires an agent-only checkpoint", launcher)
+
+    def test_v3_launcher_has_bounded_worker_benchmark_overrides(self):
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('${TAG_ENV_COUNT:-}', launcher)
+        self.assertIn("8|16", launcher)
+        self.assertIn("--envs.amount", launcher)
+        self.assertIn("--jax.logical_cpus", launcher)
+        self.assertIn("--run.train_fill", launcher)
+
 
 if __name__ == "__main__":
     unittest.main()

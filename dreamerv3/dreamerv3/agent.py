@@ -163,6 +163,10 @@ class WorldModel(nj.Module):
         return prev_latent, prev_action
 
     def train(self, data, state):
+        if self.config.freeze_world_model:
+            _, (state, outs, metrics) = self.loss(data, state)
+            metrics["model_frozen"] = jnp.ones((), jnp.float32)
+            return state, outs, metrics
         modules = [self.encoder, self.rssm, *self.heads.values()]
         mets, (state, outs, metrics) = self.opt(
             modules, self.loss, data, state, has_aux=True
@@ -272,13 +276,30 @@ class ImagActorCritic(nj.Module):
         self.config = config
         disc = act_space.discrete
         self.grad = config.actor_grad_disc if disc else config.actor_grad_cont
-        self.actor = nets.MLP(
-            name="actor",
+        actor_args = dict(
             dims="deter",
             shape=act_space.shape,
             **config.actor,
             dist=config.actor_dist_disc if disc else config.actor_dist_cont,
         )
+        self.actors = (
+            {
+                str(head): nets.MLP(name=f"actor_{head}", **actor_args)
+                for head in config.actor_heads
+            }
+            if config.multihead_actor
+            else {}
+        )
+        if self.actors:
+            active = str(config.actor_head)
+            if active not in self.actors:
+                raise ValueError(
+                    f"actor_head {active!r} is not in actor_heads "
+                    f"{tuple(self.actors)!r}"
+                )
+            self.actor = self.actors[active]
+        else:
+            self.actor = nets.MLP(name="actor", **actor_args)
         self.retnorms = {
             k: jaxutils.Moments(**config.retnorm, name=f"retnorm_{k}") for k in critics
         }
@@ -292,9 +313,31 @@ class ImagActorCritic(nj.Module):
 
     def train(self, imagine, start, context):
         def loss(start):
+            # Ninjax creates parameters lazily. Touch inactive heads during the
+            # initialization trace so every head is stored in one checkpoint;
+            # only the active head is passed to the actor optimizer below.
+            for actor in self.actors.values():
+                actor(sg(start))
             policy = lambda s: self.actor(sg(s)).sample(seed=nj.rng())
             traj = imagine(policy, start, self.config.imag_horizon)
             loss, metrics = self.loss(traj)
+            scale = float(self.config.actor_retention_bc_scale)
+            if scale:
+                # Variable initialization traces with synthetic observations
+                # before a replay batch exists, so default to an all-online
+                # mask for that trace. Real mixed batches carry this field.
+                mask = start.get(
+                    "is_retention", jnp.zeros(start["action"].shape[:1])
+                ).astype(jnp.float32)
+                mask = mask.reshape((mask.shape[0], -1)).max(-1)
+                retained_policy = self.actor(sg(start))
+                behavior_loss = -retained_policy.log_prob(sg(start["action"]))
+                behavior_loss = behavior_loss.reshape((behavior_loss.shape[0], -1)).mean(-1)
+                retained_count = jnp.maximum(mask.sum(), 1.0)
+                behavior_loss = (behavior_loss * mask).sum() / retained_count
+                loss += scale * behavior_loss
+                metrics["retention_bc_loss"] = behavior_loss
+                metrics["retention_fraction"] = mask.mean()
             return loss, (traj, metrics)
 
         mets, (traj, metrics) = self.opt(self.actor, loss, start, has_aux=True)

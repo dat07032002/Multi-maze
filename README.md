@@ -6,9 +6,11 @@ TCP bridge, and Hiwonder servo driver come from the working
 [`trungbao0301/TAG`](https://github.com/trungbao0301/TAG) hardware stack. Only
 the removable `259 x 229 mm` maze insert changes between tests.
 
-The target is generalization: episodes sample different training mazes, while
-the policy receives a camera crop, board/marble state, and five future route
-points. It never receives a maze ID and is not retrained maze by maze.
+The target is generalization: one policy continuously learns local path
+following across straight sections, turns, stabilization, recovery, and
+hazards sampled from 512 training mazes. The policy receives a camera crop,
+board/marble state, and five future route points; it never receives a skill or
+maze ID.
 
 ## Hardware truth
 
@@ -91,3 +93,15 @@ checkpoint, replay and logs were preserved. The latest complete validation is
 9M, while the copied 9.5M checkpoint is valid but its evaluation was interrupted
 by the stop. See [docs/HARDWARE_HANDOFF_2026-07-26.md](docs/HARDWARE_HANDOFF_2026-07-26.md)
 for the current hardware/sysid plan and Ubuntu continuation instructions.
+
+## Continuous unified v3 training
+
+The active experiment trains one shared world model and one actor across every
+local route condition. Route endpoints are neutral training boundaries rather
+than rewarded goals; held-out validation still tests complete maps from their
+true entrances. See
+[docs/CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md](docs/CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md).
+
+The earlier skill-first and sequential-map design remains available as a
+documented alternative in
+[docs/SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md](docs/SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md).

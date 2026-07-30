@@ -36,6 +36,7 @@ from tag_mujoco.validation_metrics import (  # noqa: E402
 def _make_env(
     config,
     layout_path: pathlib.Path,
+    layout_metadata,
     seed: int,
     robust: bool,
     randomization_strength: float | None = None,
@@ -52,6 +53,7 @@ def _make_env(
     env = TagMaze(
         "sim",
         layout_paths=[str(layout_path)],
+        layout_metadata=[layout_metadata],
         seed=seed,
         **kwargs,
     )
@@ -80,7 +82,9 @@ def main() -> None:
     # "train" sweeps every training layout to find which ones the policy has not
     # learned, so demonstrations can target them.
     parser.add_argument(
-        "--split", choices=("validation", "test", "dev", "train"), default="validation"
+        "--split",
+        choices=("validation", "test", "dev", "train", "seen", "rehearsal"),
+        default="validation",
     )
     parser.add_argument("--mode", choices=("canonical", "robust"), required=True)
     parser.add_argument("--episodes-per-maze", type=int, default=1)
@@ -90,6 +94,11 @@ def main() -> None:
     # "sample" reproduces the historical protocol, which draws each action from
     # the actor distribution. "mode" acts on the distribution mode instead.
     parser.add_argument("--policy-mode", choices=("sample", "mode"), default="sample")
+    parser.add_argument(
+        "--actor-head",
+        choices=("stabilize", "straight", "turn", "recovery"),
+        help="Override the active actor head stored in a multi-head checkpoint.",
+    )
     parser.add_argument(
         "--randomization-strength",
         type=float,
@@ -111,6 +120,8 @@ def main() -> None:
 
     config_data = yaml.safe_load(args.config.resolve().read_text(encoding="utf-8"))
     config = embodied.Config(config_data)
+    if args.actor_head:
+        config = config.update({"actor_head": args.actor_head})
     config = config.update(
         {
             "jax.prealloc": False,
@@ -127,6 +138,7 @@ def main() -> None:
     prototype = _make_env(
         config,
         split.paths[0],
+        split.metadata[0],
         args.seed,
         robust,
         args.randomization_strength,
@@ -154,6 +166,7 @@ def main() -> None:
             env = _make_env(
                 config,
                 layout_path,
+                metadata,
                 evaluation_seed,
                 robust,
                 args.randomization_strength,

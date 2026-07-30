@@ -47,6 +47,10 @@ defaults:
     demo_dir: ''
     demo_limit_steps: 0
     demo_sampling: chronological
+    demo_replay_fraction: 0.0
+    demo_replay_seed: 20260730
+    validation_barrier_interval: 0
+    validation_barrier_poll_seconds: 5.0
     sync_every: 1
     # actor_addr: 'tcp://127.0.0.1:5551'
     actor_addr: 'ipc:///tmp/5552'
@@ -60,7 +64,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0}
     dmc: {size: [64, 64], repeat: 2, camera: -1}
     loconav: {size: [64, 64], repeat: 2, camera: -1}
-    tagmaze: {randomize_plant: False, random_start: False, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, action_rate_penalty: 0.0, hole_warning_m: 0.008, hole_clearance_penalty: 0.0, path_tracking_tolerance_m: 0.004, path_tracking_penalty: 0.0, wall_warning_m: 0.003, wall_riding_penalty: 0.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_max_strength: 1.0, randomization_window: 50, randomization_success_threshold: 0.60, randomization_groups: all}
+    tagmaze: {randomize_plant: False, random_start: False, conditioned_resets: False, continuous_path: False, continuous_reset_weights: 'straight:0.30,turn:0.30,stabilize:0.20,recovery:0.15,hazard:0.05', start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, action_rate_penalty: 0.0, hole_warning_m: 0.008, hole_clearance_penalty: 0.0, path_tracking_tolerance_m: 0.004, path_tracking_penalty: 0.0, wall_warning_m: 0.003, wall_riding_penalty: 0.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_max_strength: 1.0, randomization_window: 50, randomization_success_threshold: 0.60, randomization_groups: all}
 
   # Agent
   task_behavior: Greedy
@@ -90,6 +94,11 @@ defaults:
   actor_dist_cont: normal
   actor_grad_disc: reinforce
   actor_grad_cont: backprop
+  multihead_actor: False
+  actor_heads: [legacy]
+  actor_head: ''
+  actor_retention_bc_scale: 0.0
+  freeze_world_model: False
   critic_type: vfunction
   imag_horizon: 15
   imag_unroll: False
@@ -562,6 +571,160 @@ tag_sim_v2_phase5_mixed_holes:
   model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+# Skill-first v3 curriculum. The base is always combined with exactly one
+# skill overlay by the guarded launcher. Labels and reset conditions come from
+# manifest metadata and are not encoded by the policy.
+tag_sim_v3_skill_base:
+  envs.amount: 16
+  wrapper.length: 1000
+  jax: {precision: float32, debug_nans: False, logical_cpus: 32}
+  run: {train_ratio: 8, train_fill: 25000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_split: train
+    maze_sampling: uniform
+    conditioned_resets: True
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+# One controller learns every local path condition. Episode endpoints are
+# neutral segment boundaries; held-out evaluation restores the full-map goal.
+tag_sim_v3_continuous_unified:
+  run: {validation_barrier_interval: 50000}
+  env.tagmaze:
+    maze_manifest: tag_mujoco/maze_splits_v2.json
+    maze_sampling: uniform
+    continuous_path: True
+    conditioned_resets: False
+    random_start: True
+    success_bonus: 0.0
+    failure_penalty: 10.0
+    hole_clearance_penalty: 0.02
+    path_tracking_penalty: 0.01
+    action_rate_penalty: 0.001
+
+tag_sim_v3_skill_stabilize:
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/stabilize/maze_splits.json}
+
+# Recovery profile selected after the first stabilize continuation peaked at
+# 200k and then collapsed. Retention is sampled separately so its 25% share
+# cannot be diluted by additional online experience.
+tag_sim_v3_skill_stabilize_retention:
+  run: {demo_replay_fraction: 0.25}
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/stabilize/maze_splits.json}
+  model_opt: {opt: adam, lr: 1e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 1e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 1e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v3_skill_straight:
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/straight/maze_splits.json}
+
+# Guarded cross-skill adaptation. Half of actor updates are anchored to
+# accepted stabilization actions while the remaining data learns straight runs.
+tag_sim_v3_skill_straight_retention:
+  run: {demo_replay_fraction: 0.50, validation_barrier_interval: 25000}
+  actor_retention_bc_scale: 0.5
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/straight/maze_splits.json}
+  model_opt: {opt: adam, lr: 1e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 1e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 1e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+# Multi-head skill training keeps the accepted dynamics and all inactive actor
+# heads immutable. Each job updates only one named actor plus its training-only
+# critic; all heads remain resident in the resulting checkpoint.
+tag_sim_v3_skill_straight_head:
+  multihead_actor: True
+  actor_heads: [stabilize, straight, turn, recovery]
+  actor_head: straight
+  freeze_world_model: True
+  run: {validation_barrier_interval: 25000}
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/straight/maze_splits.json}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v3_skill_turn_head:
+  multihead_actor: True
+  actor_heads: [stabilize, straight, turn, recovery]
+  actor_head: turn
+  freeze_world_model: True
+  run: {validation_barrier_interval: 25000}
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/turn/maze_splits.json}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v3_skill_turn:
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/turn/maze_splits.json}
+
+tag_sim_v3_skill_compound:
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/compound/maze_splits.json}
+
+tag_sim_v3_skill_recovery:
+  env.tagmaze: {maze_manifest: artifacts/universal_skills/recovery/maze_splits.json}
+
+tag_sim_v3_skill_hazard:
+  env.tagmaze:
+    maze_manifest: artifacts/universal_skills/hazard/maze_splits.json
+    failure_penalty: 10.0
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.02
+
+# First robustness stage: isolate the demonstrated actuator weakness at a
+# deliberately small fixed strength. Higher strengths require separate gates.
+tag_sim_v3_skill_actuator025:
+  env.tagmaze:
+    maze_manifest: artifacts/universal_skills/compound/maze_splits.json
+    randomize_plant: True
+    randomization_groups: actuator
+    randomization_curriculum: True
+    randomization_initial_strength: 0.025
+    randomization_expand_step: 0.0
+    randomization_max_strength: 0.025
+
+# Only one map appears in each sequential manifest. The local phase exposes
+# route segments; the full-start phase proves complete-map composition.
+tag_sim_v3_sequential_map_local:
+  envs.amount: 16
+  jax: {precision: float32, debug_nans: False, logical_cpus: 32}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_split: train
+    maze_sampling: uniform
+    conditioned_resets: False
+    random_start: True
+    start_curriculum: True
+    start_curriculum_initial_min: 0.75
+    start_curriculum_expand_step: 0.10
+    full_start_probability: 0.30
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 10.0
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.02
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v3_sequential_map_fullstart:
+  env.tagmaze:
+    random_start: False
+    start_curriculum: False
 
 # Scratch dodge curriculum stage 1: learn to move along the single available
 # route before any hole-specific behavior is requested. Random starts are the

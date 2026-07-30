@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from pathlib import Path
 
 import embodied
@@ -9,14 +10,18 @@ import numpy as np
 class _AgentWeights:
     """Checkpoint adapter that deliberately excludes optimizer state."""
 
-    def __init__(self, agent):
+    def __init__(self, agent, multihead_names=()):
         self.agent = agent
+        self.multihead_names = tuple(multihead_names)
 
     def save(self):
         return self.agent.save()
 
     def load(self, state):
-        self.agent.load_weights(state)
+        if self.multihead_names:
+            self.agent.load_multihead_weights(state, self.multihead_names)
+        else:
+            self.agent.load_weights(state)
 
 
 def _declared_chunk_length(filename, fallback):
@@ -141,10 +146,11 @@ def _checkpoint_load_keys(mode):
 
     if mode == "full":
         return None
-    if mode == "agent_only":
+    if mode in ("agent_only", "multihead_init"):
         return ["agent"]
     raise ValueError(
-        f"Unknown checkpoint load mode {mode!r}; expected 'full' or 'agent_only'."
+        f"Unknown checkpoint load mode {mode!r}; expected full, agent_only, "
+        "or multihead_init."
     )
 
 
@@ -156,6 +162,53 @@ def _write_training_health(path, report):
         encoding="utf-8",
     )
     temporary.replace(destination)
+
+
+def _mixed_replay_dataset(online_replay, retention_replay, retention_fraction, seed=0):
+    """Yield sequences from immutable retention replay at a fixed rate."""
+
+    fraction = float(retention_fraction)
+    if not 0.0 <= fraction <= 1.0:
+        raise ValueError("retention replay fraction must be in [0, 1]")
+    online = online_replay.dataset()
+    retention = retention_replay.dataset()
+    rng = np.random.default_rng(seed)
+    while True:
+        is_retention = rng.random() < fraction
+        sequence = dict(next(retention if is_retention else online))
+        reference = sequence.get("is_first", sequence.get("reward"))
+        if reference is None:
+            raise KeyError("Replay sequence needs is_first or reward for retention mask")
+        sequence["is_retention"] = np.full(
+            np.asarray(reference).shape,
+            float(is_retention),
+            dtype=np.float32,
+        )
+        yield sequence
+
+
+def _wait_at_validation_barrier(
+    logdir, trigger_step, checkpoint, stop_file, poll_seconds
+):
+    """Persist a checkpoint and block until external validation accepts it."""
+
+    barrier_root = Path(str(logdir)) / "validation" / "barriers"
+    barrier_root.mkdir(parents=True, exist_ok=True)
+    request = barrier_root / f"step_{trigger_step:09d}.request.json"
+    release = barrier_root / f"step_{trigger_step:09d}.release.json"
+    checkpoint.save()
+    request.write_text(
+        json.dumps({"trigger_step": trigger_step, "status": "waiting"}) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Waiting at validation barrier {trigger_step}: {request}")
+    while not release.exists():
+        if stop_file.exists():
+            print(f"Validation rejected barrier {trigger_step}: {stop_file}")
+            return False
+        time.sleep(float(poll_seconds))
+    print(f"Validation released barrier {trigger_step}: {release}")
+    return True
 
 
 def train(agent, env, replay, logger, args):
@@ -237,7 +290,12 @@ def train(agent, env, replay, logger, args):
         load_keys = _checkpoint_load_keys(args.from_checkpoint_mode)
         if load_keys == ["agent"]:
             external = embodied.Checkpoint()
-            external.agent = _AgentWeights(agent)
+            names = (
+                tuple(agent.agent.config.actor_heads)
+                if args.from_checkpoint_mode == "multihead_init"
+                else ()
+            )
+            external.agent = _AgentWeights(agent, names)
             external.load(args.from_checkpoint, keys=["agent"])
             loaded_agent = True
             print(
@@ -284,13 +342,30 @@ def train(agent, env, replay, logger, args):
 
         return policy
 
-    _load_demonstrations(
-        replay,
+    retention_fraction = float(args.demo_replay_fraction)
+    if retention_fraction and not args.demo_dir:
+        raise ValueError("demo_replay_fraction requires demo_dir")
+    retention_replay = None
+    demonstration_target = replay
+    if retention_fraction:
+        retention_replay = embodied.replay.Uniform(
+            replay.length,
+            capacity=None,
+            directory=None,
+        )
+        demonstration_target = retention_replay
+    loaded_demonstrations = _load_demonstrations(
+        demonstration_target,
         args.demo_dir,
         args.demo_limit_steps,
         args.demo_sampling,
         report_path=Path(str(logdir)) / "replay_import_report.json",
     )
+    if retention_fraction and loaded_demonstrations < replay.length:
+        raise ValueError(
+            "Fixed retention replay requires at least one complete sequence: "
+            f"loaded={loaded_demonstrations}, sequence_length={replay.length}"
+        )
     print("Prefill train dataset.")
     if loaded_agent:
         print("Prefill uses the loaded checkpoint policy.")
@@ -307,7 +382,19 @@ def train(agent, env, replay, logger, args):
     logger.add(metrics.result())
     logger.write()
 
-    dataset = agent.dataset(replay.dataset)
+    dataset_source = replay.dataset
+    if retention_replay is not None:
+        print(
+            f"Sampling immutable retention replay on {retention_fraction:.1%} "
+            "of training sequences."
+        )
+        dataset_source = lambda: _mixed_replay_dataset(
+            replay,
+            retention_replay,
+            retention_fraction,
+            seed=args.demo_replay_seed,
+        )
+    dataset = agent.dataset(dataset_source)
     state = [None]  # To be writable from train step function below.
     batch = [None]
     episode = embodied.Counter()
@@ -386,6 +473,8 @@ def train(agent, env, replay, logger, args):
             record_failure(error, f"policy_{mode}")
             raise
     stop_file = Path(str(logdir)) / "STOP_TRAINING"
+    barrier_interval = int(args.validation_barrier_interval)
+    next_barrier = barrier_interval
     while step < args.steps:
         if stop_file.exists():
             print(f"Stopping at validation request: {stop_file}")
@@ -393,6 +482,16 @@ def train(agent, env, replay, logger, args):
         driver(policy, episodes=1)
         if should_save(episode):
             checkpoint.save()
+        if barrier_interval and step >= next_barrier:
+            if not _wait_at_validation_barrier(
+                logdir,
+                next_barrier,
+                checkpoint,
+                stop_file,
+                args.validation_barrier_poll_seconds,
+            ):
+                break
+            next_barrier += barrier_interval
     replay.save(wait=True)
     checkpoint.save()
     logger.write()

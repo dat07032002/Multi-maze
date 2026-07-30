@@ -135,7 +135,11 @@ def evaluate_policy(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", choices=("random", "zero"), default="random")
-    parser.add_argument("--split", choices=("validation", "test"), default="validation")
+    parser.add_argument(
+        "--split",
+        choices=("validation", "test", "dev", "train", "seen", "rehearsal"),
+        default="validation",
+    )
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--episodes-per-maze", type=int, default=1)
     parser.add_argument("--max-steps", type=int, default=300)

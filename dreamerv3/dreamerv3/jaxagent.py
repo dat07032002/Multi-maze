@@ -9,6 +9,7 @@ from . import jaxutils
 from . import ninjax as nj
 from .checkpoint_loading import (
     OptimizerHealthTracker,
+    initialize_multihead_state,
     is_acting_variable,
     is_optimizer_variable,
     variable_sha256,
@@ -99,7 +100,8 @@ class JAXAgent(embodied.Agent):
             self._once = False
             assert jaxutils.Optimizer.PARAM_COUNTS
             for name, count in jaxutils.Optimizer.PARAM_COUNTS.items():
-                mets[f"params_{name}"] = float(count)
+                if count is not None:
+                    mets[f"params_{name}"] = float(count)
         return outs, state, mets
 
     def report(self, data):
@@ -182,6 +184,17 @@ class JAXAgent(embodied.Agent):
         print(
             f"Restored {len(restored) - retained} learned variables and reset "
             f"{retained} optimizer variables."
+        )
+
+    def load_multihead_weights(self, state, heads):
+        """Initialize every named actor head from one legacy actor."""
+
+        current = self.save()
+        restored = initialize_multihead_state(current, state, heads)
+        self.load(restored)
+        print(
+            f"Initialized {len(tuple(heads))} actor heads from the legacy actor "
+            "and reset optimizer variables."
         )
 
     def sync(self):

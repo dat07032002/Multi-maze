@@ -59,6 +59,41 @@ case "$training_profile" in
     manifest="$repo_root/tag_mujoco/generated_dodge_mazes/maze_splits_dodge.json"
     dataset_id="tag_dodge_curriculum_v1"
     ;;
+  tag_sim_v3_skill_stabilize_retention)
+    skill=stabilize
+    manifest="${TAG_MANIFEST:-$repo_root/artifacts/universal_skills/stabilize/maze_splits.json}"
+    dataset_id="tag_universal_skill_stabilize_v1"
+    ;;
+  tag_sim_v3_skill_straight_retention)
+    skill=straight
+    manifest="${TAG_MANIFEST:-$repo_root/artifacts/universal_skills/straight/maze_splits.json}"
+    dataset_id="tag_universal_skill_straight_v1"
+    ;;
+  tag_sim_v3_skill_straight_head)
+    manifest="${TAG_MANIFEST:-$repo_root/artifacts/universal_skills/straight/maze_splits.json}"
+    dataset_id="tag_universal_skill_straight_v1"
+    ;;
+  tag_sim_v3_skill_turn_head)
+    manifest="${TAG_MANIFEST:-$repo_root/artifacts/universal_skills/turn/maze_splits.json}"
+    dataset_id="tag_universal_skill_turn_v1"
+    ;;
+  tag_sim_v3_skill_stabilize|tag_sim_v3_skill_straight|tag_sim_v3_skill_turn|tag_sim_v3_skill_compound|tag_sim_v3_skill_recovery|tag_sim_v3_skill_hazard)
+    skill="${training_profile#tag_sim_v3_skill_}"
+    manifest="${TAG_MANIFEST:-$repo_root/artifacts/universal_skills/$skill/maze_splits.json}"
+    dataset_id="tag_universal_skill_${skill}_v1"
+    ;;
+  tag_sim_v3_skill_actuator025)
+    manifest="${TAG_MANIFEST:-$repo_root/artifacts/universal_skills/compound/maze_splits.json}"
+    dataset_id="tag_universal_skill_compound_v1"
+    ;;
+  tag_sim_v3_sequential_map_local|tag_sim_v3_sequential_map_fullstart)
+    manifest="${TAG_MANIFEST:?Sequential map training requires TAG_MANIFEST.}"
+    dataset_id="${TAG_DATASET_ID:?Sequential map training requires TAG_DATASET_ID.}"
+    ;;
+  tag_sim_v3_continuous_unified)
+    manifest="${TAG_MANIFEST:-$repo_root/tag_mujoco/maze_splits_v2.json}"
+    dataset_id="cyberrunner_fixed_board_512train_64val_64test_v2"
+    ;;
   *)
     manifest="$repo_root/tag_mujoco/maze_splits_v2.json"
     dataset_id="cyberrunner_fixed_board_512train_64val_64test_v2"
@@ -204,6 +239,78 @@ case "$training_profile" in
       checkpoint_mode="none"
     fi
     ;;
+  tag_sim_v3_skill_stabilize)
+    configs=(tag_sim_v2 medium tag_sim_v3_skill_base "$training_profile")
+    if [[ -n "${TAG_FROM_CHECKPOINT:-}" && "$checkpoint_mode" != "agent_only" ]]; then
+      echo "Skill warm starts require TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      checkpoint_mode="none"
+    else
+      checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Warm start requires TAG_CHECKPOINT_DATASET_ID.}"
+    fi
+    ;;
+  tag_sim_v3_skill_stabilize_retention|tag_sim_v3_skill_straight_retention)
+    configs=(tag_sim_v2 medium tag_sim_v3_skill_base "$training_profile")
+    if [[ "$checkpoint_mode" != "agent_only" ]] || [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Skill retention requires an agent-only checkpoint."
+      exit 7
+    fi
+    if [[ -z "${TAG_DEMO_DIR:-}" ]]; then
+      echo "Skill retention requires an immutable TAG_DEMO_DIR."
+      exit 7
+    fi
+    checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Skill retention requires TAG_CHECKPOINT_DATASET_ID.}"
+    ;;
+  tag_sim_v3_skill_straight_head|tag_sim_v3_skill_turn_head)
+    configs=(tag_sim_v2 medium tag_sim_v3_skill_base "$training_profile")
+    if [[ "$checkpoint_mode" != "multihead_init" ]] || [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Initial multi-head skill training requires TAG_CHECKPOINT_MODE=multihead_init."
+      exit 7
+    fi
+    checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Multi-head initialization requires TAG_CHECKPOINT_DATASET_ID.}"
+    ;;
+  tag_sim_v3_skill_straight|tag_sim_v3_skill_turn|tag_sim_v3_skill_compound|tag_sim_v3_skill_recovery|tag_sim_v3_skill_hazard|tag_sim_v3_skill_actuator025)
+    configs=(tag_sim_v2 medium tag_sim_v3_skill_base "$training_profile")
+    if [[ "$checkpoint_mode" != "agent_only" ]] || [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Skill stages after stabilize require an agent-only checkpoint."
+      exit 7
+    fi
+    checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Skill continuation requires TAG_CHECKPOINT_DATASET_ID.}"
+    ;;
+  tag_sim_v3_continuous_unified)
+    configs=(tag_sim_v2 medium tag_sim_v3_skill_base "$training_profile")
+    if [[ "$checkpoint_mode" != "agent_only" ]] || [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Continuous unified training requires an agent-only checkpoint."
+      exit 7
+    fi
+    checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Continuous unified training requires TAG_CHECKPOINT_DATASET_ID.}"
+    ;;
+  tag_sim_v3_sequential_map_local)
+    configs=(tag_sim_v2 medium tag_sim_v3_sequential_map_local)
+    if [[ "$checkpoint_mode" != "agent_only" ]] || [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Sequential map stages require an agent-only checkpoint."
+      exit 7
+    fi
+    if [[ -z "${TAG_DEMO_DIR:-}" ]]; then
+      echo "Sequential map stages require a balanced TAG_DEMO_DIR rehearsal pack."
+      exit 7
+    fi
+    checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Sequential continuation requires TAG_CHECKPOINT_DATASET_ID.}"
+    ;;
+  tag_sim_v3_sequential_map_fullstart)
+    configs=(tag_sim_v2 medium tag_sim_v3_sequential_map_local tag_sim_v3_sequential_map_fullstart)
+    if [[ "$checkpoint_mode" != "agent_only" ]] || [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Sequential map stages require an agent-only checkpoint."
+      exit 7
+    fi
+    if [[ -z "${TAG_DEMO_DIR:-}" ]]; then
+      echo "Sequential map stages require a balanced TAG_DEMO_DIR rehearsal pack."
+      exit 7
+    fi
+    checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Sequential continuation requires TAG_CHECKPOINT_DATASET_ID.}"
+    ;;
   tag_sim_v2_fullstart_staged_randomization)
     configs=(tag_sim_v2 tag_sim_v2_fullstart_staged_randomization medium)
     ;;
@@ -271,7 +378,7 @@ fi
 mkdir -p "$logdir"
 assumptions_sha256="$(sha256sum "$repo_root/tag_mujoco/assumed_dynamics.json" | awk '{print $1}')"
 optimizer_state_reset=false
-if [[ "$checkpoint_mode" == "agent_only" ]]; then
+if [[ "$checkpoint_mode" == "agent_only" || "$checkpoint_mode" == "multihead_init" ]]; then
   optimizer_state_reset=true
 fi
 printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"%s","dataset_id":"%s","checkpoint_compatible_with_v1":false,"checkpoint_load_mode":"%s","optimizer_state_reset":%s,"assumed_dynamics_sha256":"%s"}\n' \
@@ -279,6 +386,48 @@ printf '{"policy_contract_version":"tag_hardware_policy_v1","training_profile":"
   "$assumptions_sha256" >"$logdir/policy_contract.json"
 
 extra_args=()
+if [[ -n "${TAG_SEED:-}" ]]; then
+  [[ "$TAG_SEED" =~ ^[0-9]+$ ]] || {
+    echo "TAG_SEED must be a non-negative integer; got $TAG_SEED."
+    exit 9
+  }
+  extra_args+=(--seed "$TAG_SEED")
+fi
+case "$training_profile" in
+  tag_sim_v3_skill_stabilize|tag_sim_v3_skill_stabilize_retention|tag_sim_v3_skill_straight|tag_sim_v3_skill_straight_retention|tag_sim_v3_skill_straight_head|tag_sim_v3_skill_turn|tag_sim_v3_skill_turn_head|tag_sim_v3_skill_compound|tag_sim_v3_skill_recovery|tag_sim_v3_skill_hazard|tag_sim_v3_skill_actuator025|tag_sim_v3_sequential_map_local|tag_sim_v3_sequential_map_fullstart|tag_sim_v3_continuous_unified)
+    extra_args+=(--env.tagmaze.maze_manifest "$manifest")
+    if [[ -n "${TAG_ENV_COUNT:-}" ]]; then
+      case "$TAG_ENV_COUNT" in
+        8|16) ;;
+        *) echo "TAG_ENV_COUNT must be 8 or 16 for v3 training; got $TAG_ENV_COUNT."; exit 9 ;;
+      esac
+      extra_args+=(--envs.amount "$TAG_ENV_COUNT")
+    fi
+    if [[ -n "${TAG_LOGICAL_CPUS:-}" ]]; then
+      case "$TAG_LOGICAL_CPUS" in
+        16|32) ;;
+        *) echo "TAG_LOGICAL_CPUS must be 16 or 32 for v3 training; got $TAG_LOGICAL_CPUS."; exit 9 ;;
+      esac
+      extra_args+=(--jax.logical_cpus "$TAG_LOGICAL_CPUS")
+    fi
+    if [[ -n "${TAG_TRAIN_FILL:-}" ]]; then
+      [[ "$TAG_TRAIN_FILL" =~ ^[1-9][0-9]*$ ]] || {
+        echo "TAG_TRAIN_FILL must be a positive integer; got $TAG_TRAIN_FILL."
+        exit 9
+      }
+      extra_args+=(--run.train_fill "$TAG_TRAIN_FILL")
+    fi
+    if [[ -n "${TAG_VALIDATION_BARRIER_INTERVAL:-}" ]]; then
+      [[ "$TAG_VALIDATION_BARRIER_INTERVAL" =~ ^[1-9][0-9]*$ ]] || {
+        echo "TAG_VALIDATION_BARRIER_INTERVAL must be a positive integer."
+        exit 9
+      }
+      extra_args+=(
+        --run.validation_barrier_interval "$TAG_VALIDATION_BARRIER_INTERVAL"
+      )
+    fi
+    ;;
+esac
 if [[ -n "${TAG_DEMO_DIR:-}" ]]; then
   test -d "$TAG_DEMO_DIR"
   extra_args+=(--run.demo_dir "$TAG_DEMO_DIR")
@@ -306,7 +455,7 @@ fi
 if command -v nvidia-smi >/dev/null 2>&1; then
   nvidia-smi -i "$train_gpu" --query-gpu=index,uuid,name --format=csv,noheader
 fi
-echo "V2 profile=$training_profile checkpoint_mode=$checkpoint_mode steps=$steps envs=8 gpu=$train_gpu dataset=$dataset_id manifest=$manifest logdir=$logdir"
+echo "V2 profile=$training_profile checkpoint_mode=$checkpoint_mode steps=$steps envs=${TAG_ENV_COUNT:-8} gpu=$train_gpu dataset=$dataset_id manifest=$manifest logdir=$logdir"
 
 "$python_bin" dreamerv3/dreamerv3/train.py \
   --configs "${configs[@]}" \

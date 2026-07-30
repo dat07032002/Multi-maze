@@ -36,6 +36,25 @@ def _copy_observation(observation: Dict[str, np.ndarray]) -> Dict[str, np.ndarra
     return {key: value.copy() for key, value in observation.items()}
 
 
+def segment_point_distance(
+    start: Iterable[float], end: Iterable[float], point: Iterable[float]
+) -> float:
+    """Return the shortest 2D distance from a control-step path to a point."""
+
+    start_array = np.asarray(tuple(start), dtype=np.float64)
+    end_array = np.asarray(tuple(end), dtype=np.float64)
+    point_array = np.asarray(tuple(point), dtype=np.float64)
+    delta = end_array - start_array
+    length_squared = float(np.dot(delta, delta))
+    if length_squared <= 1e-18:
+        return float(np.linalg.norm(point_array - start_array))
+    fraction = float(
+        np.clip(np.dot(point_array - start_array, delta) / length_squared, 0.0, 1.0)
+    )
+    closest = start_array + fraction * delta
+    return float(np.linalg.norm(point_array - closest))
+
+
 class PolylineRoute:
     def __init__(self, waypoints: Iterable[Iterable[float]]):
         self.points = np.asarray(tuple(tuple(point) for point in waypoints), dtype=np.float64)
@@ -284,7 +303,13 @@ class TagSystemModel:
         if self.observation_filter.confirmed_lost:
             return True, False, "ball_lost"
         goal = np.asarray(self.layout["waypoints"][-1], dtype=np.float64)
-        if np.linalg.norm(ball[:2] - goal) <= self.config.goal_radius_m:
+        # A control step spans many MuJoCo integration steps. Check the swept
+        # ball-center segment so a fast ball cannot pass through the physical
+        # goal radius between two control observations without succeeding.
+        if (
+            segment_point_distance(self._last_ball_xy, ball[:2], goal)
+            <= self.config.goal_radius_m
+        ):
             return True, False, "goal_reached"
         if self.steps >= self.config.maximum_episode_steps:
             return False, True, "time_limit"

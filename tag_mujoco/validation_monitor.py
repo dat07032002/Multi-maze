@@ -123,11 +123,18 @@ def evaluator_command(
     trigger_step: int,
     mode: str,
 ) -> list[str]:
-    episodes = (
-        args.canonical_episodes_per_maze
-        if mode == "canonical"
-        else args.robust_episodes_per_maze
-    )
+    if mode == "retention":
+        episodes = args.retention_episodes_per_maze
+        manifest = args.retention_manifest
+        evaluator_mode = "canonical"
+    elif mode == "canonical":
+        episodes = args.canonical_episodes_per_maze
+        manifest = args.manifest
+        evaluator_mode = mode
+    else:
+        episodes = args.robust_episodes_per_maze
+        manifest = args.manifest
+        evaluator_mode = mode
     command = [
         str(args.python),
         str(args.repo_root / "dreamerv3/dreamerv3/eval_multimaze.py"),
@@ -136,13 +143,13 @@ def evaluator_command(
         "--config",
         str(args.run_dir / "config.yaml"),
         "--manifest",
-        str(args.manifest),
+        str(manifest),
         "--split",
         args.split,
         "--policy-mode",
         args.policy_mode,
         "--mode",
-        mode,
+        evaluator_mode,
         "--episodes-per-maze",
         str(episodes),
         "--max-steps",
@@ -154,11 +161,20 @@ def evaluator_command(
         "--output",
         str(milestone_dir / f"{mode}.json"),
     ]
+    if mode == "retention" and getattr(args, "retention_actor_head", None):
+        command.extend(["--actor-head", str(args.retention_actor_head)])
     if mode == "robust" and args.robust_randomization_strength is not None:
         command.extend(
             [
                 "--randomization-strength",
                 str(args.robust_randomization_strength),
+            ]
+        )
+    if mode == "robust":
+        command.extend(
+            [
+                "--randomization-groups",
+                getattr(args, "robust_randomization_groups", "all"),
             ]
         )
     return command
@@ -251,7 +267,7 @@ def append_history(validation_root: Path, result: dict[str, Any]) -> None:
 
 def completed_modes(milestone_dir: Path) -> set[str]:
     complete = set()
-    for mode in ("canonical", "robust"):
+    for mode in ("canonical", "robust", "retention"):
         path = milestone_dir / f"{mode}.json"
         if path.exists() and json.loads(path.read_text()).get("completed"):
             complete.add(mode)
@@ -283,25 +299,53 @@ def regressed_from_baseline(
     )
 
 
+def retention_gate_failed(
+    summary: dict[str, Any], completion_floor: float, fall_ceiling: float
+) -> bool:
+    return (
+        float(summary["completion_rate"]) < completion_floor
+        or float(summary["fall_rate"]) > fall_ceiling
+    )
+
+
+def barrier_paths(validation_root: Path, trigger_step: int) -> tuple[Path, Path]:
+    root = validation_root / "barriers"
+    return (
+        root / f"step_{trigger_step:09d}.request.json",
+        root / f"step_{trigger_step:09d}.release.json",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--python", type=Path, required=True)
     parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--retention-manifest", type=Path)
+    parser.add_argument("--retention-episodes-per-maze", type=int, default=3)
+    parser.add_argument("--retention-completion-floor", type=float, default=0.75)
+    parser.add_argument("--retention-fall-ceiling", type=float, default=0.05)
+    parser.add_argument("--retention-actor-head")
     parser.add_argument("--start-step", type=int, default=500_000)
     parser.add_argument("--interval", type=int, default=500_000)
     parser.add_argument("--robust-interval", type=int, default=1_000_000)
     parser.add_argument("--end-step", type=int, default=10_000_000)
     parser.add_argument("--baseline", action="store_true")
+    parser.add_argument("--barrier", action="store_true")
     parser.add_argument("--canonical-gpu", type=int, default=3)
     parser.add_argument("--robust-gpu", type=int, default=4)
     parser.add_argument("--robust-episodes-per-maze", type=int, default=3)
     parser.add_argument("--robust-randomization-strength", type=float)
+    parser.add_argument("--randomization-groups", dest="robust_randomization_groups", default="all")
     parser.add_argument("--canonical-episodes-per-maze", type=int, default=1)
     # "dev" is a training subset used to rank tuning arms without reading the
     # validation split that the mastery gate measures.
-    parser.add_argument("--split", choices=("validation", "test", "dev"), default="validation")
+    parser.add_argument(
+        "--split",
+        choices=("validation", "test", "dev", "seen", "rehearsal"),
+        default="validation",
+    )
     parser.add_argument("--policy-mode", choices=("sample", "mode"), default="sample")
     parser.add_argument("--max-steps", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=20260723)
@@ -331,6 +375,10 @@ def main() -> None:
     )
     if not args.manifest.is_file():
         raise FileNotFoundError(args.manifest)
+    if args.retention_manifest:
+        args.retention_manifest = args.retention_manifest.resolve()
+        if not args.retention_manifest.is_file():
+            raise FileNotFoundError(args.retention_manifest)
     # Do not resolve the virtualenv interpreter symlink: resolving it can turn
     # `.venv/bin/python` into the system interpreter and lose installed deps.
     args.python = args.python.absolute()
@@ -354,6 +402,8 @@ def main() -> None:
     for trigger_step in schedule:
         milestone_dir = validation_root / f"step_{trigger_step:09d}"
         expected = {"canonical"}
+        if args.retention_manifest:
+            expected.add("retention")
         if trigger_step > 0 and trigger_step % args.robust_interval == 0:
             expected.add("robust")
         done = completed_modes(milestone_dir) if milestone_dir.exists() else set()
@@ -368,10 +418,34 @@ def main() -> None:
                     baseline_summary = completed_result["summary"]
                 plateau = plateau_state(canonical_results, plateau_config)
                 write_json(validation_root / "plateau_state.json", plateau)
+            if args.barrier and trigger_step > 0:
+                _, release = barrier_paths(validation_root, trigger_step)
+                write_json(release, {"trigger_step": trigger_step, "status": "passed"})
             continue
 
-        while latest_metric_step(metrics) < trigger_step:
-            time.sleep(args.poll_seconds)
+        if args.barrier and trigger_step > 0:
+            request, _ = barrier_paths(validation_root, trigger_step)
+            while not request.exists():
+                time.sleep(args.poll_seconds)
+        else:
+            while latest_metric_step(metrics) < trigger_step:
+                time.sleep(args.poll_seconds)
+
+        # Validation can be slower than a short training stage. Once training
+        # has crossed the final boundary, intermediate milestones no longer
+        # have distinct checkpoints to evaluate; continue directly to the
+        # stable final checkpoint instead of waiting forever for an update.
+        if (
+            not args.barrier
+            and trigger_step < args.end_step
+            and latest_metric_step(metrics) >= args.end_step
+        ):
+            print(
+                f"Skipping superseded milestone {trigger_step}; "
+                f"training has reached {args.end_step}.",
+                flush=True,
+            )
+            continue
 
         snapshot = milestone_dir / "checkpoint.ckpt"
         if not snapshot.exists():
@@ -385,7 +459,11 @@ def main() -> None:
                     flush=True,
                 )
                 time.sleep(args.final_checkpoint_grace_seconds)
-            previous_signature = checkpoint_signature(checkpoint) if need_new else None
+            previous_signature = (
+                checkpoint_signature(checkpoint)
+                if need_new and not args.barrier
+                else None
+            )
             print(
                 f"Milestone {trigger_step} reached; waiting for stable checkpoint.",
                 flush=True,
@@ -430,7 +508,24 @@ def main() -> None:
                 args.robust_gpu,
             )
             jobs.append(("robust", process, stream))
+        if "retention" in expected - done:
+            wait_for_gpu(
+                args.robust_gpu,
+                args.poll_seconds,
+                args.gpu_memory_limit_mib,
+                args.gpu_utilization_limit,
+            )
+            process, stream = launch_evaluator(
+                args,
+                snapshot,
+                milestone_dir,
+                trigger_step,
+                "retention",
+                args.robust_gpu,
+            )
+            jobs.append(("retention", process, stream))
 
+        results: dict[str, dict[str, Any]] = {}
         for mode, process, stream in jobs:
             code = process.wait()
             stream.close()
@@ -440,11 +535,45 @@ def main() -> None:
                     f"see {milestone_dir / f'{mode}.log'}"
                 )
             result = json.loads((milestone_dir / f"{mode}.json").read_text())
-            append_history(validation_root, result)
+            if mode == "retention":
+                result["mode"] = "retention"
+                (milestone_dir / "retention.json").write_text(
+                    json.dumps(result, indent=2, allow_nan=False) + "\n",
+                    encoding="utf-8",
+                )
+            results[mode] = result
             print(
                 f"Completed {mode} validation for milestone {trigger_step}.",
                 flush=True,
             )
+        retention_result = results.get("retention")
+        if retention_result is not None:
+            append_history(validation_root, retention_result)
+            if trigger_step > 0 and retention_gate_failed(
+                retention_result["summary"],
+                args.retention_completion_floor,
+                args.retention_fall_ceiling,
+            ):
+                stop_file = args.run_dir / "STOP_TRAINING"
+                summary = retention_result["summary"]
+                stop_file.write_text(
+                    "Retention gate failed: stabilization completion "
+                    f"{summary['completion_rate']:.3f} (floor "
+                    f"{args.retention_completion_floor:.3f}), fall rate "
+                    f"{summary['fall_rate']:.3f} (ceiling "
+                    f"{args.retention_fall_ceiling:.3f}).\n",
+                    encoding="utf-8",
+                )
+                print(f"Requested retention rollback via {stop_file}.", flush=True)
+                return
+
+        # A candidate is eligible for canonical ranking only after retention
+        # passes, so a regressed policy cannot become the selected checkpoint.
+        for mode in ("canonical", "robust"):
+            result = results.get(mode)
+            if result is None:
+                continue
+            append_history(validation_root, result)
             if mode == "canonical":
                 canonical_results.append(result)
                 plateau = plateau_state(canonical_results, plateau_config)
@@ -480,6 +609,14 @@ def main() -> None:
                         flush=True,
                     )
                     return
+
+        if args.barrier and trigger_step > 0:
+            _, release = barrier_paths(validation_root, trigger_step)
+            write_json(
+                release,
+                {"trigger_step": trigger_step, "status": "passed"},
+            )
+            print(f"Released training barrier {trigger_step}: {release}", flush=True)
 
     print("All configured validation milestones are complete.", flush=True)
 

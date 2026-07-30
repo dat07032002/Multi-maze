@@ -10,6 +10,8 @@
 - [NOMINAL_AB_ARMS_2026-07-28.md](NOMINAL_AB_ARMS_2026-07-28.md): bounded arm results, the hole-margin reward term, reward calibration, and rejected hypotheses
 - [CURRICULUM_DR_ATTRIBUTION_2026-07-29.md](CURRICULUM_DR_ATTRIBUTION_2026-07-29.md): invalid first DR run diagnosis, causal family attribution, and the corrected checkpoint-gated training plan
 - [PAIRED_HOLE_CURRICULUM.md](PAIRED_HOLE_CURRICULUM.md): production 512-maze no-hole foundation, warm-start hole phases, retention gates, and launch commands
+- [SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md](SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md): universal control-skill stages, balanced rehearsal, and one-online-map training
+- [CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md](CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md): active single-controller continuous path training, parameters, warm start, validation, and launch record
 - [TAG_REFERENCE.md](TAG_REFERENCE.md): exactly what was imported from the updated working TAG repository
 - [HARDWARE_RECORDING_2026-07-24.md](HARDWARE_RECORDING_2026-07-24.md): sanitized passive measurements and remaining calibration tests
 - [HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md](HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md): read-only live hardware/training inventory, compatibility matrix, and deployment blockers

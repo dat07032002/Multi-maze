@@ -9,6 +9,7 @@ import numpy as np
 _OPTIMIZER_VARIABLE = re.compile(
     r"/(?:model_opt|actor_opt|critic_opt|disag_opt)(?:/|$)"
 )
+_MULTIHEAD_ACTOR = re.compile(r"/actor_([^/]+)/")
 
 
 def is_optimizer_variable(name):
@@ -23,7 +24,40 @@ def is_acting_variable(name):
     name = str(name)
     if is_optimizer_variable(name):
         return False
-    return name.startswith("agent/wm/") or "/actor/" in name
+    return (
+        name.startswith("agent/wm/")
+        or "/actor/" in name
+        or _MULTIHEAD_ACTOR.search(name) is not None
+    )
+
+
+def initialize_multihead_state(current, source, heads):
+    """Expand a legacy actor into named heads while preserving fresh optimizers."""
+
+    heads = tuple(str(head) for head in heads)
+    restored = {}
+    for key, value in current.items():
+        if is_optimizer_variable(key):
+            restored[key] = value
+            continue
+        match = _MULTIHEAD_ACTOR.search(str(key))
+        if match and match.group(1) in heads:
+            legacy = _MULTIHEAD_ACTOR.sub("/actor/", str(key), count=1)
+            if legacy not in source:
+                raise ValueError(f"Legacy checkpoint is missing actor variable {legacy!r}")
+            candidate = source[legacy]
+        else:
+            if key not in source:
+                raise ValueError(f"Checkpoint is missing variable {key!r}")
+            candidate = source[key]
+        if candidate.shape != value.shape or candidate.dtype != value.dtype:
+            raise ValueError(
+                f"Incompatible checkpoint variable {key!r}: "
+                f"source={candidate.shape}/{candidate.dtype}, "
+                f"target={value.shape}/{value.dtype}"
+            )
+        restored[key] = candidate
+    return restored
 
 
 def variable_sha256(state, predicate=lambda name: True):

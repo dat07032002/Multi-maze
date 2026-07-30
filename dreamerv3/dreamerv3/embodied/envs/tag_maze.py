@@ -19,7 +19,14 @@ from tag_mujoco.tag_env import DR_METRIC_KEYS, TagMazeTask, TaskConfig  # noqa: 
 
 
 class TagMaze(embodied.Env):
-    def __init__(self, task: str = "sim", layout_paths=None, seed: int = 0, **kwargs: Any):
+    def __init__(
+        self,
+        task: str = "sim",
+        layout_paths=None,
+        layout_metadata=None,
+        seed: int = 0,
+        **kwargs: Any,
+    ):
         if task != "sim":
             raise ValueError(f"Unsupported clean TagMaze task {task!r}")
         task_fields = set(TaskConfig.__dataclass_fields__)
@@ -28,6 +35,7 @@ class TagMaze(embodied.Env):
             raise TypeError(f"Unknown TagMaze environment options: {sorted(kwargs)}")
         self._env = TagMazeTask(
             layout_paths=layout_paths,
+            layout_metadata=layout_metadata,
             seed=seed,
             task_config=TaskConfig(**task_kwargs),
         )

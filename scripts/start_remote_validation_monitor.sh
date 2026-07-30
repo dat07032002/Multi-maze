@@ -23,6 +23,13 @@ robust_gpu="${TAG_ROBUST_GPU:-4}"
 policy_mode="${TAG_POLICY_MODE:-sample}"
 canonical_episodes="${TAG_CANONICAL_EPISODES:-1}"
 robust_strength="${TAG_ROBUST_STRENGTH:-}"
+robust_groups="${TAG_ROBUST_GROUPS:-all}"
+retention_manifest="${TAG_RETENTION_MANIFEST:-}"
+retention_episodes="${TAG_RETENTION_EPISODES:-3}"
+retention_completion_floor="${TAG_RETENTION_COMPLETION_FLOOR:-0.75}"
+retention_fall_ceiling="${TAG_RETENTION_FALL_CEILING:-0.05}"
+retention_actor_head="${TAG_RETENTION_ACTOR_HEAD:-}"
+validation_barrier="${TAG_VALIDATION_BARRIER:-NO}"
 stop_on_regression="${TAG_STOP_ON_REGRESSION:-NO}"
 stop_on_plateau="${TAG_STOP_ON_PLATEAU:-NO}"
 plateau_patience="${TAG_PLATEAU_PATIENCE:-3}"
@@ -38,6 +45,9 @@ status_file="$validation_root/monitor.exit_status"
 test -x "$python_bin"
 test -f "$monitor"
 test -f "$manifest"
+if [[ -n "$retention_manifest" ]]; then
+  test -f "$retention_manifest"
+fi
 case "$baseline" in
   YES)
     baseline_arg=(--baseline)
@@ -73,6 +83,11 @@ case "$stop_on_plateau" in
     echo "TAG_STOP_ON_PLATEAU must be YES or NO."
     exit 4
     ;;
+esac
+case "$validation_barrier" in
+  YES) barrier_arg=(--barrier) ;;
+  NO) barrier_arg=() ;;
+  *) echo "TAG_VALIDATION_BARRIER must be YES or NO."; exit 4 ;;
 esac
 if [[ -e "$pid_file" ]]; then
   previous_pid="$(cat "$pid_file")"
@@ -111,6 +126,13 @@ nohup bash -c '
   min_completion_delta="${21}"
   min_route_delta="${22}"
   max_fall_delta="${23}"
+  robust_groups="${24}"
+  retention_manifest="${25}"
+  retention_episodes="${26}"
+  retention_completion_floor="${27}"
+  retention_fall_ceiling="${28}"
+  validation_barrier="${29}"
+  retention_actor_head="${30}"
   baseline_arg=()
   if [[ "$baseline" == "YES" ]]; then
     baseline_arg=(--baseline)
@@ -129,11 +151,29 @@ nohup bash -c '
   if [[ "$stop_on_plateau" == "YES" ]]; then
     plateau_arg=(--stop-on-plateau)
   fi
+  retention_arg=()
+  if [[ -n "$retention_manifest" ]]; then
+    retention_arg=(
+      --retention-manifest "$retention_manifest"
+      --retention-episodes-per-maze "$retention_episodes"
+      --retention-completion-floor "$retention_completion_floor"
+      --retention-fall-ceiling "$retention_fall_ceiling"
+    )
+    if [[ -n "$retention_actor_head" ]]; then
+      retention_arg+=(--retention-actor-head "$retention_actor_head")
+    fi
+  fi
+  barrier_arg=()
+  if [[ "$validation_barrier" == "YES" ]]; then
+    barrier_arg=(--barrier)
+  fi
   "$python_bin" "$monitor" \
     --repo-root "$repo_root" \
     --run-dir "$run_dir" \
     --python "$python_bin" \
     --manifest "$manifest" \
+    "${retention_arg[@]}" \
+    "${barrier_arg[@]}" \
     --start-step "$start_step" \
     --interval "$interval" \
     --robust-interval "$robust_interval" \
@@ -145,6 +185,7 @@ nohup bash -c '
     --canonical-gpu "$canonical_gpu" \
     --robust-gpu "$robust_gpu" \
     --robust-episodes-per-maze 3 \
+    --randomization-groups "$robust_groups" \
     "${robust_strength_arg[@]}" \
     "${stop_arg[@]}" \
     "${plateau_arg[@]}" \
@@ -161,6 +202,10 @@ nohup bash -c '
   "$split" "$policy_mode" "$canonical_episodes" "$canonical_gpu" "$robust_gpu" \
   "$robust_strength" "$stop_on_regression" "$stop_on_plateau" \
   "$plateau_patience" "$min_completion_delta" "$min_route_delta" "$max_fall_delta" \
+  "$robust_groups" "$retention_manifest" "$retention_episodes" \
+  "$retention_completion_floor" "$retention_fall_ceiling" \
+  "$validation_barrier" \
+  "$retention_actor_head" \
   >"$launcher_log" 2>&1 </dev/null &
 pid=$!
 printf '%s\n' "$pid" >"$pid_file"

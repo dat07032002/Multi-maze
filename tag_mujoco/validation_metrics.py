@@ -34,6 +34,7 @@ def evaluation_env_overrides(
         # Both protocols measure the full task. Robustness only changes the
         # plant, not the amount of route the policy is required to solve.
         "random_start": False,
+        "continuous_path": False,
         "randomize_plant": robust,
         "start_curriculum": False,
         "randomization_curriculum": False,

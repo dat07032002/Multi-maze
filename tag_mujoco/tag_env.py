@@ -76,6 +76,14 @@ DR_METRIC_KEYS = (
 class TaskConfig:
     randomize_plant: bool = False
     random_start: bool = False
+    # Continuing path-following pretraining treats route endpoints as neutral
+    # segment boundaries and balances resets by local geometry/state challenge.
+    continuous_path: bool = False
+    continuous_reset_weights: str = "straight:0.30,turn:0.30,stabilize:0.20,recovery:0.15,hazard:0.05"
+    # Apply deterministic reset conditions stored in manifest metadata. These
+    # labels and values are training infrastructure only; they are never added
+    # to the deployed policy observation.
+    conditioned_resets: bool = False
     start_progress_min: float = 0.0
     start_progress_max: float = 0.85
     start_lateral_range_m: float = 0.002
@@ -235,6 +243,7 @@ class TagMazeTask:
     def __init__(
         self,
         layout_paths: str | Sequence[str] | None = None,
+        layout_metadata: Sequence[Mapping[str, Any]] | None = None,
         seed: int = 0,
         task_config: TaskConfig = TaskConfig(),
         system_config: SystemConfig = SystemConfig(),
@@ -248,6 +257,9 @@ class TagMazeTask:
             raise ValueError(f"Unsupported reward mode: {task_config.reward_mode}")
         if task_config.maze_sampling not in {"uniform", "curriculum", "plr"}:
             raise ValueError(f"Unsupported maze sampling: {task_config.maze_sampling}")
+        self._continuous_reset_weights = self._parse_continuous_reset_weights(
+            task_config.continuous_reset_weights
+        )
         if task_config.curriculum_episodes <= 0:
             raise ValueError("curriculum_episodes must be positive")
         if not 0.0 <= task_config.plr_uniform_mix <= 1.0:
@@ -264,6 +276,8 @@ class TagMazeTask:
             raise ValueError("randomization_max_strength must be in [0, 1]")
         if task_config.maze_split and layout_paths is not None:
             raise ValueError("Choose either maze_split or explicit layout_paths, not both")
+        if task_config.maze_split and layout_metadata is not None:
+            raise ValueError("Manifest splits provide their own layout metadata")
         if task_config.maze_split:
             split = load_split(
                 task_config.maze_split,
@@ -274,7 +288,14 @@ class TagMazeTask:
             self.maze_split = split.name
         else:
             self.layout_paths = _resolve_layout_paths(layout_paths)
-            self.layout_metadata = [{} for _ in self.layout_paths]
+            if layout_metadata is None:
+                self.layout_metadata = [{} for _ in self.layout_paths]
+            else:
+                if len(layout_metadata) != len(self.layout_paths):
+                    raise ValueError(
+                        "Explicit layout metadata must match layout path count"
+                    )
+                self.layout_metadata = [dict(item) for item in layout_metadata]
             self.maze_split = "explicit" if layout_paths is not None else "smoke_default"
         self.task_config = task_config
         self.system_config = system_config
@@ -315,6 +336,7 @@ class TagMazeTask:
         self._last_start_expansion = 0
         self._last_randomization_expansion = 0
         self.start_progress_fraction = 0.0
+        self.reset_category = "standard"
         self.active_randomization_strength = 0.0
 
     def _record_completed_episode(self) -> None:
@@ -452,10 +474,176 @@ class TagMazeTask:
             self._layout_cache[path] = layout
         return self._layout_cache[path]
 
-    def _select_start(self) -> Tuple[np.ndarray, np.ndarray]:
+    def _conditioned_start(
+        self, conditions: Mapping[str, Any]
+    ) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float]]:
+        """Materialize a manifest-defined reset in route coordinates."""
+
+        known = {
+            "progress_fraction",
+            "lateral_offset_m",
+            "tangent_velocity_mps",
+            "normal_velocity_mps",
+            "board_tilt_rad",
+        }
+        unknown = set(conditions).difference(known)
+        if unknown:
+            raise ValueError(f"Unknown reset conditions: {sorted(unknown)}")
+        fraction = float(conditions.get("progress_fraction", 0.0))
+        if not 0.0 <= fraction <= 1.0:
+            raise ValueError("conditioned progress_fraction must be in [0, 1]")
+        progress = fraction * self.route.total_length
+        center = self.route.point_at(progress)
+        epsilon = min(0.003, 0.25 * self.system_config.relative_goal_spacing_m)
+        before = self.route.point_at(max(0.0, progress - epsilon))
+        after = self.route.point_at(min(self.route.total_length, progress + epsilon))
+        tangent = after - before
+        tangent /= max(float(np.linalg.norm(tangent)), 1e-9)
+        normal = np.asarray((-tangent[1], tangent[0]), dtype=np.float64)
+        position = center + float(conditions.get("lateral_offset_m", 0.0)) * normal
+        clearance = float(signed_ball_clearance(self.layout, position[None])[0])
+        if clearance < 0.0:
+            raise ValueError(
+                "Conditioned reset places the ball in collision: "
+                f"clearance={clearance:.6f}"
+            )
+        velocity = (
+            float(conditions.get("tangent_velocity_mps", 0.0)) * tangent
+            + float(conditions.get("normal_velocity_mps", 0.0)) * normal
+        )
+        tilt_values = tuple(
+            float(value)
+            for value in conditions.get("board_tilt_rad", (0.0, 0.0))
+        )
+        if len(tilt_values) != 2 or not np.all(np.isfinite(tilt_values)):
+            raise ValueError("conditioned board_tilt_rad must contain two finite values")
+        if not np.all(np.isfinite(position)) or not np.all(np.isfinite(velocity)):
+            raise ValueError("Conditioned reset position and velocity must be finite")
+        self.start_progress_fraction = fraction
+        return position, velocity, (tilt_values[0], tilt_values[1])
+
+    @staticmethod
+    def _parse_continuous_reset_weights(specification: str) -> dict[str, float]:
+        expected = {"straight", "turn", "stabilize", "recovery", "hazard"}
+        parsed: dict[str, float] = {}
+        for entry in str(specification).split(","):
+            name, separator, value = entry.strip().partition(":")
+            if not separator:
+                raise ValueError(f"Invalid continuous reset weight {entry!r}")
+            parsed[name] = float(value)
+        if set(parsed) != expected or any(value < 0.0 for value in parsed.values()):
+            raise ValueError(
+                "continuous_reset_weights must define non-negative weights for "
+                f"{sorted(expected)}"
+            )
+        total = sum(parsed.values())
+        if total <= 0.0:
+            raise ValueError("continuous reset weights must sum to a positive value")
+        return {name: value / total for name, value in parsed.items()}
+
+    def _local_route_curvature(self, progress: float) -> float:
+        radius = min(0.012, 0.08 * self.route.total_length)
+        before = self.route.point_at(max(0.0, progress - radius))
+        center = self.route.point_at(progress)
+        after = self.route.point_at(min(self.route.total_length, progress + radius))
+        incoming = center - before
+        outgoing = after - center
+        incoming /= max(float(np.linalg.norm(incoming)), 1e-9)
+        outgoing /= max(float(np.linalg.norm(outgoing)), 1e-9)
+        return float(math.acos(np.clip(np.dot(incoming, outgoing), -1.0, 1.0)))
+
+    def _continuous_start(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float], Dict[str, Any]]:
+        names = tuple(self._continuous_reset_weights)
+        weights = tuple(self._continuous_reset_weights[name] for name in names)
+        category = str(self.rng.choice(names, p=weights))
+        fractions = np.linspace(0.05, 0.92, 64)
+        progresses = fractions * self.route.total_length
+        curvatures = np.asarray(
+            [self._local_route_curvature(progress) for progress in progresses]
+        )
+        if category == "turn":
+            candidates = np.argsort(curvatures)[-16:]
+        elif category == "hazard" and self.layout.get("holes"):
+            clearances = signed_hole_clearance(
+                self.layout,
+                np.asarray([self.route.point_at(progress) for progress in progresses]),
+            )
+            candidates = np.argsort(clearances)[:16]
+        else:
+            candidates = np.argsort(curvatures)[:32]
+        index = int(self.rng.choice(candidates))
+        fraction = float(fractions[index])
+        progress = float(progresses[index])
+        center = self.route.point_at(progress)
+        epsilon = min(0.003, 0.25 * self.system_config.relative_goal_spacing_m)
+        before = self.route.point_at(max(0.0, progress - epsilon))
+        after = self.route.point_at(min(self.route.total_length, progress + epsilon))
+        tangent = after - before
+        tangent /= max(float(np.linalg.norm(tangent)), 1e-9)
+        normal = np.asarray((-tangent[1], tangent[0]), dtype=np.float64)
+        lateral = float(self.rng.uniform(-0.0015, 0.0015))
+        tangent_speed = float(self.rng.uniform(0.005, 0.025))
+        normal_speed = float(self.rng.uniform(-0.003, 0.003))
+        if category == "stabilize":
+            lateral = 0.0
+            tangent_speed = float(self.rng.uniform(0.0, 0.005))
+            normal_speed = float(self.rng.uniform(-0.003, 0.003))
+        elif category == "recovery":
+            sign = -1.0 if self.rng.random() < 0.5 else 1.0
+            lateral = sign * float(self.rng.uniform(0.003, 0.006))
+            tangent_speed = float(self.rng.uniform(0.005, 0.020))
+            normal_speed = -sign * float(self.rng.uniform(0.010, 0.030))
+        elif category == "hazard":
+            tangent_speed = float(self.rng.uniform(0.003, 0.015))
+        position = center + lateral * normal
+        if float(signed_ball_clearance(self.layout, position[None])[0]) < 0.0:
+            position = center
+            lateral = 0.0
+        velocity = tangent_speed * tangent + normal_speed * normal
+        self.start_progress_fraction = fraction
+        self.reset_category = category
+        details = {
+            "category": category,
+            "progress_fraction": fraction,
+            "lateral_offset_m": lateral,
+            "tangent_velocity_mps": tangent_speed,
+            "normal_velocity_mps": normal_speed,
+        }
+        return position, velocity, (0.0, 0.0), details
+
+    def _select_start(
+        self, options: Mapping[str, Any]
+    ) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float], Dict[str, Any]]:
+        conditions: Dict[str, Any] = {}
+        if self.task_config.continuous_path and not options.get("reset_conditions"):
+            return self._continuous_start()
+        if self.task_config.conditioned_resets:
+            configured = self.layout_metadata[self.layout_index].get(
+                "reset_conditions", {}
+            )
+            if not isinstance(configured, Mapping):
+                raise TypeError("reset_conditions metadata must be an object")
+            conditions.update(configured)
+        override = options.get("reset_conditions")
+        if override is not None:
+            if not isinstance(override, Mapping):
+                raise TypeError("reset_conditions reset option must be an object")
+            conditions.update(override)
+        if conditions:
+            self.reset_category = "conditioned"
+            position, velocity, board_tilt = self._conditioned_start(conditions)
+            return position, velocity, board_tilt, conditions
+        self.reset_category = "standard"
         if not self.task_config.random_start:
             self.start_progress_fraction = 0.0
-            return self.route.point_at(0.0), np.zeros(2, dtype=np.float64)
+            return (
+                self.route.point_at(0.0),
+                np.zeros(2, dtype=np.float64),
+                (0.0, 0.0),
+                {},
+            )
         minimum = self.task_config.start_progress_min
         maximum = self.task_config.start_progress_max
         if self.task_config.start_curriculum:
@@ -495,7 +683,7 @@ class TagMazeTask:
             self.task_config.start_velocity_range_mps,
             size=2,
         )
-        return position, velocity
+        return position, velocity, (0.0, 0.0), {}
 
     def reset(
         self,
@@ -534,7 +722,7 @@ class TagMazeTask:
         )
         self.model = TagSystemModel(self.layout, self.system_config)
         self.route = self.model.route
-        ball_xy, velocity = self._select_start()
+        ball_xy, velocity, board_tilt, reset_conditions = self._select_start(options)
         model_seed = int(self.rng.integers(0, 2**31 - 1))
         raw = self.model.reset(
             seed=model_seed,
@@ -547,6 +735,7 @@ class TagMazeTask:
             randomization_groups=self.task_config.randomization_groups,
             ball_xy=ball_xy,
             ball_velocity_xy=velocity,
+            board_tilt=board_tilt,
         )
         self.active_randomization_strength = (
             self._randomization_strength
@@ -588,6 +777,8 @@ class TagMazeTask:
             "start_progress_fraction": self.start_progress_fraction,
             "randomization_strength": self.active_randomization_strength,
             "randomization_groups": list(self.model.active_randomization_groups),
+            "reset_conditions": dict(reset_conditions),
+            "reset_category": self.reset_category,
             "domain_randomization": dict(self._dr_metrics),
             "is_terminal": False,
             "termination_reason": "reset",
@@ -735,6 +926,13 @@ class TagMazeTask:
         # Materialize before stepping the model, which may consume an iterator.
         action_array = np.asarray(list(action), dtype=np.float64)
         result = self.model.step(action_array)
+        terminated = bool(result.terminated)
+        truncated = bool(result.truncated)
+        termination_reason = result.reason
+        if self.task_config.continuous_path and result.reason == "goal_reached":
+            terminated = False
+            truncated = True
+            termination_reason = "segment_complete"
         true_xy = np.asarray(result.info["true_ball_position"][:2], dtype=np.float64)
         true_clearance = float(signed_ball_clearance(self.layout, true_xy[None])[0])
         self.minimum_clearance_m = min(self.minimum_clearance_m, true_clearance)
@@ -742,14 +940,14 @@ class TagMazeTask:
         progress_fraction = (self.progress_m - previous_progress) / max(
             self.route.total_length, 1e-6
         )
-        failed = result.reason in {"ball_fell", "ball_left_board"}
-        succeeded = result.reason == "goal_reached"
+        failed = termination_reason in {"ball_fell", "ball_left_board"}
+        succeeded = termination_reason == "goal_reached"
         route_completion = self.progress_m / max(self.route.total_length, 1e-6)
         progress_reward, success_reward, failure_reward = reward_components(
             self.task_config,
             progress_fraction,
             route_completion,
-            result.reason,
+            termination_reason,
         )
         rate_cost = action_rate_cost(action_array, self._previous_action)
         rate_reward = -self.task_config.action_rate_penalty * rate_cost
@@ -812,11 +1010,12 @@ class TagMazeTask:
             "path_reward": float(path_reward),
             "episode_return": self.episode_return,
             "episode_steps": self.episode_steps,
-            "is_terminal": bool(result.terminated),
-            "termination_reason": result.reason,
+            "reset_category": self.reset_category,
+            "is_terminal": terminated,
+            "termination_reason": termination_reason,
         }
         self.last_info = info
-        return observation, float(reward), result.terminated, result.truncated, info
+        return observation, float(reward), terminated, truncated, info
 
     def render(self) -> np.ndarray:
         return self.model.sim.render()

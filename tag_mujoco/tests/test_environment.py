@@ -20,11 +20,21 @@ from tag_mujoco.maze_dataset import (
     load_manifest,
     load_split,
 )
-from tag_mujoco.system_model import PolylineRoute
+from tag_mujoco.system_model import PolylineRoute, segment_point_distance
 from tag_mujoco.system_config import ActuatorConfig, PhysicsConfig
 
 
 class EnvironmentTest(unittest.TestCase):
+    def test_swept_goal_distance_detects_crossing_between_control_ticks(self):
+        self.assertAlmostEqual(
+            segment_point_distance((0.0, 0.0), (0.03, 0.0), (0.015, 0.0)),
+            0.0,
+        )
+        self.assertAlmostEqual(
+            segment_point_distance((0.0, 0.01), (0.03, 0.01), (0.015, 0.0)),
+            0.01,
+        )
+
     def test_maze_identity_ignores_only_platform_newlines(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "maze.json"
@@ -318,6 +328,55 @@ class EnvironmentTest(unittest.TestCase):
             reward_components(config, 0.1, 0.4, "ball_fell"),
             (1.0, 0.0, -5.0),
         )
+
+    def test_continuous_reset_weights_are_normalized_and_strict(self):
+        weights = TagMazeTask._parse_continuous_reset_weights(
+            "straight:3,turn:3,stabilize:2,recovery:1.5,hazard:0.5"
+        )
+        self.assertAlmostEqual(sum(weights.values()), 1.0)
+        self.assertEqual(set(weights), {"straight", "turn", "stabilize", "recovery", "hazard"})
+        with self.assertRaises(ValueError):
+            TagMazeTask._parse_continuous_reset_weights("straight:1,turn:1")
+
+    def test_continuous_resets_cover_all_training_conditions(self):
+        task = TagMazeTask(
+            seed=31,
+            task_config=TaskConfig(
+                maze_manifest=str(DEFAULT_MANIFEST.with_name("maze_splits_v2.json")),
+                maze_split="train",
+                continuous_path=True,
+                continuous_reset_weights="straight:1,turn:1,stabilize:1,recovery:1,hazard:1",
+            ),
+        )
+        categories = {task.reset(seed=seed)[1]["reset_category"] for seed in range(80)}
+        self.assertEqual(categories, {"straight", "turn", "stabilize", "recovery", "hazard"})
+
+    def test_continuous_endpoint_is_neutral_segment_boundary(self):
+        task = TagMazeTask(
+            seed=32,
+            task_config=TaskConfig(
+                maze_manifest=str(DEFAULT_MANIFEST.with_name("maze_splits_v2.json")),
+                maze_split="train",
+                continuous_path=True,
+                success_bonus=50.0,
+            ),
+        )
+        task.reset(
+            seed=32,
+            options={"reset_conditions": {"progress_fraction": 0.98}},
+        )
+        controller = RouteExpertController()
+        final = None
+        for _ in range(100):
+            final = task.step(controller.action(task))
+            if final[2] or final[3]:
+                break
+        self.assertIsNotNone(final)
+        self.assertFalse(final[2])
+        self.assertTrue(final[3])
+        self.assertEqual(final[4]["termination_reason"], "segment_complete")
+        self.assertFalse(final[4]["success"])
+        self.assertEqual(float(final[4]["success_reward"]), 0.0)
 
     def test_stateful_projection_rejects_nearby_later_corridor(self):
         route = PolylineRoute(
