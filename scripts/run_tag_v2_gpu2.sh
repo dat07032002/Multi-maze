@@ -11,7 +11,7 @@ cd "$repo_root"
 
 training_profile="${TAG_TRAINING_PROFILE:-tag_sim_v2}"
 case "$training_profile" in
-  tag_sim_v2_phase1_noholes_curriculum|tag_sim_v2_phase2_noholes_fullstart)
+  tag_sim_v2_phase1_noholes_fullstart_scratch|tag_sim_v2_phase2_noholes_fullstart)
     manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits.json"
     dataset_id="cyberrunner_paired_no_holes_512train_64val_64test_v1"
     ;;
@@ -71,7 +71,7 @@ checkpoint_mode="${TAG_CHECKPOINT_MODE:-full}"
 checkpoint_dataset_id="$dataset_id"
 
 case "$training_profile" in
-  tag_sim_v2_phase1_noholes_curriculum)
+  tag_sim_v2_phase1_noholes_fullstart_scratch)
     configs=(tag_sim_v2 medium "$training_profile")
     if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
       echo "Phase 1 must start from scratch."

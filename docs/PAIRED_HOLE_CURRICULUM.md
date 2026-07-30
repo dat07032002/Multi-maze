@@ -32,7 +32,7 @@ It fails instead of emitting an unsafe or incomplete paired dataset.
 
 | Phase | Profile | Ceiling | Screen interval | Promotion target |
 | ---: | --- | ---: | ---: | --- |
-| 1 | `tag_sim_v2_phase1_noholes_curriculum` | 1.5M | 250k | 80% completion, 90% progress |
+| 1 | `tag_sim_v2_phase1_noholes_fullstart_scratch` | 1.5M | 250k | 80% completion, 90% progress |
 | 2 | `tag_sim_v2_phase2_noholes_fullstart` | 2M | 250k | 90% completion, 95% progress |
 | 3 | `tag_sim_v2_phase3_branch_holes` | 1M | 250k | 90% completion, ≤10% falls |
 | 4 | `tag_sim_v2_phase4_easy_dodge` | 2M | 250k | 80% completion, ≤15% falls |
@@ -40,7 +40,8 @@ It fails instead of emitting an unsafe or incomplete paired dataset.
 
 All profiles use float32, train ratio 8, conservative optimizers, fixed nominal
 plant parameters, and the finite replay/training health checks. Phase 1 starts
-from scratch. Phases 2–5 require agent-only loading, reset optimizer state, and
+from scratch and every episode starts at the true maze entrance; it does not
+sample near-goal starts. Phases 2–5 require agent-only loading, reset optimizer state, and
 25k retained replay transitions from the accepted source run before collecting
 new phase experience.
 

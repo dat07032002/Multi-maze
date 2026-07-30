@@ -129,7 +129,7 @@ class TrainingProfileTests(unittest.TestCase):
 
     def test_paired_hole_profiles_are_float32_and_never_enable_dr(self):
         names = (
-            "tag_sim_v2_phase1_noholes_curriculum",
+            "tag_sim_v2_phase1_noholes_fullstart_scratch",
             "tag_sim_v2_phase2_noholes_fullstart",
             "tag_sim_v2_phase3_branch_holes",
             "tag_sim_v2_phase4_easy_dodge",
@@ -144,7 +144,7 @@ class TrainingProfileTests(unittest.TestCase):
 
     def test_paired_hole_profiles_follow_the_expected_manifests(self):
         expected = {
-            "tag_sim_v2_phase1_noholes_curriculum": "no_holes",
+            "tag_sim_v2_phase1_noholes_fullstart_scratch": "no_holes",
             "tag_sim_v2_phase2_noholes_fullstart": "no_holes",
             "tag_sim_v2_phase3_branch_holes": "branch_holes",
             "tag_sim_v2_phase4_easy_dodge": "easy_dodge",
@@ -155,6 +155,13 @@ class TrainingProfileTests(unittest.TestCase):
                 f"paired_hole_curriculum/{variant}/maze_splits.json",
                 profile_block(name),
             )
+
+    def test_paired_phase1_always_starts_at_the_true_maze_entrance(self):
+        profile = profile_block("tag_sim_v2_phase1_noholes_fullstart_scratch")
+        self.assertIn("random_start: False", profile)
+        self.assertIn("start_curriculum: False", profile)
+        self.assertNotIn("start_curriculum_initial_min:", profile)
+        self.assertNotIn("full_start_probability:", profile)
 
 
 if __name__ == "__main__":

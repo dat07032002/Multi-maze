@@ -16,7 +16,7 @@ dataset_root="${TAG_CURRICULUM_ROOT:-$repo_root/artifacts/paired_hole_curriculum
 
 case "$phase" in
   1)
-    profile=tag_sim_v2_phase1_noholes_curriculum
+    profile=tag_sim_v2_phase1_noholes_fullstart_scratch
     variant=no_holes
     steps=1500000
     interval=250000

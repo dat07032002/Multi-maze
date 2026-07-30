@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Changed paired Phase 1 to full-start-only scratch training. Every episode now
+  begins at the true maze entrance; random and near-goal curriculum starts are
+  disabled after the first run exposed a severe train/evaluation mismatch.
 - Added a reproducible paired 512/64/64 curriculum that learns on no-hole
   layouts first, consolidates full-start navigation, then warm-starts through
   branch holes, one easy dodge hole, and mixed holes while preserving topology.

@@ -331,18 +331,15 @@ tag_sim_v2_nominal_safe_resume:
 
 # Production paired-hole curriculum. All five phases use the same 512/64/64
 # accepted topology seeds and nominal plant. Domain randomization is absent.
-tag_sim_v2_phase1_noholes_curriculum:
+tag_sim_v2_phase1_noholes_fullstart_scratch:
   jax: {precision: float32, debug_nans: False}
   run: {train_ratio: 8, train_fill: 25000, count_prefill_steps: False}
   env.tagmaze:
     maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits.json
     maze_split: train
     maze_sampling: plr
-    random_start: True
-    start_curriculum: True
-    start_curriculum_initial_min: 0.85
-    start_curriculum_expand_step: 0.10
-    full_start_probability: 0.20
+    random_start: False
+    start_curriculum: False
     randomize_plant: False
     randomization_curriculum: False
     progress_reward_scale: 15.0
