@@ -11,6 +11,22 @@ cd "$repo_root"
 
 training_profile="${TAG_TRAINING_PROFILE:-tag_sim_v2}"
 case "$training_profile" in
+  tag_sim_v2_phase1_noholes_curriculum|tag_sim_v2_phase2_noholes_fullstart)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits.json"
+    dataset_id="cyberrunner_paired_no_holes_512train_64val_64test_v1"
+    ;;
+  tag_sim_v2_phase3_branch_holes)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/branch_holes/maze_splits.json"
+    dataset_id="cyberrunner_paired_branch_holes_512train_64val_64test_v1"
+    ;;
+  tag_sim_v2_phase4_easy_dodge)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/easy_dodge/maze_splits.json"
+    dataset_id="cyberrunner_paired_easy_dodge_512train_64val_64test_v1"
+    ;;
+  tag_sim_v2_phase5_mixed_holes)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/mixed_holes/maze_splits.json"
+    dataset_id="cyberrunner_paired_mixed_holes_512train_64val_64test_v1"
+    ;;
   tag_sim_v2_singlepath_progress)
     manifest="$repo_root/tag_mujoco/generated_singlepath_progress_mazes/maze_splits_progress.json"
     dataset_id="tag_singlepath_progress_v1"
@@ -52,8 +68,33 @@ logdir="${TAG_LOGDIR:-$HOME/tag_logs/multimaze_v2_gpu2_$stamp}"
 steps="${TAG_STEPS:-10000}"
 python_bin="${TAG_PYTHON:-python}"
 checkpoint_mode="${TAG_CHECKPOINT_MODE:-full}"
+checkpoint_dataset_id="$dataset_id"
 
 case "$training_profile" in
+  tag_sim_v2_phase1_noholes_curriculum)
+    configs=(tag_sim_v2 medium "$training_profile")
+    if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Phase 1 must start from scratch."
+      exit 7
+    fi
+    checkpoint_mode="none"
+    ;;
+  tag_sim_v2_phase2_noholes_fullstart)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_no_holes_512train_64val_64test_v1"
+    ;;
+  tag_sim_v2_phase3_branch_holes)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_no_holes_512train_64val_64test_v1"
+    ;;
+  tag_sim_v2_phase4_easy_dodge)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_branch_holes_512train_64val_64test_v1"
+    ;;
+  tag_sim_v2_phase5_mixed_holes)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_easy_dodge_512train_64val_64test_v1"
+    ;;
   tag_sim_v2)
     configs=(tag_sim_v2 medium)
     ;;
@@ -147,6 +188,23 @@ case "$training_profile" in
     ;;
 esac
 
+case "$training_profile" in
+  tag_sim_v2_phase2_noholes_fullstart|tag_sim_v2_phase3_branch_holes|tag_sim_v2_phase4_easy_dodge|tag_sim_v2_phase5_mixed_holes)
+    if [[ "$checkpoint_mode" != "agent_only" ]]; then
+      echo "Curriculum phases 2-5 require TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Curriculum phases 2-5 require TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    if [[ -z "${TAG_DEMO_DIR:-}" ]]; then
+      echo "Curriculum phases 2-5 require TAG_DEMO_DIR for retention replay."
+      exit 7
+    fi
+    ;;
+esac
+
 if [[ -e "$logdir" ]] && [[ -n "$(find "$logdir" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
   echo "V2 requires a fresh, empty log directory: $logdir"
   exit 4
@@ -177,7 +235,7 @@ if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
     exit 6
   fi
   if ! grep -q '"policy_contract_version":"tag_hardware_policy_v1"' "$checkpoint_contract" ||
-     ! grep -q "\"dataset_id\":\"$dataset_id\"" "$checkpoint_contract"; then
+     ! grep -q "\"dataset_id\":\"$checkpoint_dataset_id\"" "$checkpoint_contract"; then
     echo "Refusing checkpoint without matching v2 policy and dataset metadata: $TAG_FROM_CHECKPOINT"
     exit 6
   fi

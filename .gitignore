@@ -25,6 +25,7 @@ cmake-build-debug/
 /wandb/
 /tag_mujoco/outputs/
 /tag_mujoco/expert_demos_v2/
+/artifacts/paired_hole_curriculum/
 /printable_mazes/
 /tag_sysid_logs/
 /hardware_recordings/

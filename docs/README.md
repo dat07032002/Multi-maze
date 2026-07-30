@@ -9,6 +9,7 @@
 - [NOMINAL_DIAGNOSIS_2026-07-28.md](NOMINAL_DIAGNOSIS_2026-07-28.md): why the 500k nominal pilot fails the mastery gate, and the sharp-corner root cause
 - [NOMINAL_AB_ARMS_2026-07-28.md](NOMINAL_AB_ARMS_2026-07-28.md): bounded arm results, the hole-margin reward term, reward calibration, and rejected hypotheses
 - [CURRICULUM_DR_ATTRIBUTION_2026-07-29.md](CURRICULUM_DR_ATTRIBUTION_2026-07-29.md): invalid first DR run diagnosis, causal family attribution, and the corrected checkpoint-gated training plan
+- [PAIRED_HOLE_CURRICULUM.md](PAIRED_HOLE_CURRICULUM.md): production 512-maze no-hole foundation, warm-start hole phases, retention gates, and launch commands
 - [TAG_REFERENCE.md](TAG_REFERENCE.md): exactly what was imported from the updated working TAG repository
 - [HARDWARE_RECORDING_2026-07-24.md](HARDWARE_RECORDING_2026-07-24.md): sanitized passive measurements and remaining calibration tests
 - [HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md](HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md): read-only live hardware/training inventory, compatibility matrix, and deployment blockers

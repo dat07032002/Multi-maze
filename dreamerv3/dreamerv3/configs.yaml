@@ -329,6 +329,130 @@ tag_sim_v2_nominal_safe_resume:
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
+# Production paired-hole curriculum. All five phases use the same 512/64/64
+# accepted topology seeds and nominal plant. Domain randomization is absent.
+tag_sim_v2_phase1_noholes_curriculum:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 25000, count_prefill_steps: False}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits.json
+    maze_split: train
+    maze_sampling: plr
+    random_start: True
+    start_curriculum: True
+    start_curriculum_initial_min: 0.85
+    start_curriculum_expand_step: 0.10
+    full_start_probability: 0.20
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_phase2_noholes_fullstart:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits.json
+    maze_split: train
+    maze_sampling: plr
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0003
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_phase3_branch_holes:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/branch_holes/maze_splits.json
+    maze_split: train
+    maze_sampling: plr
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 8.0
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.01
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0003
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_phase4_easy_dodge:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/easy_dodge/maze_splits.json
+    maze_split: train
+    maze_sampling: plr
+    random_start: True
+    start_curriculum: True
+    start_curriculum_initial_min: 0.75
+    start_curriculum_expand_step: 0.10
+    full_start_probability: 0.30
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 10.0
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.02
+    path_tracking_tolerance_m: 0.006
+    path_tracking_penalty: 0.02
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0005
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_phase5_mixed_holes:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/mixed_holes/maze_splits.json
+    maze_split: train
+    maze_sampling: plr
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 10.0
+    hole_warning_m: 0.010
+    hole_clearance_penalty: 0.03
+    path_tracking_tolerance_m: 0.005
+    path_tracking_penalty: 0.05
+    wall_warning_m: 0.003
+    wall_riding_penalty: 0.01
+    action_rate_penalty: 0.001
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
 # Scratch dodge curriculum stage 1: learn to move along the single available
 # route before any hole-specific behavior is requested. Random starts are the
 # train-from-goal mechanism: the early distribution includes late-route starts

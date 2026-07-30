@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added a reproducible paired 512/64/64 curriculum that learns on no-hole
+  layouts first, consolidates full-start navigation, then warm-starts through
+  branch holes, one easy dodge hole, and mixed holes while preserving topology.
+- Added five float32, no-domain-randomization profiles, guarded phase launchers,
+  retained-replay checkpoint contracts, and 192-episode mastery/retention gates.
 - Reworked mature-policy continuation to load learned checkpoint variables
   before replay prefill, use the loaded policy instead of random actions, and
   reset model/actor/critic optimizer state for a genuine weights-only resume.

@@ -127,6 +127,35 @@ class TrainingProfileTests(unittest.TestCase):
         ):
             self.assertIn(expected, defaults)
 
+    def test_paired_hole_profiles_are_float32_and_never_enable_dr(self):
+        names = (
+            "tag_sim_v2_phase1_noholes_curriculum",
+            "tag_sim_v2_phase2_noholes_fullstart",
+            "tag_sim_v2_phase3_branch_holes",
+            "tag_sim_v2_phase4_easy_dodge",
+            "tag_sim_v2_phase5_mixed_holes",
+        )
+        for name in names:
+            profile = profile_block(name)
+            self.assertIn("precision: float32", profile)
+            self.assertIn("randomize_plant: False", profile)
+            self.assertIn("randomization_curriculum: False", profile)
+            self.assertIn("train_ratio: 8", profile)
+
+    def test_paired_hole_profiles_follow_the_expected_manifests(self):
+        expected = {
+            "tag_sim_v2_phase1_noholes_curriculum": "no_holes",
+            "tag_sim_v2_phase2_noholes_fullstart": "no_holes",
+            "tag_sim_v2_phase3_branch_holes": "branch_holes",
+            "tag_sim_v2_phase4_easy_dodge": "easy_dodge",
+            "tag_sim_v2_phase5_mixed_holes": "mixed_holes",
+        }
+        for name, variant in expected.items():
+            self.assertIn(
+                f"paired_hole_curriculum/{variant}/maze_splits.json",
+                profile_block(name),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
