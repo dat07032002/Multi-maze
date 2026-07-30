@@ -163,6 +163,43 @@ class TrainingProfileTests(unittest.TestCase):
         self.assertNotIn("start_curriculum_initial_min:", profile)
         self.assertNotIn("full_start_probability:", profile)
 
+    def test_grouped_nohole_profiles_use_nested_uniform_full_start_training(self):
+        expected = {
+            "tag_sim_v2_noholes_group016": "016",
+            "tag_sim_v2_noholes_group032": "032",
+            "tag_sim_v2_noholes_group064": "064",
+            "tag_sim_v2_noholes_group128": "128",
+            "tag_sim_v2_noholes_group512": "512",
+        }
+        for name, size in expected.items():
+            profile = profile_block(name)
+            for setting in (
+                "precision: float32",
+                f"maze_splits_group_{size}.json",
+                "maze_sampling: uniform",
+                "random_start: False",
+                "start_curriculum: False",
+                "randomize_plant: False",
+                "randomization_curriculum: False",
+                "train_ratio: 8",
+            ):
+                self.assertIn(setting, profile)
+
+    def test_grouped_launcher_guards_scratch_and_warm_start_transitions(self):
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        stage = (ROOT / "scripts" / "start_grouped_nohole_stage.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("The 16-map group must start from scratch.", launcher)
+        self.assertIn(
+            "Grouped no-hole stages after 16 require TAG_CHECKPOINT_MODE=agent_only.",
+            launcher,
+        )
+        self.assertIn("TAG_SPLIT=dev", stage)
+        self.assertIn("maze_splits_group_${code}.json", stage)
+
 
 if __name__ == "__main__":
     unittest.main()

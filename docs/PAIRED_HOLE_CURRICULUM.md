@@ -28,6 +28,36 @@ Outputs:
 The builder validates every saved route with the finite-ball clearance planner.
 It fails instead of emitting an unsafe or incomplete paired dataset.
 
+## Nested no-hole exposure stages
+
+The first full-start 512-map run completed only about 505 episodes, while each
+of its eight workers kept independent PLR state. Most layouts therefore stayed
+locally unseen and were not practiced to mastery. Build deterministic nested
+groups from the same no-hole training split:
+
+```bash
+TAG_PYTHON=/path/to/python \
+bash scripts/build_grouped_nohole_curriculum.sh
+```
+
+The order balances the two initial route directions and takes the easiest
+layouts first. Stages contain 16, 32, 64, 128, and 512 maps. Sampling is uniform
+within a stage, every episode starts at the true entrance, and each later stage
+warm-starts agent weights with bounded retained replay from the accepted prior
+stage.
+
+Launch the scratch pilot:
+
+```bash
+export TAG_TRAINING_APPROVED=YES
+export TAG_VALIDATION_APPROVED=YES
+export TAG_PYTHON=/path/to/repo/.venv/bin/python
+bash scripts/start_grouped_nohole_stage.sh 16
+```
+
+Do not expand the group merely because its step budget ended. Promote only
+after the stage's `dev` mastery evaluation demonstrates actual goal completion.
+
 ## Training phases
 
 | Phase | Profile | Ceiling | Screen interval | Promotion target |

@@ -11,6 +11,26 @@ cd "$repo_root"
 
 training_profile="${TAG_TRAINING_PROFILE:-tag_sim_v2}"
 case "$training_profile" in
+  tag_sim_v2_noholes_group016)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits_group_016.json"
+    dataset_id="cyberrunner_paired_no_holes_group016_v1"
+    ;;
+  tag_sim_v2_noholes_group032)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits_group_032.json"
+    dataset_id="cyberrunner_paired_no_holes_group032_v1"
+    ;;
+  tag_sim_v2_noholes_group064)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits_group_064.json"
+    dataset_id="cyberrunner_paired_no_holes_group064_v1"
+    ;;
+  tag_sim_v2_noholes_group128)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits_group_128.json"
+    dataset_id="cyberrunner_paired_no_holes_group128_v1"
+    ;;
+  tag_sim_v2_noholes_group512)
+    manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits_group_512.json"
+    dataset_id="cyberrunner_paired_no_holes_group512_v1"
+    ;;
   tag_sim_v2_phase1_noholes_fullstart_scratch|tag_sim_v2_phase2_noholes_fullstart)
     manifest="$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits.json"
     dataset_id="cyberrunner_paired_no_holes_512train_64val_64test_v1"
@@ -71,6 +91,30 @@ checkpoint_mode="${TAG_CHECKPOINT_MODE:-full}"
 checkpoint_dataset_id="$dataset_id"
 
 case "$training_profile" in
+  tag_sim_v2_noholes_group016)
+    configs=(tag_sim_v2 medium "$training_profile")
+    if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "The 16-map group must start from scratch."
+      exit 7
+    fi
+    checkpoint_mode="none"
+    ;;
+  tag_sim_v2_noholes_group032)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_no_holes_group016_v1"
+    ;;
+  tag_sim_v2_noholes_group064)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_no_holes_group032_v1"
+    ;;
+  tag_sim_v2_noholes_group128)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_no_holes_group064_v1"
+    ;;
+  tag_sim_v2_noholes_group512)
+    configs=(tag_sim_v2 medium "$training_profile")
+    checkpoint_dataset_id="cyberrunner_paired_no_holes_group128_v1"
+    ;;
   tag_sim_v2_phase1_noholes_fullstart_scratch)
     configs=(tag_sim_v2 medium "$training_profile")
     if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
@@ -189,6 +233,20 @@ case "$training_profile" in
 esac
 
 case "$training_profile" in
+  tag_sim_v2_noholes_group032|tag_sim_v2_noholes_group064|tag_sim_v2_noholes_group128|tag_sim_v2_noholes_group512)
+    if [[ "$checkpoint_mode" != "agent_only" ]]; then
+      echo "Grouped no-hole stages after 16 require TAG_CHECKPOINT_MODE=agent_only."
+      exit 7
+    fi
+    if [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Grouped no-hole stages after 16 require TAG_FROM_CHECKPOINT."
+      exit 7
+    fi
+    if [[ -z "${TAG_DEMO_DIR:-}" ]]; then
+      echo "Grouped no-hole stages after 16 require TAG_DEMO_DIR for retention replay."
+      exit 7
+    fi
+    ;;
   tag_sim_v2_phase2_noholes_fullstart|tag_sim_v2_phase3_branch_holes|tag_sim_v2_phase4_easy_dodge|tag_sim_v2_phase5_mixed_holes)
     if [[ "$checkpoint_mode" != "agent_only" ]]; then
       echo "Curriculum phases 2-5 require TAG_CHECKPOINT_MODE=agent_only."

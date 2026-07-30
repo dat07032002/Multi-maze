@@ -353,6 +353,119 @@ tag_sim_v2_phase1_noholes_fullstart_scratch:
   actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
   critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
 
+# Nested no-hole exposure curriculum. These stages keep true-entrance starts
+# and uniform sampling so each small group is repeated before the next group is
+# introduced. Stage transitions use agent-only loading with bounded old replay.
+tag_sim_v2_noholes_group016:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 25000, count_prefill_steps: False}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits_group_016.json
+    maze_split: train
+    maze_sampling: uniform
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_noholes_group032:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits_group_032.json
+    maze_split: train
+    maze_sampling: uniform
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_noholes_group064:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits_group_064.json
+    maze_split: train
+    maze_sampling: uniform
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_noholes_group128:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits_group_128.json
+    maze_split: train
+    maze_sampling: uniform
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v2_noholes_group512:
+  jax: {precision: float32, debug_nans: False}
+  run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits_group_512.json
+    maze_split: train
+    maze_sampling: uniform
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 15.0
+    failure_penalty: 5.0
+    hole_clearance_penalty: 0.0
+    path_tracking_penalty: 0.0
+    wall_riding_penalty: 0.0
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
 tag_sim_v2_phase2_noholes_fullstart:
   jax: {precision: float32, debug_nans: False}
   run: {train_ratio: 8, train_fill: 50000, count_prefill_steps: False, demo_sampling: uniform_chunks}

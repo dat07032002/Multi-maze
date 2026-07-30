@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added nested 16/32/64/128/512 no-hole map groups with balanced initial route
+  directions, uniform repeated sampling, true-entrance starts, guarded
+  agent-only stage transitions, and per-stage mastery validation.
 - Changed paired Phase 1 to full-start-only scratch training. Every episode now
   begins at the true maze entrance; random and near-goal curriculum starts are
   disabled after the first run exposed a severe train/evaluation mismatch.
