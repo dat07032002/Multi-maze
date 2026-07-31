@@ -35,6 +35,7 @@ def evaluation_env_overrides(
         # plant, not the amount of route the policy is required to solve.
         "random_start": False,
         "continuous_path": False,
+        "continuous_curriculum": False,
         "randomize_plant": robust,
         "start_curriculum": False,
         "randomization_curriculum": False,

@@ -15,8 +15,11 @@ class ValidationMetricsTests(unittest.TestCase):
         canonical = evaluation_env_overrides("canonical")
         robust = evaluation_env_overrides("robust")
         self.assertFalse(canonical["random_start"])
+        self.assertFalse(canonical["continuous_path"])
+        self.assertFalse(canonical["continuous_curriculum"])
         self.assertFalse(canonical["randomize_plant"])
         self.assertFalse(robust["random_start"])
+        self.assertFalse(robust["continuous_curriculum"])
         self.assertTrue(robust["randomize_plant"])
 
     def test_unknown_evaluation_mode_is_rejected(self):
