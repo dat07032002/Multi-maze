@@ -80,6 +80,19 @@ class TaskConfig:
     # segment boundaries and balances resets by local geometry/state challenge.
     continuous_path: bool = False
     continuous_reset_weights: str = "straight:0.30,turn:0.30,stabilize:0.20,recovery:0.15,hazard:0.05"
+    # Adaptive connected-route curriculum. Full-start episodes preserve the
+    # physical straight->turn->recovery sequence of a complete route, while
+    # local starts keep the learning frontier well represented.
+    continuous_curriculum: bool = False
+    continuous_full_start_probability: float = 0.0
+    continuous_curriculum_window: int = 40
+    continuous_curriculum_success_threshold: float = 0.75
+    continuous_curriculum_fall_ceiling: float = 0.10
+    continuous_curriculum_progress_threshold: float = 0.20
+    continuous_curriculum_max_stage: int = 4
+    continuous_frontier_mix: float = 0.50
+    continuous_rehearsal_mix: float = 0.30
+    continuous_coverage_mix: float = 0.20
     # Apply deterministic reset conditions stored in manifest metadata. These
     # labels and values are training infrastructure only; they are never added
     # to the deployed policy observation.
@@ -145,7 +158,7 @@ def reward_components(
     termination_reason: str,
 ) -> Tuple[float, float, float]:
     """Return progress, success, and failure reward terms independently."""
-    failed = termination_reason in {"ball_fell", "ball_left_board"}
+    failed = termination_reason in {"ball_fell", "ball_left_board", "ball_lost"}
     succeeded = termination_reason == "goal_reached"
     progress_reward = float(progress_fraction)
     success_reward = 0.0
@@ -257,6 +270,8 @@ class TagMazeTask:
             raise ValueError(f"Unsupported reward mode: {task_config.reward_mode}")
         if task_config.maze_sampling not in {"uniform", "curriculum", "plr"}:
             raise ValueError(f"Unsupported maze sampling: {task_config.maze_sampling}")
+        if task_config.continuous_curriculum and not task_config.continuous_path:
+            raise ValueError("continuous_curriculum requires continuous_path")
         self._continuous_reset_weights = self._parse_continuous_reset_weights(
             task_config.continuous_reset_weights
         )
@@ -272,6 +287,29 @@ class TagMazeTask:
             raise ValueError("start_curriculum_window must be positive")
         if task_config.randomization_window <= 0:
             raise ValueError("randomization_window must be positive")
+        if task_config.continuous_curriculum_window <= 0:
+            raise ValueError("continuous_curriculum_window must be positive")
+        if task_config.continuous_curriculum_max_stage < 0:
+            raise ValueError("continuous_curriculum_max_stage must be non-negative")
+        for name in (
+            "continuous_full_start_probability",
+            "continuous_curriculum_success_threshold",
+            "continuous_curriculum_fall_ceiling",
+            "continuous_curriculum_progress_threshold",
+            "continuous_frontier_mix",
+            "continuous_rehearsal_mix",
+            "continuous_coverage_mix",
+        ):
+            value = float(getattr(task_config, name))
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name} must be in [0, 1]")
+        continuous_mix = (
+            task_config.continuous_frontier_mix
+            + task_config.continuous_rehearsal_mix
+            + task_config.continuous_coverage_mix
+        )
+        if not math.isclose(continuous_mix, 1.0, abs_tol=1e-9):
+            raise ValueError("continuous curriculum mixture weights must sum to one")
         if not 0.0 <= task_config.randomization_max_strength <= 1.0:
             raise ValueError("randomization_max_strength must be in [0, 1]")
         if task_config.maze_split and layout_paths is not None:
@@ -329,6 +367,14 @@ class TagMazeTask:
                 task_config.randomization_window,
             )
         )
+        self._recent_continuous_outcomes: deque[tuple[float, float]] = deque(
+            maxlen=task_config.continuous_curriculum_window
+        )
+        self._continuous_curriculum_stage = 0
+        self._last_continuous_expansion = 0
+        self._sections_completed = 0
+        self._route_challenge = "straight"
+        self._last_challenge_progress_m = 0.0
         self._start_frontier = float(task_config.start_curriculum_initial_min)
         self._randomization_strength = float(
             np.clip(task_config.randomization_initial_strength, 0.0, 1.0)
@@ -346,8 +392,24 @@ class TagMazeTask:
             return
         index = self.layout_index
         alpha = float(np.clip(self.task_config.plr_ema, 1e-6, 1.0))
-        success = float(bool(self.last_info.get("success", False)))
         progress = float(self.last_info.get("route_completion", 0.0))
+        failed = float(
+            self.last_info.get("termination_reason")
+            in {"ball_fell", "ball_left_board", "ball_lost"}
+        )
+        if self.task_config.continuous_curriculum:
+            progress_gain = max(0.0, progress - self.start_progress_fraction)
+            success = float(
+                self.last_info.get("termination_reason") == "segment_complete"
+                or (
+                    not failed
+                    and progress_gain
+                    >= self.task_config.continuous_curriculum_progress_threshold
+                )
+            )
+            self._recent_continuous_outcomes.append((success, failed))
+        else:
+            success = float(bool(self.last_info.get("success", False)))
         episode_return = float(self.last_info.get("episode_return", 0.0))
         first = self._maze_visits[index] == 0
         self._maze_visits[index] += 1
@@ -371,6 +433,30 @@ class TagMazeTask:
 
     def _advance_curricula(self) -> None:
         config = self.task_config
+        if (
+            config.continuous_curriculum
+            and len(self._recent_continuous_outcomes)
+            >= config.continuous_curriculum_window
+            and self._continuous_curriculum_stage
+            < config.continuous_curriculum_max_stage
+        ):
+            recent = tuple(self._recent_continuous_outcomes)[
+                -config.continuous_curriculum_window :
+            ]
+            success_rate = float(np.mean([item[0] for item in recent]))
+            fall_rate = float(np.mean([item[1] for item in recent]))
+            enough_time = (
+                self.episodes_started - self._last_continuous_expansion
+                >= config.continuous_curriculum_window
+            )
+            if (
+                enough_time
+                and success_rate
+                >= config.continuous_curriculum_success_threshold
+                and fall_rate <= config.continuous_curriculum_fall_ceiling
+            ):
+                self._continuous_curriculum_stage += 1
+                self._last_continuous_expansion = self.episodes_started
         if config.start_curriculum and len(self._recent_successes) >= config.start_curriculum_window:
             recent = tuple(self._recent_successes)[-config.start_curriculum_window :]
             enough_time = (
@@ -440,6 +526,8 @@ class TagMazeTask:
     def sampling_probabilities(self) -> np.ndarray:
         """Return adaptive probabilities for the next maze reset."""
         count = len(self.layout_paths)
+        if self.task_config.continuous_curriculum and count > 1:
+            return self._continuous_curriculum_probabilities()
         if count == 1 or self.task_config.maze_sampling == "uniform":
             return np.full(count, 1.0 / count, dtype=np.float64)
         if self.task_config.maze_sampling == "plr":
@@ -457,6 +545,39 @@ class TagMazeTask:
         # nonzero probability. The distribution becomes uniform by the end.
         weights = 0.10 + np.exp(-4.0 * (1.0 - curriculum_progress) * difficulty)
         return weights / np.sum(weights)
+
+    def _continuous_curriculum_probabilities(self) -> np.ndarray:
+        """Mix the current difficulty frontier, mastered routes, and coverage."""
+
+        count = len(self.layout_paths)
+        uniform = np.full(count, 1.0 / count, dtype=np.float64)
+        difficulty = np.clip(
+            np.asarray(
+                [
+                    float(item.get("difficulty_score", 0.5))
+                    for item in self.layout_metadata
+                ],
+                dtype=np.float64,
+            ),
+            0.0,
+            1.0,
+        )
+        maximum = max(1, self.task_config.continuous_curriculum_max_stage)
+        target = self._continuous_curriculum_stage / maximum
+        # A smooth frontier avoids hard stage discontinuities and keeps nearby
+        # route geometries in the same training distribution.
+        frontier = np.exp(-8.0 * np.abs(difficulty - target))
+        frontier /= frontier.sum()
+        mastered = (difficulty <= target + 0.05).astype(np.float64)
+        if not np.any(mastered):
+            mastered[np.argmin(difficulty)] = 1.0
+        mastered /= mastered.sum()
+        probabilities = (
+            self.task_config.continuous_frontier_mix * frontier
+            + self.task_config.continuous_rehearsal_mix * mastered
+            + self.task_config.continuous_coverage_mix * uniform
+        )
+        return probabilities / probabilities.sum()
 
     def _load_layout(self, path: Path) -> Dict[str, Any]:
         if path not in self._layout_cache:
@@ -555,8 +676,18 @@ class TagMazeTask:
     def _continuous_start(
         self,
     ) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float], Dict[str, Any]]:
-        names = tuple(self._continuous_reset_weights)
-        weights = tuple(self._continuous_reset_weights[name] for name in names)
+        weights_by_name = self._continuous_reset_weights
+        if self.task_config.continuous_curriculum:
+            staged = (
+                {"straight": 0.65, "turn": 0.0, "stabilize": 0.35, "recovery": 0.0, "hazard": 0.0},
+                {"straight": 0.45, "turn": 0.35, "stabilize": 0.20, "recovery": 0.0, "hazard": 0.0},
+                {"straight": 0.30, "turn": 0.40, "stabilize": 0.15, "recovery": 0.15, "hazard": 0.0},
+                {"straight": 0.25, "turn": 0.40, "stabilize": 0.10, "recovery": 0.25, "hazard": 0.0},
+                {"straight": 0.20, "turn": 0.35, "stabilize": 0.10, "recovery": 0.25, "hazard": 0.10},
+            )
+            weights_by_name = staged[min(self._continuous_curriculum_stage, 4)]
+        names = tuple(weights_by_name)
+        weights = tuple(weights_by_name[name] for name in names)
         category = str(self.rng.choice(names, p=weights))
         fractions = np.linspace(0.05, 0.92, 64)
         progresses = fractions * self.route.total_length
@@ -584,8 +715,12 @@ class TagMazeTask:
         tangent /= max(float(np.linalg.norm(tangent)), 1e-9)
         normal = np.asarray((-tangent[1], tangent[0]), dtype=np.float64)
         lateral = float(self.rng.uniform(-0.0015, 0.0015))
-        tangent_speed = float(self.rng.uniform(0.005, 0.025))
-        normal_speed = float(self.rng.uniform(-0.003, 0.003))
+        stage_scale = 1.0
+        if self.task_config.continuous_curriculum:
+            maximum = max(1, self.task_config.continuous_curriculum_max_stage)
+            stage_scale = 0.30 + 0.70 * self._continuous_curriculum_stage / maximum
+        tangent_speed = float(self.rng.uniform(0.002, 0.025 * stage_scale))
+        normal_speed = float(self.rng.uniform(-0.003, 0.003) * stage_scale)
         if category == "stabilize":
             lateral = 0.0
             tangent_speed = float(self.rng.uniform(0.0, 0.005))
@@ -618,6 +753,19 @@ class TagMazeTask:
     ) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float], Dict[str, Any]]:
         conditions: Dict[str, Any] = {}
         if self.task_config.continuous_path and not options.get("reset_conditions"):
+            if (
+                self.task_config.continuous_curriculum
+                and self.rng.random()
+                < self.task_config.continuous_full_start_probability
+            ):
+                self.start_progress_fraction = 0.0
+                self.reset_category = "full_start"
+                return (
+                    self.route.point_at(0.0),
+                    np.zeros(2, dtype=np.float64),
+                    (0.0, 0.0),
+                    {"category": "full_start", "progress_fraction": 0.0},
+                )
             return self._continuous_start()
         if self.task_config.conditioned_resets:
             configured = self.layout_metadata[self.layout_index].get(
@@ -744,6 +892,9 @@ class TagMazeTask:
         )
         self._dr_metrics = self._domain_randomization_metrics()
         self.progress_m = self.route.closest_progress(ball_xy)
+        self._sections_completed = 0
+        self._route_challenge = self._route_challenge_at(self.progress_m)
+        self._last_challenge_progress_m = self.progress_m
         clearance = float(signed_ball_clearance(self.layout, ball_xy[None])[0])
         self.minimum_clearance_m = clearance
         self.episode_return = 0.0
@@ -762,6 +913,11 @@ class TagMazeTask:
         observation["log_randomization_strength"] = np.asarray(
             [self.active_randomization_strength], dtype=np.float32
         )
+        observation["log_curriculum_stage"] = np.asarray(
+            [self._continuous_curriculum_stage], dtype=np.float32
+        )
+        observation["log_challenge_transition"] = np.zeros(1, dtype=np.float32)
+        observation["log_sections_completed"] = np.zeros(1, dtype=np.float32)
         observation.update(self._dr_log_observation())
         info = {
             **diagnostic,
@@ -779,6 +935,9 @@ class TagMazeTask:
             "randomization_groups": list(self.model.active_randomization_groups),
             "reset_conditions": dict(reset_conditions),
             "reset_category": self.reset_category,
+            "curriculum_stage": self._continuous_curriculum_stage,
+            "route_challenge": self._route_challenge,
+            "sections_completed": self._sections_completed,
             "domain_randomization": dict(self._dr_metrics),
             "is_terminal": False,
             "termination_reason": "reset",
@@ -854,6 +1013,15 @@ class TagMazeTask:
             progress_hint=self.progress_m,
             backward_window=self.task_config.progress_backward_window_m,
             forward_window=self.task_config.progress_forward_window_m,
+        )
+
+    def _route_challenge_at(self, progress: float) -> str:
+        """Classify local geometry without exposing the label to the policy."""
+
+        return (
+            "turn"
+            if self._local_route_curvature(progress) >= math.radians(12.0)
+            else "straight"
         )
 
     def _observation(
@@ -937,10 +1105,19 @@ class TagMazeTask:
         true_clearance = float(signed_ball_clearance(self.layout, true_xy[None])[0])
         self.minimum_clearance_m = min(self.minimum_clearance_m, true_clearance)
         observation, diagnostic = self._observation(result.observation, true_clearance)
+        route_challenge = self._route_challenge_at(self.progress_m)
+        challenge_transition = float(
+            route_challenge != self._route_challenge
+            and self.progress_m - self._last_challenge_progress_m >= 0.006
+        )
+        if challenge_transition:
+            self._sections_completed += 1
+            self._route_challenge = route_challenge
+            self._last_challenge_progress_m = self.progress_m
         progress_fraction = (self.progress_m - previous_progress) / max(
             self.route.total_length, 1e-6
         )
-        failed = termination_reason in {"ball_fell", "ball_left_board"}
+        failed = termination_reason in {"ball_fell", "ball_left_board", "ball_lost"}
         succeeded = termination_reason == "goal_reached"
         route_completion = self.progress_m / max(self.route.total_length, 1e-6)
         progress_reward, success_reward, failure_reward = reward_components(
@@ -984,6 +1161,15 @@ class TagMazeTask:
         observation["log_hole_cost"] = np.asarray([hole_cost], dtype=np.float32)
         observation["log_path_cost"] = np.asarray([path_cost], dtype=np.float32)
         observation["log_wall_cost"] = np.asarray([wall_cost], dtype=np.float32)
+        observation["log_curriculum_stage"] = np.asarray(
+            [self._continuous_curriculum_stage], dtype=np.float32
+        )
+        observation["log_challenge_transition"] = np.asarray(
+            [challenge_transition], dtype=np.float32
+        )
+        observation["log_sections_completed"] = np.asarray(
+            [self._sections_completed], dtype=np.float32
+        )
         info = {
             **result.info,
             **diagnostic,
@@ -1011,6 +1197,10 @@ class TagMazeTask:
             "episode_return": self.episode_return,
             "episode_steps": self.episode_steps,
             "reset_category": self.reset_category,
+            "curriculum_stage": self._continuous_curriculum_stage,
+            "route_challenge": self._route_challenge,
+            "challenge_transition": bool(challenge_transition),
+            "sections_completed": self._sections_completed,
             "is_terminal": terminated,
             "termination_reason": termination_reason,
         }
@@ -1059,6 +1249,15 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
                 "log_randomization_strength": gym.spaces.Box(
                     -np.inf, np.inf, (1,), dtype=np.float32
                 ),
+                "log_curriculum_stage": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_challenge_transition": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
+                "log_sections_completed": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
                 "log_fall_cost": gym.spaces.Box(
                     -np.inf, np.inf, (1,), dtype=np.float32
                 ),
@@ -1096,6 +1295,9 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
         observation.setdefault("log_hole_cost", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_path_cost", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_wall_cost", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_curriculum_stage", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_challenge_transition", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_sections_completed", np.zeros(1, dtype=np.float32))
         if _GYMNASIUM_API:
             return observation, info
         return observation

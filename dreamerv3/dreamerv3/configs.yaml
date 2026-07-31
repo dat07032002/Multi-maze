@@ -64,7 +64,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0}
     dmc: {size: [64, 64], repeat: 2, camera: -1}
     loconav: {size: [64, 64], repeat: 2, camera: -1}
-    tagmaze: {randomize_plant: False, random_start: False, conditioned_resets: False, continuous_path: False, continuous_reset_weights: 'straight:0.30,turn:0.30,stabilize:0.20,recovery:0.15,hazard:0.05', start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, action_rate_penalty: 0.0, hole_warning_m: 0.008, hole_clearance_penalty: 0.0, path_tracking_tolerance_m: 0.004, path_tracking_penalty: 0.0, wall_warning_m: 0.003, wall_riding_penalty: 0.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_max_strength: 1.0, randomization_window: 50, randomization_success_threshold: 0.60, randomization_groups: all}
+    tagmaze: {randomize_plant: False, random_start: False, conditioned_resets: False, continuous_path: False, continuous_reset_weights: 'straight:0.30,turn:0.30,stabilize:0.20,recovery:0.15,hazard:0.05', continuous_curriculum: False, continuous_full_start_probability: 0.0, continuous_curriculum_window: 40, continuous_curriculum_success_threshold: 0.75, continuous_curriculum_fall_ceiling: 0.10, continuous_curriculum_progress_threshold: 0.20, continuous_curriculum_max_stage: 4, continuous_frontier_mix: 0.50, continuous_rehearsal_mix: 0.30, continuous_coverage_mix: 0.20, start_progress_min: 0.0, start_progress_max: 0.85, start_lateral_range_m: 0.002, start_velocity_range_mps: 0.0, progress_forward_window_m: 0.035, progress_backward_window_m: 0.080, clearance_warning_m: 0.005, reward_mode: scaled_progress, progress_reward_scale: 10.0, success_bonus: 10.0, failure_penalty: 5.0, action_rate_penalty: 0.0, hole_warning_m: 0.008, hole_clearance_penalty: 0.0, path_tracking_tolerance_m: 0.004, path_tracking_penalty: 0.0, wall_warning_m: 0.003, wall_riding_penalty: 0.0, maze_manifest: '', maze_split: '', maze_sampling: uniform, curriculum_episodes: 5000, plr_uniform_mix: 0.25, plr_staleness_mix: 0.15, plr_ema: 0.10, start_curriculum: False, start_curriculum_initial_min: 0.80, start_curriculum_expand_step: 0.10, start_curriculum_window: 40, start_curriculum_success_threshold: 0.70, full_start_probability: 0.20, randomization_curriculum: False, randomization_initial_strength: 0.0, randomization_expand_step: 0.10, randomization_max_strength: 1.0, randomization_window: 50, randomization_success_threshold: 0.60, randomization_groups: all}
 
   # Agent
   task_behavior: Greedy
@@ -165,7 +165,7 @@ tag_sim_v2:
     demo_dir: ''
     demo_limit_steps: 0
     log_keys_sum: '^log_(reward|fall_cost|success)$'
-    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|action_rate|hole_cost|path_cost|wall_cost|dr_.*)$'
+    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|curriculum_stage|challenge_transition|sections_completed|action_rate|hole_cost|path_cost|wall_cost|dr_.*)$'
   env.tagmaze:
     randomize_plant: True
     random_start: True
@@ -612,6 +612,36 @@ tag_sim_v3_continuous_unified:
     success_bonus: 0.0
     failure_penalty: 10.0
     hole_clearance_penalty: 0.02
+    path_tracking_penalty: 0.01
+    action_rate_penalty: 0.001
+
+# Research-backed adaptation of continuous unified training. Complete no-hole
+# routes provide physically connected straight/turn sequences. Difficulty only
+# advances after local competence, while full-start anchors and retained easy
+# routes prevent the local-reset/full-maze mismatch seen in the first run.
+tag_sim_v4_continuous_curriculum_noholes:
+  wrapper.length: 3000
+  run: {validation_barrier_interval: 50000}
+  env.tagmaze:
+    maze_manifest: artifacts/paired_hole_curriculum/no_holes/maze_splits.json
+    maze_sampling: curriculum
+    continuous_path: True
+    continuous_curriculum: True
+    continuous_full_start_probability: 0.30
+    continuous_curriculum_window: 40
+    continuous_curriculum_success_threshold: 0.75
+    continuous_curriculum_fall_ceiling: 0.10
+    continuous_curriculum_progress_threshold: 0.20
+    continuous_curriculum_max_stage: 3
+    continuous_frontier_mix: 0.50
+    continuous_rehearsal_mix: 0.30
+    continuous_coverage_mix: 0.20
+    conditioned_resets: False
+    random_start: True
+    randomize_plant: False
+    success_bonus: 0.0
+    failure_penalty: 10.0
+    hole_clearance_penalty: 0.0
     path_tracking_penalty: 0.01
     action_rate_penalty: 0.001
 

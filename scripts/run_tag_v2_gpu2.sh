@@ -94,6 +94,10 @@ case "$training_profile" in
     manifest="${TAG_MANIFEST:-$repo_root/tag_mujoco/maze_splits_v2.json}"
     dataset_id="cyberrunner_fixed_board_512train_64val_64test_v2"
     ;;
+  tag_sim_v4_continuous_curriculum_noholes)
+    manifest="${TAG_MANIFEST:-$repo_root/artifacts/paired_hole_curriculum/no_holes/maze_splits.json}"
+    dataset_id="cyberrunner_paired_no_holes_512train_64val_64test_v1"
+    ;;
   *)
     manifest="$repo_root/tag_mujoco/maze_splits_v2.json"
     dataset_id="cyberrunner_fixed_board_512train_64val_64test_v2"
@@ -287,6 +291,14 @@ case "$training_profile" in
     fi
     checkpoint_dataset_id="${TAG_CHECKPOINT_DATASET_ID:?Continuous unified training requires TAG_CHECKPOINT_DATASET_ID.}"
     ;;
+  tag_sim_v4_continuous_curriculum_noholes)
+    configs=(tag_sim_v2 medium tag_sim_v3_skill_base "$training_profile")
+    if [[ -n "${TAG_FROM_CHECKPOINT:-}" ]]; then
+      echo "Connected no-hole curriculum must start from scratch."
+      exit 7
+    fi
+    checkpoint_mode="none"
+    ;;
   tag_sim_v3_sequential_map_local)
     configs=(tag_sim_v2 medium tag_sim_v3_sequential_map_local)
     if [[ "$checkpoint_mode" != "agent_only" ]] || [[ -z "${TAG_FROM_CHECKPOINT:-}" ]]; then
@@ -394,7 +406,7 @@ if [[ -n "${TAG_SEED:-}" ]]; then
   extra_args+=(--seed "$TAG_SEED")
 fi
 case "$training_profile" in
-  tag_sim_v3_skill_stabilize|tag_sim_v3_skill_stabilize_retention|tag_sim_v3_skill_straight|tag_sim_v3_skill_straight_retention|tag_sim_v3_skill_straight_head|tag_sim_v3_skill_turn|tag_sim_v3_skill_turn_head|tag_sim_v3_skill_compound|tag_sim_v3_skill_recovery|tag_sim_v3_skill_hazard|tag_sim_v3_skill_actuator025|tag_sim_v3_sequential_map_local|tag_sim_v3_sequential_map_fullstart|tag_sim_v3_continuous_unified)
+  tag_sim_v3_skill_stabilize|tag_sim_v3_skill_stabilize_retention|tag_sim_v3_skill_straight|tag_sim_v3_skill_straight_retention|tag_sim_v3_skill_straight_head|tag_sim_v3_skill_turn|tag_sim_v3_skill_turn_head|tag_sim_v3_skill_compound|tag_sim_v3_skill_recovery|tag_sim_v3_skill_hazard|tag_sim_v3_skill_actuator025|tag_sim_v3_sequential_map_local|tag_sim_v3_sequential_map_fullstart|tag_sim_v3_continuous_unified|tag_sim_v4_continuous_curriculum_noholes)
     extra_args+=(--env.tagmaze.maze_manifest "$manifest")
     if [[ -n "${TAG_ENV_COUNT:-}" ]]; then
       case "$TAG_ENV_COUNT" in

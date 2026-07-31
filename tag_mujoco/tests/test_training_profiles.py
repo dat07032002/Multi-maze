@@ -276,6 +276,31 @@ class TrainingProfileTests(unittest.TestCase):
         )
         self.assertIn("Continuous unified training requires an agent-only checkpoint", launcher)
 
+    def test_connected_continuous_profile_is_nohole_adaptive_and_fullstart_anchored(self):
+        profile = profile_block("tag_sim_v4_continuous_curriculum_noholes")
+        for expected in (
+            "continuous_path: True",
+            "continuous_curriculum: True",
+            "continuous_full_start_probability: 0.30",
+            "continuous_curriculum_max_stage: 3",
+            "continuous_frontier_mix: 0.50",
+            "continuous_rehearsal_mix: 0.30",
+            "continuous_coverage_mix: 0.20",
+            "randomize_plant: False",
+            "hole_clearance_penalty: 0.0",
+            "wrapper.length: 3000",
+        ):
+            self.assertIn(expected, profile)
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("tag_sim_v4_continuous_curriculum_noholes", launcher)
+        self.assertIn(
+            "cyberrunner_paired_no_holes_512train_64val_64test_v1",
+            launcher,
+        )
+        self.assertIn("Connected no-hole curriculum must start from scratch.", launcher)
+
     def test_v3_launcher_has_bounded_worker_benchmark_overrides(self):
         launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
             encoding="utf-8"

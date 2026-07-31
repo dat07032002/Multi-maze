@@ -60,6 +60,9 @@ class TagMaze(embodied.Env):
             "log_maze_difficulty": embodied.Space(np.float32, (1,)),
             "log_start_progress": embodied.Space(np.float32, (1,)),
             "log_randomization_strength": embodied.Space(np.float32, (1,)),
+            "log_curriculum_stage": embodied.Space(np.float32, (1,)),
+            "log_challenge_transition": embodied.Space(np.float32, (1,)),
+            "log_sections_completed": embodied.Space(np.float32, (1,)),
             "log_fall_cost": embodied.Space(np.float32, (1,)),
             "log_success": embodied.Space(np.float32, (1,)),
             "log_reward": embodied.Space(np.float32, (1,)),
@@ -94,6 +97,13 @@ class TagMaze(embodied.Env):
             observation.setdefault("log_hole_cost", np.zeros(1, dtype=np.float32))
             observation.setdefault("log_path_cost", np.zeros(1, dtype=np.float32))
             observation.setdefault("log_wall_cost", np.zeros(1, dtype=np.float32))
+            observation.setdefault("log_curriculum_stage", np.zeros(1, dtype=np.float32))
+            observation.setdefault(
+                "log_challenge_transition", np.zeros(1, dtype=np.float32)
+            )
+            observation.setdefault(
+                "log_sections_completed", np.zeros(1, dtype=np.float32)
+            )
             self._done = False
             return self._format(observation, 0.0, is_first=True)
         observation, reward, terminated, truncated, self._info = self._env.step(

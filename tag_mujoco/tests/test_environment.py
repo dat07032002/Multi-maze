@@ -328,6 +328,10 @@ class EnvironmentTest(unittest.TestCase):
             reward_components(config, 0.1, 0.4, "ball_fell"),
             (1.0, 0.0, -5.0),
         )
+        self.assertEqual(
+            reward_components(config, 0.1, 0.4, "ball_lost"),
+            (1.0, 0.0, -5.0),
+        )
 
     def test_continuous_reset_weights_are_normalized_and_strict(self):
         weights = TagMazeTask._parse_continuous_reset_weights(
@@ -377,6 +381,69 @@ class EnvironmentTest(unittest.TestCase):
         self.assertEqual(final[4]["termination_reason"], "segment_complete")
         self.assertFalse(final[4]["success"])
         self.assertEqual(float(final[4]["success_reward"]), 0.0)
+
+    def test_connected_curriculum_keeps_coverage_and_targets_easy_frontier(self):
+        task = TagMazeTask(
+            task_config=TaskConfig(
+                maze_manifest=str(DEFAULT_MANIFEST.with_name("maze_splits_v2.json")),
+                maze_split="train",
+                continuous_path=True,
+                continuous_curriculum=True,
+            ),
+        )
+        difficulty = np.asarray(load_split(
+            "train", DEFAULT_MANIFEST.with_name("maze_splits_v2.json")
+        ).difficulty_scores)
+        probabilities = task.sampling_probabilities()
+        self.assertAlmostEqual(float(probabilities.sum()), 1.0)
+        self.assertTrue(np.all(probabilities > 0.0))
+        self.assertLess(
+            float(np.dot(probabilities, difficulty)),
+            float(np.mean(difficulty)),
+        )
+
+    def test_connected_curriculum_advances_only_after_safe_competence(self):
+        task = TagMazeTask(
+            task_config=TaskConfig(
+                continuous_path=True,
+                continuous_curriculum=True,
+                continuous_curriculum_window=4,
+                continuous_curriculum_success_threshold=0.75,
+                continuous_curriculum_fall_ceiling=0.10,
+                continuous_curriculum_max_stage=2,
+            ),
+        )
+        task.episodes_started = 4
+        task._recent_continuous_outcomes.extend(
+            ((1.0, 0.0), (1.0, 0.0), (1.0, 0.0), (0.0, 0.0))
+        )
+        task._advance_curricula()
+        self.assertEqual(task._continuous_curriculum_stage, 1)
+        task.episodes_started = 8
+        task._recent_continuous_outcomes.clear()
+        task._recent_continuous_outcomes.extend(
+            ((1.0, 0.0), (1.0, 0.0), (1.0, 0.0), (0.0, 1.0))
+        )
+        task._advance_curricula()
+        self.assertEqual(task._continuous_curriculum_stage, 1)
+
+    def test_connected_curriculum_can_anchor_every_episode_at_true_start(self):
+        task = TagMazeTask(
+            seed=33,
+            task_config=TaskConfig(
+                maze_manifest=str(DEFAULT_MANIFEST.with_name("maze_splits_v2.json")),
+                maze_split="train",
+                continuous_path=True,
+                continuous_curriculum=True,
+                continuous_full_start_probability=1.0,
+            ),
+        )
+        observation, info = task.reset(seed=33)
+        self.assertEqual(info["reset_category"], "full_start")
+        self.assertEqual(info["start_progress_fraction"], 0.0)
+        self.assertEqual(info["curriculum_stage"], 0)
+        self.assertIn("log_challenge_transition", observation)
+        self.assertIn("log_sections_completed", observation)
 
     def test_stateful_projection_rejects_nearby_later_corridor(self):
         route = PolylineRoute(
