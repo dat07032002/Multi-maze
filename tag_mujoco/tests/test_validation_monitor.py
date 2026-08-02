@@ -116,10 +116,12 @@ class ValidationMonitorTests(unittest.TestCase):
             25_000,
             "retention",
         )
-        self.assertEqual(_flag(command, "--manifest"), "/stabilize.json")
+        self.assertEqual(_flag(command, "--manifest"), str(Path("/stabilize.json")))
         self.assertEqual(_flag(command, "--mode"), "canonical")
         self.assertEqual(_flag(command, "--episodes-per-maze"), "3")
-        self.assertEqual(_flag(command, "--output"), "/milestone/retention.json")
+        self.assertEqual(
+            _flag(command, "--output"), str(Path("/milestone/retention.json"))
+        )
 
     def test_retention_can_select_the_stabilization_actor_head(self):
         command = evaluator_command(

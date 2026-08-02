@@ -12,7 +12,18 @@
 - [PAIRED_HOLE_CURRICULUM.md](PAIRED_HOLE_CURRICULUM.md): production 512-maze no-hole foundation, warm-start hole phases, retention gates, and launch commands
 - [SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md](SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md): universal control-skill stages, balanced rehearsal, and one-online-map training
 - [CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md](CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md): active single-controller continuous path training, parameters, warm start, validation, and launch record
+- [MASTER_COURSE_CURRICULUM.md](MASTER_COURSE_CURRICULUM.md): deterministic multi-skill course grammar, cumulative variant families, promotion gates, and later maze refinement
 - [CONNECTED_CONTINUOUS_CURRICULUM.md](CONNECTED_CONTINUOUS_CURRICULUM.md): adaptive no-hole connected-route design with full-start anchors, competence-gated difficulty, and transition metrics
+- [PROJECT_PROGRESS_2026-07-28.md](PROJECT_PROGRESS_2026-07-28.md): guarded agent-only 500k adaptation, matched scratch control, and the evaluation gates around them
+- [DR010_CONFIRMATION_2026-07-28.md](DR010_CONFIRMATION_2026-07-28.md): domain-randomization confirmation result behind the current randomization lock
+
+Superseded designs, kept for the reasoning rather than the plan. Each was
+replaced by the master-course and continuous-unified work above; do not launch
+from them without re-reading the current curriculum documents first:
+
+- [SAFE_PATH_DODGE_CURRICULUM.md](SAFE_PATH_DODGE_CURRICULUM.md): retired staged dodge curriculum. Its `tag_sim_v2_safe_path_tracking` profile ships an uncalibrated `path_tracking_penalty` of 0.20; see the warning in `dreamerv3/dreamerv3/configs.yaml`
+- [STAGED_DODGE_PROGRESS_2026-07-29.md](STAGED_DODGE_PROGRESS_2026-07-29.md): progress record for that retired dodge curriculum
+- [SAFE_RESUME_PLAN_2026-07-28.md](SAFE_RESUME_PLAN_2026-07-28.md): conservative warm-resume plan, superseded by the staged master-course launchers
 - [TAG_REFERENCE.md](TAG_REFERENCE.md): exactly what was imported from the updated working TAG repository
 - [HARDWARE_RECORDING_2026-07-24.md](HARDWARE_RECORDING_2026-07-24.md): sanitized passive measurements and remaining calibration tests
 - [HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md](HARDWARE_COMPATIBILITY_AUDIT_2026-07-24.md): read-only live hardware/training inventory, compatibility matrix, and deployment blockers
@@ -27,6 +38,7 @@
 - [sysid_actuator_2026-07-27.json](sysid_actuator_2026-07-27.json): machine-readable initial actuator fit and raw-file hashes
 - [sysid_actuator_step40_2026-07-27.json](sysid_actuator_step40_2026-07-27.json): machine-readable intermediate command-40 response
 - [sysid_actuator_step80_2026-07-27.json](sysid_actuator_step80_2026-07-27.json): machine-readable accepted command-80 actuator fit and raw-file hashes
+- [actuator_response_residual_fit.json](actuator_response_residual_fit.json): machine-readable residual actuator-response fit, written by `tag_mujoco/fit_actuator_response.py`
 - [REAL_TRAJECTORY_RETRAINING.md](REAL_TRAJECTORY_RETRAINING.md): passive real-data recording, dynamics fitting, and quality-gated simulator refinement
 - [REAL_HARDWARE_ADAPTATION_DESIGN.md](REAL_HARDWARE_ADAPTATION_DESIGN.md): frozen-main, bounded-residual, and safety-supervisor design plus activation gates for efficient hardware fine-tuning
 - [`tag_adaptation`](../tag_adaptation/README.md): implemented shadow-mode action composition, adaptation records, weakness analysis, and promotion gates

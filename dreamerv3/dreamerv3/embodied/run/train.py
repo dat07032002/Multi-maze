@@ -211,6 +211,43 @@ def _wait_at_validation_barrier(
     return True
 
 
+def _aligned_driver_steps(step, target, env_count, max_chunk=100):
+    """Return a collection chunk that cannot cross the configured step cap."""
+    current = int(step)
+    target = int(target)
+    env_count = int(env_count)
+    max_chunk = int(max_chunk)
+    if env_count <= 0:
+        raise ValueError("env_count must be positive")
+    remaining = target - current
+    if remaining <= 0:
+        return 0
+    aligned_chunk = max(env_count, (max_chunk // env_count) * env_count)
+    return min(remaining, aligned_chunk)
+
+
+def _budget_alignment_warning(step, target, env_count):
+    """Return a warning when the step cap cannot be hit exactly, else None.
+
+    A batched environment advances every worker together, so a budget that is
+    a whole number of batches lands exactly on the cap. When it is not, the
+    final chunk overshoots by less than one batch. That used to raise, which
+    made an otherwise valid run unlaunchable: resuming a checkpoint under a
+    different envs.amount, or any hand-picked step count, is a documented
+    workflow in scripts/run_tag_v2_gpu2.sh. A sub-batch rounding error in the
+    step count does not justify refusing to train, so report it instead.
+    """
+    remaining = int(target) - int(step)
+    env_count = int(env_count)
+    if remaining <= 0 or env_count <= 0 or remaining % env_count == 0:
+        return None
+    return (
+        "Training step budget does not align with the vectorized environment "
+        f"count: remaining={remaining}, env_count={env_count}. The final "
+        f"chunk will overshoot the cap by up to {env_count - 1} steps."
+    )
+
+
 def train(agent, env, replay, logger, args):
 
     logdir = embodied.Path(args.logdir)
@@ -223,6 +260,10 @@ def train(agent, env, replay, logger, args):
     should_sync = embodied.when.Every(args.sync_every)
     step = logger.step
     updates = embodied.Counter()
+    # Defined before per_episode, which increments it. The driver runs during
+    # prefill, so a counter created later in the function is unbound the first
+    # time an episode finishes.
+    episode = embodied.Counter()
     metrics = embodied.Metrics()
     print("Observation space:", embodied.format(env.obs_space), sep="\n")
     print("Action space:", embodied.format(env.act_space), sep="\n")
@@ -264,6 +305,10 @@ def train(agent, env, replay, logger, args):
             if re.match(args.log_keys_max, key):
                 stats[f"max_{key}"] = ep[key].max(0).mean()
         metrics.add(stats, prefix="stats")
+        # Counted here, at the episode boundary it names. should_save reads it,
+        # so incrementing it from the per-step training callback turned the
+        # checkpoint interval from episodes into steps.
+        episode.increment()
 
     driver = embodied.Driver(env)
     driver.on_episode(lambda ep, worker: per_episode(ep))
@@ -397,10 +442,10 @@ def train(agent, env, replay, logger, args):
     dataset = agent.dataset(dataset_source)
     state = [None]  # To be writable from train step function below.
     batch = [None]
-    episode = embodied.Counter()
     first_update_verified = [False]
 
-    def train_step(ep, worker):
+    def train_step(transition, worker):
+        del transition, worker
         for _ in range(should_train(step)):
             try:
                 with timer.scope("dataset"):
@@ -451,18 +496,34 @@ def train(agent, env, replay, logger, args):
             if "priority" in outs:
                 replay.prioritize(outs["key"], outs["priority"])
             updates.increment()
-        agent.sync()
-        agg = metrics.result()
-        report = agent.report(batch[0])
-        report = {k: v for k, v in report.items() if "train/" + k not in agg}
-        logger.add(agg)
-        logger.add(report, prefix="report")
-        logger.add(replay.stats, prefix="replay")
-        logger.add(timer.stats(), prefix="timer")
-        logger.write(fps=True)
-        episode.increment()
+        # Both guarded, because this now runs per step. While train_step was an
+        # on_episode callback the episode boundary throttled it, so should_sync
+        # and should_log were defined and never consulted. Unguarded at step
+        # cadence, agent.report alone dropped throughput from about 205 to 19
+        # frames per second and grew metrics.jsonl to 79 MB in half a run.
+        if should_sync(updates):
+            agent.sync()
+        if should_log(step):
+            agg = metrics.result()
+            report = agent.report(batch[0])
+            report = {k: v for k, v in report.items() if "train/" + k not in agg}
+            logger.add(agg)
+            logger.add(report, prefix="report")
+            logger.add(replay.stats, prefix="replay")
+            logger.add(timer.stats(), prefix="timer")
+            logger.write(fps=True)
 
-    driver.on_episode(train_step)
+    # Polled per step, not per episode. should_train is a Ratio: its first call
+    # returns exactly 1 and anchors its step baseline wherever it happens to be,
+    # and later calls need a step delta of batch_steps / train_ratio before they
+    # return anything. That was coherent while the loop ran driver(episodes=1),
+    # because every iteration ended an episode and polled it. Collecting fixed
+    # step chunks instead decoupled the two: a 50k foundation run polled once,
+    # got the Ratio's initial 1, and spent that single optimizer call inside the
+    # warmup schedule's deliberately zero learning rate, so it finished having
+    # learned nothing while reporting a clean exit. train_eval, train_holdout,
+    # and train_save all already register this on_step.
+    driver.on_step(train_step)
 
     print("Start training loop.")
     def policy(*policy_args):
@@ -475,11 +536,21 @@ def train(agent, env, replay, logger, args):
     stop_file = Path(str(logdir)) / "STOP_TRAINING"
     barrier_interval = int(args.validation_barrier_interval)
     next_barrier = barrier_interval
+    env_count = len(env)
+    # A batched environment advances every worker together. Collecting in
+    # aligned chunks makes the configured cap exact instead of silently
+    # overshooting it by a full synchronized episode.
+    alignment_warning = _budget_alignment_warning(step, args.steps, env_count)
+    if alignment_warning:
+        print(f"Warning: {alignment_warning}", flush=True)
     while step < args.steps:
         if stop_file.exists():
             print(f"Stopping at validation request: {stop_file}")
             break
-        driver(policy, episodes=1)
+        driver(
+            policy,
+            steps=_aligned_driver_steps(step, args.steps, env_count),
+        )
         if should_save(episode):
             checkpoint.save()
         if barrier_interval and step >= next_barrier:
@@ -492,6 +563,18 @@ def train(agent, env, replay, logger, args):
             ):
                 break
             next_barrier += barrier_interval
+    print(f"Final step budget reached: {int(step)}/{int(args.steps)}", flush=True)
     replay.save(wait=True)
+    print("Final replay save complete.", flush=True)
     checkpoint.save()
+    logger.add(
+        {
+            "final_step": int(step),
+            "target_step": int(args.steps),
+            "step_budget_reached": int(step) == int(args.steps),
+        },
+        prefix="run",
+    )
     logger.write()
+    checkpoint.close()
+    print("Final checkpoint and metric writes complete.", flush=True)

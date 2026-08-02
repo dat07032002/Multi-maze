@@ -70,6 +70,7 @@ class TagMaze(embodied.Env):
             "log_hole_cost": embodied.Space(np.float32, (1,)),
             "log_path_cost": embodied.Space(np.float32, (1,)),
             "log_wall_cost": embodied.Space(np.float32, (1,)),
+            "log_off_route": embodied.Space(np.float32, (1,)),
             **{
                 f"log_{key}": embodied.Space(np.float32, (1,))
                 for key in DR_METRIC_KEYS
@@ -97,6 +98,7 @@ class TagMaze(embodied.Env):
             observation.setdefault("log_hole_cost", np.zeros(1, dtype=np.float32))
             observation.setdefault("log_path_cost", np.zeros(1, dtype=np.float32))
             observation.setdefault("log_wall_cost", np.zeros(1, dtype=np.float32))
+            observation.setdefault("log_off_route", np.zeros(1, dtype=np.float32))
             observation.setdefault("log_curriculum_stage", np.zeros(1, dtype=np.float32))
             observation.setdefault(
                 "log_challenge_transition", np.zeros(1, dtype=np.float32)

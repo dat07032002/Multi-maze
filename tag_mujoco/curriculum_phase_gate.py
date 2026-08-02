@@ -7,6 +7,11 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+try:
+    from .gate_criteria import MAXIMUM_COMPLETION_LOSS, MAXIMUM_PROGRESS_LOSS
+except ImportError:
+    from gate_criteria import MAXIMUM_COMPLETION_LOSS, MAXIMUM_PROGRESS_LOSS
+
 
 CRITERIA = {
     1: dict(completion=0.80, falls=0.05, progress=0.90, band=0.70),
@@ -64,9 +69,12 @@ def evaluate_phase_gate(
             retention = {
                 "completion_delta": completion_delta,
                 "progress_delta": progress_delta,
-                "maximum_completion_loss": 0.02,
-                "maximum_progress_loss": 0.01,
-                "passed": completion_delta >= -0.02 and progress_delta >= -0.01,
+                "maximum_completion_loss": MAXIMUM_COMPLETION_LOSS,
+                "maximum_progress_loss": MAXIMUM_PROGRESS_LOSS,
+                "passed": (
+                    completion_delta >= -MAXIMUM_COMPLETION_LOSS
+                    and progress_delta >= -MAXIMUM_PROGRESS_LOSS
+                ),
             }
             checks["retention_evaluated"] = True
             checks["retention"] = retention["passed"]

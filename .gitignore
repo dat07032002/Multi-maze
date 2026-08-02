@@ -25,7 +25,12 @@ cmake-build-debug/
 /wandb/
 /tag_mujoco/outputs/
 /tag_mujoco/expert_demos_v2/
+# Generated output left behind by the cyberrunner_mujoco to tag_mujoco rename.
+# It holds no source, only __pycache__, outputs, and expert_demos_v2, and is
+# safe to delete. Ignored so `git add -A` cannot sweep 12 MB of it into a commit.
+/cyberrunner_mujoco/
 /artifacts/paired_hole_curriculum/
+/artifacts/master_course_curriculum/
 /printable_mazes/
 /tag_sysid_logs/
 /hardware_recordings/

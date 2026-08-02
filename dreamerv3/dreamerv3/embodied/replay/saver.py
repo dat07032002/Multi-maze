@@ -10,6 +10,15 @@ from . import chunk as chunklib
 
 
 class Saver:
+    # Smallest partial chunk a periodic save will write out. Rotating a buffer
+    # holding a handful of steps is correct but fragments the replay: a run
+    # that checkpoints often, with one buffer per parallel worker, accumulates
+    # many tiny files that every later Chunk.scan and load has to walk. An
+    # explicit save(wait=True), which is what the end of training and any
+    # deliberate flush use, still writes every buffer regardless of length, so
+    # only an unclean crash can lose the sub-threshold tail.
+    MIN_PERIODIC_CHUNK = 128
+
     def __init__(self, directory, chunks=1024):
         self.directory = embodied.Path(directory)
         self.directory.mkdirs()
@@ -39,12 +48,25 @@ class Saver:
                 self.promises.remove(promise)
 
     def save(self, wait=False):
-        for buffer in self.buffers.values():
-            if buffer.length:
+        threshold = 1 if wait else self.MIN_PERIODIC_CHUNK
+        for worker, buffer in tuple(self.buffers.items()):
+            if buffer.length >= threshold:
+                # Rotate partial chunks exactly once. Keeping the same buffer
+                # here caused every checkpoint to resubmit it and could leave
+                # duplicate writes pending during process shutdown.
+                self.buffers[worker] = buffer.successor = chunklib.Chunk(self.chunks)
                 self.promises.append(self.workers.submit(buffer.save, self.directory))
         if wait:
             [x.result() for x in self.promises]
             self.promises.clear()
+
+    def close(self):
+        if self.workers is None:
+            return
+        [promise.result() for promise in self.promises]
+        self.promises.clear()
+        self.workers.shutdown(wait=True, cancel_futures=False)
+        self.workers = None
 
     def load(self, capacity, length):
         filenames = chunklib.Chunk.scan(self.directory, capacity, length - 1)

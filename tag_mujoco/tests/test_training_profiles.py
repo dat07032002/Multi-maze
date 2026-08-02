@@ -15,6 +15,50 @@ def profile_block(name):
     return match.group("body")
 
 
+class LogKeyCoverageTests(unittest.TestCase):
+    """Every diagnostic the environment emits must survive to metrics.jsonl.
+
+    `log_keys_mean` in the tag_sim_v2 profile is an explicit whitelist, and a
+    `log_` observation that does not match it is dropped silently: no error, no
+    warning, just an absent column. `log_off_route` was added to the environment
+    and to both observation spaces and still never reached a single row of a
+    50k run because of this. Nothing else in the suite would have caught it.
+    """
+
+    def _declared_mean_keys(self):
+        block = profile_block("tag_sim_v2")
+        match = re.search(r"log_keys_mean: '(?P<pattern>[^']+)'", block)
+        self.assertIsNotNone(match, "tag_sim_v2 must declare log_keys_mean")
+        return re.compile(match.group("pattern"))
+
+    def _emitted_log_keys(self):
+        source = (ROOT / "tag_mujoco" / "tag_env.py").read_text(encoding="utf-8")
+        return set(re.findall(r'observation\["(log_[a-z0-9_]+)"\]', source))
+
+    def test_every_emitted_log_key_is_captured_by_a_logging_rule(self):
+        pattern = self._declared_mean_keys()
+        block = profile_block("tag_sim_v2")
+        sum_match = re.search(r"log_keys_sum: '(?P<pattern>[^']+)'", block)
+        sum_pattern = re.compile(sum_match.group("pattern")) if sum_match else None
+        # Video keys are images, logged through a separate path.
+        exempt = {"log_image"}
+        missed = sorted(
+            key
+            for key in self._emitted_log_keys() - exempt
+            if not pattern.match(key)
+            and not (sum_pattern and sum_pattern.match(key))
+        )
+        self.assertEqual(
+            missed,
+            [],
+            f"these log_ observations are emitted but silently dropped: {missed}",
+        )
+
+    def test_off_route_is_declared(self):
+        # The specific key whose absence hid a broken route-progress metric.
+        self.assertTrue(self._declared_mean_keys().match("log_off_route"))
+
+
 class TrainingProfileTests(unittest.TestCase):
     def setUp(self):
         self.profile = profile_block("tag_sim_v2_nominal_safe_resume")
@@ -310,6 +354,62 @@ class TrainingProfileTests(unittest.TestCase):
         self.assertIn("--envs.amount", launcher)
         self.assertIn("--jax.logical_cpus", launcher)
         self.assertIn("--run.train_fill", launcher)
+
+    def test_master_course_profiles_reward_completion_and_retain_prior_families(self):
+        base = profile_block("tag_sim_v5_master_base")
+        for expected in (
+            "conditioned_resets: True",
+            "continuous_path: False",
+            "random_start: False",
+            "success_bonus: 20.0",
+            "failure_penalty: 10.0",
+            "action_rate_penalty: 0.0",
+            "wrapper.length: 3000",
+        ):
+            self.assertIn(expected, base)
+        for index, stage in enumerate(
+            ("foundation", "turns", "recovery", "hazards", "compound"), start=1
+        ):
+            profile = profile_block(f"tag_sim_v5_master_{stage}")
+            self.assertIn(
+                f"stage_{index:02d}_{stage}.json",
+                profile,
+            )
+        launcher = (ROOT / "scripts" / "run_tag_v2_gpu2.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Master-course foundation must start from scratch.", launcher)
+        self.assertIn(
+            "Master-course stages after foundation require an agent-only checkpoint.",
+            launcher,
+        )
+        self.assertIn("artifacts/master_course_curriculum", launcher)
+        stage_launcher = (
+            ROOT / "scripts" / "start_master_course_stage.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn("export TAG_VALIDATION_BARRIER=YES", stage_launcher)
+
+    def test_master_course_stage_budgets_total_four_point_five_million(self):
+        launcher = (ROOT / "scripts" / "start_master_course_stage.sh").read_text(
+            encoding="utf-8"
+        )
+        expected = {
+            "foundation": 500_000,
+            "turns": 750_000,
+            "recovery": 750_000,
+            "hazards": 1_000_000,
+            "compound": 1_500_000,
+        }
+        parsed = {}
+        for stage, steps in re.findall(
+            r"^\s*(foundation|turns|recovery|hazards|compound)\)\s+"
+            r"code=\d+;\s+steps=(\d+);",
+            launcher,
+            re.M,
+        ):
+            parsed[stage] = int(steps)
+        self.assertEqual(parsed, expected)
+        self.assertEqual(sum(parsed.values()), 4_500_000)
 
 
 if __name__ == "__main__":

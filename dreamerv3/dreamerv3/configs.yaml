@@ -165,7 +165,7 @@ tag_sim_v2:
     demo_dir: ''
     demo_limit_steps: 0
     log_keys_sum: '^log_(reward|fall_cost|success)$'
-    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|curriculum_stage|challenge_transition|sections_completed|action_rate|hole_cost|path_cost|wall_cost|dr_.*)$'
+    log_keys_mean: '^log_(progress|cross_track_error|clearance_cost|min_clearance|maze_difficulty|start_progress|randomization_strength|curriculum_stage|challenge_transition|sections_completed|action_rate|hole_cost|path_cost|wall_cost|off_route|dr_.*)$'
   env.tagmaze:
     randomize_plant: True
     random_start: True
@@ -645,6 +645,49 @@ tag_sim_v4_continuous_curriculum_noholes:
     path_tracking_penalty: 0.01
     action_rate_penalty: 0.001
 
+# Cumulative master-course curriculum. Every later manifest contains all prior
+# families plus a new skill family, so retention is exercised online. Course
+# and zone labels remain manifest-only metadata. Full-route completion is
+# rewarded and action-rate regularization is disabled to avoid the stationary
+# behavior observed in neutral-endpoint continuous training.
+tag_sim_v5_master_base:
+  wrapper.length: 3000
+  run: {train_ratio: 8, train_fill: 25000, count_prefill_steps: False, validation_barrier_interval: 50000}
+  env.tagmaze:
+    maze_sampling: uniform
+    continuous_path: False
+    continuous_curriculum: False
+    conditioned_resets: True
+    random_start: False
+    start_curriculum: False
+    randomize_plant: False
+    randomization_curriculum: False
+    progress_reward_scale: 15.0
+    success_bonus: 20.0
+    failure_penalty: 10.0
+    hole_clearance_penalty: 0.005
+    path_tracking_penalty: 0.002
+    wall_riding_penalty: 0.002
+    action_rate_penalty: 0.0
+  model_opt: {opt: adam, lr: 3e-5, eps: 1e-8, clip: 1000.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  actor_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+  critic_opt: {opt: adam, lr: 3e-6, eps: 1e-5, clip: 100.0, wd: 0.0, warmup: 100, lateclip: 0.0}
+
+tag_sim_v5_master_foundation:
+  env.tagmaze: {maze_manifest: artifacts/master_course_curriculum/stage_01_foundation.json}
+
+tag_sim_v5_master_turns:
+  env.tagmaze: {maze_manifest: artifacts/master_course_curriculum/stage_02_turns.json}
+
+tag_sim_v5_master_recovery:
+  env.tagmaze: {maze_manifest: artifacts/master_course_curriculum/stage_03_recovery.json}
+
+tag_sim_v5_master_hazards:
+  env.tagmaze: {maze_manifest: artifacts/master_course_curriculum/stage_04_hazards.json}
+
+tag_sim_v5_master_compound:
+  env.tagmaze: {maze_manifest: artifacts/master_course_curriculum/stage_05_compound.json}
+
 tag_sim_v3_skill_stabilize:
   env.tagmaze: {maze_manifest: artifacts/universal_skills/stabilize/maze_splits.json}
 
@@ -867,6 +910,12 @@ tag_sim_v2_dodge_progress:
 # Skill stage A: teach the warm-started policy to track the planned safe path
 # without relying on walls as rails. The terms are intentionally gentle: route
 # progress remains the main reward, while path and wall costs shape style.
+# RETIRED, and its path_tracking_penalty is not a calibrated default. At 0.20
+# over the inherited 3000 step episode this term can charge 600 against a
+# reward budget of 20. path_tracking_cost is now bounded, so it can no longer
+# grow without limit, but this coefficient still dwarfs route progress. Do not
+# copy it into a new profile; recalibrate against the budget guard in
+# tag_mujoco/tests/test_hole_clearance_penalty.py first.
 tag_sim_v2_safe_path_tracking:
   jax:
     precision: float32

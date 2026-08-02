@@ -1,7 +1,97 @@
 # Change log
 
+This is a research log, not release notes. `Unreleased` is a single running
+section in reverse chronological order, newest entry first, and it records
+measurements and rejected hypotheses alongside shipped changes. That is
+deliberate: knowing which four ideas were tested and failed is worth more here
+than knowing which version a change landed in.
+
+Because of that, it does not answer "what is true now". For current state read,
+in order: [README.md](README.md) for the active experiment,
+[docs/README.md](docs/README.md) for the documentation index, and
+[docs/HANDOFF.md](docs/HANDOFF.md) for where the last session stopped.
+
 ## Unreleased
 
+- Declared `log_off_route` in the tag_sim_v2 `log_keys_mean` whitelist and added
+  a test that every `log_` observation the environment emits is matched by a
+  logging rule. An unlisted key is dropped silently, with no error and no
+  warning, so `log_off_route` reached both observation spaces and the
+  environment step and still never appeared in a single row of a 50k run.
+  Nothing else in the suite would have caught it, and the same trap already
+  cost a round trip once before.
+- Gated route progress on a measured corridor. `PolylineRoute.project` returns
+  the nearest route point inside the along-route window and reports the
+  cross-track distance but never used it to reject the match, so a ball nowhere
+  near the route still advanced `progress_m`, ratcheted `route_completion` to
+  1.0, and was paid progress reward for travel that never happened. A ball
+  parked 109 mm off a 145 mm route for a whole episode scored a perfect route
+  before this change and scores zero after it. `TaskConfig.progress_corridor_m`
+  defaults to 40 mm, the median on-route ball clearance measured over 40
+  foundation layouts, where the 1st percentile is 23.5 mm; set it to infinity to
+  restore the old behavior. Episodes now report `log_off_route`.
+- Made the master-course gate refuse to read route progress as evidence of
+  tracking when an episode's mean cross-track error exceeds the same corridor.
+  The 50k foundation validation reported `max_route_completion` of exactly 1.0
+  on four layouts while averaging 174 mm of cross-track error on a 259 mm board.
+  Note the corridor gate alone does not make `max_route_completion` bulletproof:
+  a ball that repeatedly dips into the corridor can still ratchet, which is why
+  the gate cross-check exists as a second layer.
+- Recorded that `mean_max_route_completion` was therefore not a route-following
+  measure whenever cross-track error was large. Historical results where the
+  policy genuinely tracked the route are unaffected, because the projection is
+  honest for an on-route ball; the metric only misreports off-route episodes.
+- Bounded `path_tracking_cost` to [0, 1], matching `hole_proximity_cost` and
+  `wall_riding_cost`. Unclipped it dominated the whole reward: the 150k
+  foundation run logged a mean cost of 27.5 per step, which at the shipped
+  0.002 coefficient charged about -165 per episode against a positive budget
+  of 35, so standing still outscored driving. That is the frozen,
+  never-completing, never-falling policy the stage produced.
+- Added a trend check to the master-course gate. A stage that ends worse than
+  the checkpoint it started from is no longer promotable regardless of how it
+  scores against the static floors, and the gate now reports which checkpoint
+  actually scored best. Plateauing at or above the floors remains promotable,
+  since that means the skill is learned rather than stalled.
+- Marked `tag_sim_v2_safe_path_tracking`'s `path_tracking_penalty` of 0.20 as
+  uncalibrated rather than silently retuning a retired profile. Bounded, it can
+  still charge 600 against a budget of 20.
+- Moved the gate retention tolerances into `tag_mujoco/gate_criteria.py`. The
+  0.02/0.01 pair had been copied into two gates and diverged to 0.05 in a third
+  with no explanation; the master course's looser value is now documented as a
+  decision.
+- Fixed `TensorBoardOutput.close` raising `AttributeError` on any local-logdir
+  run. Latent rather than live: the tagmaze profiles set `tensorboard: False`,
+  but the default in `configs.yaml` is `True`, so it was one flag away.
+- Replaced the hard failure on an unaligned vectorized step budget with a
+  warning. Resuming under a different `envs.amount` is documented in
+  `scripts/run_tag_v2_gpu2.sh` and routinely leaves a remainder; the final chunk
+  now overshoots by less than one batch instead of refusing to launch.
+- Stopped periodic replay saves from fragmenting the buffer into near-empty
+  chunks. An explicit `save(wait=True)`, which is what end-of-training uses,
+  still writes every partial chunk.
+- Made resource cleanup resilient: one failing `close()` no longer strands the
+  remaining thread pools, `train_eval` no longer leaks its first replay if the
+  second fails to construct, and `os._exit` now flushes stdout so redirected
+  console logs keep their tail.
+- Guarded `TAG_CANONICAL_GPU` and `TAG_ROBUST_GPU` in the master-course stage
+  launcher against physical GPU 0 and against sharing a device with training.
+- Raised the gated master-course production ceilings to 4.5 million aggregate
+  transitions: 500k foundation, 750k turns, 750k recovery, 1M hazards, and
+  1.5M compound; foundation remains scratch-only and every later stage remains
+  conditional on accepting the preceding stage checkpoint.
+- Made master-course validation monitors barrier-aware so each fixed checkpoint
+  is evaluated and explicitly released before training resumes.
+- Made vectorized training budgets exact by collecting environment-count-aligned
+  chunks instead of whole synchronized episodes, recording the final counter,
+  and explicitly draining checkpoint, replay, and metric-writer thread pools so
+  completed runs exit without manual termination.
+- Added the guarded v5 multi-skill master-course curriculum: five cumulative,
+  procedurally varied course families; rounded and clearance-validated routes;
+  disjoint hashed train/validation/test manifests; close hazards; narrow
+  corridors; controlled recovery resets; and manifest-only skill-zone labels.
+- Added completion-positive training profiles with no action-rate penalty,
+  strict scratch/warm-start lineage checks, fixed-step validation launching,
+  and a per-family competence/retention promotion gate.
 - Added nested 16/32/64/128/512 no-hole map groups with balanced initial route
   directions, uniform repeated sampling, true-entrance starts, guarded
   agent-only stage transitions, and per-stage mastery validation.

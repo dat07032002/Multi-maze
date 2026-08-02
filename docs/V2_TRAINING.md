@@ -104,7 +104,7 @@ The v2 implementation was completed and verified locally on 2026-07-23:
 - `dreamerv3/dreamerv3/configs.yaml` contains the `tag_sim_v2` profile;
 - Dreamer replay can preload complete `.npz` demonstration episodes without
   joining streams across episode boundaries;
-- `scripts/run_tag_sim_v2_gpu2.sh` launches fresh approval-gated v2 jobs on
+- `scripts/run_tag_v2_gpu2.sh` launches fresh approval-gated v2 jobs on
   physical GPU 2; and
 - the validation monitor accepts the v2 manifest and evaluates canonical and
   robust held-out rollouts on physical GPUs 3 and 4.
@@ -222,7 +222,7 @@ export TAG_STEPS=10000000
 export TAG_PYTHON="$PWD/.venv/bin/python"
 export TAG_DEMO_DIR="$PWD/tag_mujoco/expert_demos_v2"
 export TAG_LOGDIR="$HOME/cyberrunner_logs/multimaze_v2_production_10m_gpu2_RESUME_TIMESTAMP"
-bash scripts/run_tag_sim_v2_gpu2.sh \
+bash scripts/run_tag_v2_gpu2.sh \
   --run.from_checkpoint \
   "$HOME/cyberrunner_logs/multimaze_v2_production_10m_gpu2_20260723_221436/checkpoint.ckpt"
 ```
@@ -271,7 +271,7 @@ their common parent; the loader discovers episode files recursively.
 export TAG_TRAINING_APPROVED=YES
 export TAG_STEPS=10000
 export TAG_DEMO_DIR=/absolute/path/to/expert_demos_v2
-bash scripts/run_tag_sim_v2_gpu2.sh
+bash scripts/run_tag_v2_gpu2.sh
 ```
 
 The launcher requires a fresh log directory, physical GPU 2, the v2 manifest,

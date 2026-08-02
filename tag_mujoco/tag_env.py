@@ -103,6 +103,20 @@ class TaskConfig:
     start_velocity_range_mps: float = 0.0
     progress_forward_window_m: float = 0.035
     progress_backward_window_m: float = 0.080
+    # Maximum cross-track distance at which route progress is still credited.
+    # PolylineRoute.project returns the nearest route point inside the
+    # along-route window and reports the cross-track distance, but never uses it
+    # to reject the match, so progress advanced no matter how far away the ball
+    # was. A ball wandering across the board therefore ratcheted
+    # route_completion to 1.0 while never following the route, and earned
+    # progress reward for it: the 50k foundation validation recorded
+    # route_completion 1.0 alongside a mean cross-track error of 174 mm on a
+    # 259 mm board. Measured over 40 foundation layouts, on-route ball clearance
+    # is 39.1 mm at the median and 23.5 mm at the 1st percentile, so past 40 mm
+    # the ball is provably outside the route's own corridor for most geometry,
+    # while a policy that tracks the route stays an order of magnitude inside
+    # it. Set to infinity to restore the historical unguarded behavior.
+    progress_corridor_m: float = 0.040
     clearance_warning_m: float = 0.005
     reward_mode: str = "scaled_progress"
     progress_reward_scale: float = 10.0
@@ -189,12 +203,24 @@ def hole_proximity_cost(config: TaskConfig, hole_clearance_m: float) -> float:
 
 
 def path_tracking_cost(config: TaskConfig, cross_track_error_m: float) -> float:
-    """Return zero inside the desired path tube and ramp outside it."""
+    """Return a cost in [0, 1] that ramps up outside the desired path tube.
+
+    Zero inside the tolerance tube, one once the ball is a further tolerance
+    width outside it. The clip matters: cross-track error is unbounded, so an
+    unclipped ramp made this term dominate the whole reward. A stalled ball a
+    third of the way across the board measured a mean cost of 27.5, which at
+    the shipped 0.002 coefficient charged about -165 over a 3000 step episode
+    against a positive budget of progress_reward_scale plus success_bonus, or
+    20. Standing still was then worth more than driving, which is exactly the
+    frozen, never-completing, never-falling policy the foundation stage
+    produced. Bounding the term keeps it a hazard signal rather than the
+    objective, matching hole_proximity_cost and wall_riding_cost.
+    """
 
     if not math.isfinite(cross_track_error_m):
         return 0.0
     tolerance = max(config.path_tracking_tolerance_m, 1e-6)
-    return float(max(0.0, cross_track_error_m - tolerance) / tolerance)
+    return float(np.clip((cross_track_error_m - tolerance) / tolerance, 0.0, 1.0))
 
 
 def wall_riding_cost(config: TaskConfig, wall_clearance_m: float) -> float:
@@ -348,6 +374,7 @@ class TagMazeTask:
         self.minimum_clearance_m = math.inf
         self.episode_return = 0.0
         self.episode_steps = 0
+        self._off_route = False
         self._previous_action: np.ndarray | None = None
         self.last_info: Dict[str, Any] = {}
         self.episodes_started = 0
@@ -899,6 +926,9 @@ class TagMazeTask:
         self.minimum_clearance_m = clearance
         self.episode_return = 0.0
         self.episode_steps = 0
+        # The reset pose is on the route by construction, so the episode starts
+        # inside the corridor regardless of where the previous one ended.
+        self._off_route = False
         # No predecessor exists for the first commanded tilt of an episode.
         self._previous_action = None
         observation, diagnostic = self._observation(raw, clearance)
@@ -1035,7 +1065,16 @@ class TagMazeTask:
             measured = raw["states"].astype(np.float64)
             measured_xy = measured[2:4]
             projected_progress, _, cross_track = self._project_measured_position(measured_xy)
-            self.progress_m = projected_progress
+            # Credit progress only from inside the route corridor. Outside it
+            # the projection is geometrically meaningless: it reports whichever
+            # route segment happens to be nearest, which for a ball crossing the
+            # board sweeps the whole route and hands out progress reward for it.
+            # Holding the last in-corridor progress also keeps the relative goal
+            # points anchored where the ball left the route, which is where it
+            # has to return to.
+            self._off_route = not (cross_track <= self.task_config.progress_corridor_m)
+            if not self._off_route:
+                self.progress_m = projected_progress
             state = self.policy_contract.normalize_states(measured[:2], measured_xy)
             targets = [
                 self.route.point_at(
@@ -1161,6 +1200,11 @@ class TagMazeTask:
         observation["log_hole_cost"] = np.asarray([hole_cost], dtype=np.float32)
         observation["log_path_cost"] = np.asarray([path_cost], dtype=np.float32)
         observation["log_wall_cost"] = np.asarray([wall_cost], dtype=np.float32)
+        # Reported so route_completion is never read without knowing how much of
+        # the episode it was actually measurable on.
+        observation["log_off_route"] = np.asarray(
+            [float(self._off_route)], dtype=np.float32
+        )
         observation["log_curriculum_stage"] = np.asarray(
             [self._continuous_curriculum_stage], dtype=np.float32
         )
@@ -1275,6 +1319,9 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
                 "log_wall_cost": gym.spaces.Box(
                     -np.inf, np.inf, (1,), dtype=np.float32
                 ),
+                "log_off_route": gym.spaces.Box(
+                    -np.inf, np.inf, (1,), dtype=np.float32
+                ),
                 **{
                     f"log_{key}": gym.spaces.Box(
                         -np.inf, np.inf, (1,), dtype=np.float32
@@ -1295,6 +1342,7 @@ class TagMazeEnv(gym.Env):  # type: ignore[misc]
         observation.setdefault("log_hole_cost", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_path_cost", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_wall_cost", np.zeros(1, dtype=np.float32))
+        observation.setdefault("log_off_route", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_curriculum_stage", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_challenge_transition", np.zeros(1, dtype=np.float32))
         observation.setdefault("log_sections_completed", np.zeros(1, dtype=np.float32))

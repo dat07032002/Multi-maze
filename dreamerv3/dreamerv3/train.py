@@ -1,4 +1,5 @@
 import importlib
+import os
 import pathlib
 import sys
 import warnings
@@ -20,7 +21,7 @@ import embodied
 from embodied import wrappers
 
 
-def main(argv=None):
+def main(argv=None, force_process_exit=False):
     from . import agent as agt
 
     parsed, other = embodied.Flags(configs=["defaults"]).parse_known(argv)
@@ -41,11 +42,12 @@ def main(argv=None):
     step = embodied.Counter()
     logger = make_logger(parsed, logdir, step, config)
 
-    cleanup = []
+    cleanup = [logger]
     try:
 
         if args.script == "train":
             replay = make_replay(config, logdir / "replay")
+            cleanup.append(replay)
             env = make_envs(config)
             cleanup.append(env)
             agent = agt.Agent(env.obs_space, env.act_space, step, config)
@@ -53,6 +55,7 @@ def main(argv=None):
 
         elif args.script == "train_best":
             replay = make_replay(config, logdir / "replay")
+            cleanup.append(replay)
             env = make_envs(config)
             cleanup.append(env)
             agent = agt.Agent(env.obs_space, env.act_space, step, config)
@@ -60,6 +63,7 @@ def main(argv=None):
 
         elif args.script == "train_top5":
             replay = make_replay(config, logdir / "replay")
+            cleanup.append(replay)
             env = make_envs(config)
             cleanup.append(env)
             agent = agt.Agent(env.obs_space, env.act_space, step, config)
@@ -67,17 +71,23 @@ def main(argv=None):
 
         elif args.script == "train_save":
             replay = make_replay(config, logdir / "replay")
+            cleanup.append(replay)
             env = make_envs(config)
             cleanup.append(env)
             agent = agt.Agent(env.obs_space, env.act_space, step, config)
             embodied.run.train_save(agent, env, replay, logger, args)
 
         elif args.script == "train_eval":
+            # Registered one at a time. Batching the appends leaked the first
+            # object's thread pool whenever the second constructor raised.
             replay = make_replay(config, logdir / "replay")
+            cleanup.append(replay)
             eval_replay = make_replay(config, logdir / "eval_replay", is_eval=True)
+            cleanup.append(eval_replay)
             env = make_envs(config)
+            cleanup.append(env)
             eval_env = make_envs(config)  # mode='eval'
-            cleanup += [env, eval_env]
+            cleanup.append(eval_env)
             agent = agt.Agent(env.obs_space, env.act_space, step, config)
             embodied.run.train_eval(
                 agent, env, eval_env, replay, eval_replay, logger, args
@@ -85,12 +95,14 @@ def main(argv=None):
 
         elif args.script == "train_holdout":
             replay = make_replay(config, logdir / "replay")
+            cleanup.append(replay)
             if config.eval_dir:
                 assert not config.train.eval_fill
                 eval_replay = make_replay(config, config.eval_dir, is_eval=True)
             else:
                 assert 0 < args.eval_fill <= config.replay_size // 10, args.eval_fill
                 eval_replay = make_replay(config, logdir / "eval_replay", is_eval=True)
+            cleanup.append(eval_replay)
             env = make_envs(config)
             cleanup.append(env)
             agent = agt.Agent(env.obs_space, env.act_space, step, config)
@@ -112,6 +124,7 @@ def main(argv=None):
             agent = agt.Agent(env.obs_space, env.act_space, step, config)
             env.close()
             replay = make_replay(config, logdir / "replay", rate_limit=True)
+            cleanup.append(replay)
             embodied.run.parallel(
                 agent,
                 replay,
@@ -124,8 +137,30 @@ def main(argv=None):
         else:
             raise NotImplementedError(args.script)
     finally:
-        for obj in cleanup:
-            obj.close()
+        # One failing close must not strand the remaining resources. Their
+        # thread pools are what keep a finished run alive on the server.
+        close_errors = []
+        for obj in reversed(cleanup):
+            try:
+                obj.close()
+            except Exception as error:  # noqa: BLE001 - reported below
+                close_errors.append((obj, error))
+        for obj, error in close_errors:
+            print(f"Error closing {type(obj).__name__}: {error!r}", flush=True)
+    print("Dreamer resources closed cleanly.", flush=True)
+    if force_process_exit:
+        # XLA owns hundreds of native worker threads on the training server and
+        # has repeatedly stalled during Python's global interpreter teardown.
+        # All application state is synchronously closed above, so the dedicated
+        # CLI worker can now return success without relying on third-party
+        # atexit handlers.
+        #
+        # os._exit skips the interpreter's own flush, and training stdout is
+        # block-buffered whenever it is redirected to a console log, so drain
+        # both streams first or the tail of the run is lost.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
 
 
 def make_logger(parsed, logdir, step, config):
@@ -240,4 +275,4 @@ def wrap_env(env, config):
 
 
 if __name__ == "__main__":
-    main()
+    main(force_process_exit=True)

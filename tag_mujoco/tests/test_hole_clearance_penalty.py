@@ -9,6 +9,7 @@ from tag_mujoco.route_planner import (
     signed_hole_clearance,
     signed_wall_clearance,
 )
+from tag_mujoco.system_model import PolylineRoute
 from tag_mujoco.tag_env import (
     TaskConfig,
     hole_proximity_cost,
@@ -95,6 +96,49 @@ class HoleClearanceIsHoleOnlyTests(unittest.TestCase):
         self.assertLess(charged, 0.05 * budget)
 
 
+class RouteProgressCorridorTests(unittest.TestCase):
+    """Progress must measure route following, not proximity of a projection.
+
+    PolylineRoute.project returns the nearest route point inside the along-route
+    window and reports the cross-track distance, but never uses that distance to
+    reject the match. Without a corridor gate a ball crossing the board sweeps
+    the projection along the whole route, so route_completion reaches 1.0 and
+    progress reward is paid for travel that never happened.
+    """
+
+    def setUp(self):
+        self.layout = json.loads(LAYOUT.read_text(encoding="utf-8"))
+        self.route = PolylineRoute(
+            np.asarray(self.layout["waypoints"], dtype=np.float64)
+        )
+
+    def test_default_corridor_matches_the_measured_route_geometry(self):
+        # On-route ball clearance over 40 foundation layouts: 39.1 mm median,
+        # 23.5 mm at the 1st percentile. The corridor sits at the median, so a
+        # ball beyond it is outside the route's own corridor for most geometry.
+        self.assertAlmostEqual(TaskConfig().progress_corridor_m, 0.040)
+
+    def test_projection_reports_a_far_ball_at_full_progress(self):
+        """Pin the underlying behavior this guard exists to contain."""
+        end = self.route.point_at(self.route.total_length)
+        # A point well off the route but near its end, as a wandering ball is.
+        far = np.asarray(end) + np.asarray([0.0, 0.12])
+        progress, _, cross_track = self.route.project(far)
+        self.assertGreater(cross_track, 0.10)
+        # The projection still hands back a progress value despite the distance.
+        self.assertGreaterEqual(progress, 0.0)
+
+    def test_corridor_rejects_the_measured_failure_and_accepts_tracking(self):
+        corridor = TaskConfig().progress_corridor_m
+        # The 50k foundation validation averaged 174 mm of cross-track error
+        # while reporting route completion of 1.0.
+        self.assertGreater(0.174, corridor)
+        self.assertGreater(0.116, corridor)
+        # A policy that tracks the route sits an order of magnitude inside it.
+        self.assertLess(0.004, corridor)
+        self.assertLess(0.015, corridor)
+
+
 class SafePathAndWallCostTests(unittest.TestCase):
     def test_new_path_and_wall_penalties_default_to_zero(self):
         config = TaskConfig()
@@ -105,6 +149,57 @@ class SafePathAndWallCostTests(unittest.TestCase):
         config = TaskConfig(path_tracking_tolerance_m=0.004)
         self.assertEqual(path_tracking_cost(config, 0.003), 0.0)
         self.assertAlmostEqual(path_tracking_cost(config, 0.006), 0.5)
+
+    def test_path_tracking_cost_saturates_like_every_other_hazard_term(self):
+        """A ball far off route must not be charged without limit.
+
+        Cross-track error is unbounded, so an unclipped ramp let this term grow
+        without limit while the positive reward stayed capped. Saturating one
+        tolerance width outside the tube matches hole_proximity_cost and
+        wall_riding_cost, both of which return a cost in [0, 1].
+        """
+        config = TaskConfig(path_tracking_tolerance_m=0.004)
+        self.assertEqual(path_tracking_cost(config, 0.008), 1.0)
+        # A stalled ball a third of the way across the board measured 27.5.
+        self.assertEqual(path_tracking_cost(config, 0.115), 1.0)
+        self.assertEqual(path_tracking_cost(config, 10.0), 1.0)
+
+    def test_active_master_course_path_penalty_fits_the_reward_budget(self):
+        """Guard the calibration of the arm that is actually being trained.
+
+        tag_sim_v5_master_base charges 0.002 per unit cost over 3000 step
+        episodes against progress_reward_scale 15 plus success_bonus 20. With
+        the cost bounded at one, the worst case is 6 against a budget of 35,
+        which leaves route progress the dominant term.
+        """
+        budget = 15.0 + 20.0
+        worst_case = 0.002 * 1.0 * 3000
+        self.assertLess(worst_case, 0.25 * budget)
+
+    def test_the_unclipped_term_would_have_swamped_the_master_course_return(self):
+        """Pin the regression this clip fixes so it cannot silently return.
+
+        The 150k foundation run logged a mean path cost of 27.5 per step, which
+        unclipped charged about -165 against a budget of 35. The recorded
+        episode score was -156, i.e. this single term was the entire return.
+        """
+        budget = 15.0 + 20.0
+        measured_unclipped_cost = 27.5
+        self.assertGreater(0.002 * measured_unclipped_cost * 3000, 4 * budget)
+
+    def test_legacy_safe_path_tracking_coefficient_is_known_out_of_budget(self):
+        """Document, rather than hide, a superseded arm's calibration.
+
+        tag_sim_v2_safe_path_tracking ships 0.20 and inherits 3000 step
+        episodes, so even with the cost bounded at one it can charge 600
+        against a budget of 20. Clipping bounds it but does not make it sane.
+        That profile belongs to the retired staged-dodge curriculum; this test
+        exists so the number is not mistaken for a calibrated default if the
+        curriculum is ever revived.
+        """
+        config = TaskConfig()
+        budget = config.progress_reward_scale + config.success_bonus
+        self.assertGreater(0.20 * 1.0 * 3000, 10 * budget)
 
     def test_wall_riding_cost_ramps_near_walls(self):
         config = TaskConfig(wall_warning_m=0.003)

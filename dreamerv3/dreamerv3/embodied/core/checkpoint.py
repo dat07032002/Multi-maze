@@ -90,3 +90,11 @@ class Checkpoint:
             self.load()
         else:
             self.save()
+
+    def close(self):
+        if not self._parallel or self._worker is None:
+            return
+        self._promise and self._promise.result()
+        self._worker.shutdown(wait=True, cancel_futures=False)
+        self._worker = None
+        self._promise = None

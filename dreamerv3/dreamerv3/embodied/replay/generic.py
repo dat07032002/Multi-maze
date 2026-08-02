@@ -144,6 +144,10 @@ class Generic:
         #     # 'limiter': self.limiter.save(wait),
         # }
 
+    def close(self):
+        if self.saver:
+            self.saver.close()
+
     def load(self, data=None):
         if not self.saver:
             return

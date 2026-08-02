@@ -65,6 +65,13 @@ class Logger:
         self._last_step = step
         return steps / duration
 
+    def close(self):
+        self.write()
+        for output in self.outputs:
+            close = getattr(output, "close", None)
+            if close:
+                close()
+
 
 class AsyncOutput:
     def __init__(self, callback, parallel=True):
@@ -80,6 +87,14 @@ class AsyncOutput:
             self._future = self._executor.submit(self._callback, summaries)
         else:
             self._callback(summaries)
+
+    def close(self):
+        if not self._parallel or self._executor is None:
+            return
+        self._future and self._future.result()
+        self._executor.shutdown(wait=True, cancel_futures=False)
+        self._executor = None
+        self._future = None
 
 
 class TerminalOutput:
@@ -165,9 +180,12 @@ class TensorBoardOutput(AsyncOutput):
         self._fps = fps
         self._writer = None
         self._maxsize = self._logdir.startswith("gs://") and maxsize
+        # Always defined. close() inspects both, and every local-logdir run
+        # takes the branch where the size checker is never started.
+        self._checker = None
+        self._promise = None
         if self._maxsize:
             self._checker = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-            self._promise = None
 
     def _write(self, summaries):
         import tensorflow as tf
@@ -210,6 +228,19 @@ class TensorBoardOutput(AsyncOutput):
 
         events = tf.io.gfile.glob(self._logdir.rstrip("/") + "/events.out.*")
         return tf.io.gfile.stat(sorted(events)[-1]).length if events else 0
+
+    def close(self):
+        super().close()
+        if self._promise:
+            self._promise.result()
+        if self._maxsize and self._checker is not None:
+            self._checker.shutdown(wait=True, cancel_futures=False)
+            self._checker = None
+            self._promise = None
+        if self._writer is not None:
+            self._writer.flush()
+            self._writer.close()
+            self._writer = None
 
     def _video_summary(self, name, video, step):
         import tensorflow as tf

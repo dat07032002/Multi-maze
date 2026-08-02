@@ -7,6 +7,11 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
+try:
+    from .gate_criteria import MAXIMUM_COMPLETION_LOSS, MAXIMUM_PROGRESS_LOSS
+except ImportError:
+    from gate_criteria import MAXIMUM_COMPLETION_LOSS, MAXIMUM_PROGRESS_LOSS
+
 
 SKILL_THRESHOLDS = {
     "stabilize": {"completion": 0.95, "falls": 0.05, "progress": 0.95},
@@ -53,12 +58,12 @@ def evaluate_skill_gate(
             retention = {
                 "completion_delta": completion_delta,
                 "progress_delta": progress_delta,
-                "maximum_completion_loss": 0.02,
-                "maximum_progress_loss": 0.01,
+                "maximum_completion_loss": MAXIMUM_COMPLETION_LOSS,
+                "maximum_progress_loss": MAXIMUM_PROGRESS_LOSS,
             }
             retention["passed"] = (
-                completion_delta >= -0.02 - 1e-12
-                and progress_delta >= -0.01 - 1e-12
+                completion_delta >= -MAXIMUM_COMPLETION_LOSS - 1e-12
+                and progress_delta >= -MAXIMUM_PROGRESS_LOSS - 1e-12
             )
             checks["retention"] = retention["passed"]
         passed = all(checks.values())

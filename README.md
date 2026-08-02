@@ -102,6 +102,14 @@ than rewarded goals; held-out validation still tests complete maps from their
 true entrances. See
 [docs/CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md](docs/CONTINUOUS_UNIFIED_TRAINING_2026-07-30.md).
 
+## Multi-skill master-course curriculum
+
+The guarded v5 curriculum generates related but geometrically distinct course
+families for launch, straight tracking, braking, turns, recovery, hazards, and
+long compound execution. Later stages retain all earlier variants, while
+validation and final-test geometry remain disjoint. See
+[docs/MASTER_COURSE_CURRICULUM.md](docs/MASTER_COURSE_CURRICULUM.md).
+
 The earlier skill-first and sequential-map design remains available as a
 documented alternative in
 [docs/SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md](docs/SKILL_FIRST_SEQUENTIAL_MAP_CURRICULUM.md).
